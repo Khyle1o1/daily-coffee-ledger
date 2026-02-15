@@ -49,6 +49,17 @@ function resolveCategory(rawCatNorm: string): Category | null {
   return null;
 }
 
+/**
+ * Detect ICED or HOT from the Option column.
+ * e.g. "Iced Large 16 oz. (+10)" → "ICED", "Hot Regular 12oz." → "HOT"
+ */
+function detectTempFromOption(optionNorm: string): "ICED" | "HOT" | null {
+  if (!optionNorm) return null;
+  if (/\biced\b/.test(optionNorm)) return "ICED";
+  if (/\bhot\b/.test(optionNorm)) return "HOT";
+  return null;
+}
+
 function isSkipped(row: RawRow): boolean {
   const name = row.rawItemName.trim();
   if (!name || name === "-") return true;
@@ -64,6 +75,10 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   const rowSales = row.quantity * row.unitPrice;
   const rawItemNorm = normalizeText(row.rawItemName);
   const rawCatNorm = normalizeText(row.rawCategory);
+  const optionNorm = normalizeText(row.option);
+
+  // Detect temperature from option column (e.g. "Iced Large 16 oz." → ICED)
+  const optionTemp = detectTempFromOption(optionNorm);
 
   // Find exact item mapping match
   const match = mappingTable.find(m => (m.utakNorm || normalizeText(m.UTAK)) === rawItemNorm);
@@ -81,10 +96,14 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
 
   // Exact item name match from mapping table
   if (match) {
+    // If mapping table has a category, use it; but if the option says Iced/Hot,
+    // override the category to ICED or HOT (option column takes priority for temperature)
+    let cat = match.CAT.toUpperCase() as Category;
+    if (optionTemp) cat = optionTemp;
     return {
       ...row,
       rowSales,
-      mappedCat: match.CAT.toUpperCase() as Category,
+      mappedCat: cat,
       mappedItemName: match.ITEM_NAME,
       status: "MAPPED",
     };
@@ -93,10 +112,23 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   // Fallback: resolve category from rawCategory column
   const resolvedCat = resolveCategory(rawCatNorm);
   if (resolvedCat) {
+    // If category resolved but option says Iced/Hot, prefer option for ICED/HOT
+    const finalCat = optionTemp || resolvedCat;
     return {
       ...row,
       rowSales,
-      mappedCat: resolvedCat,
+      mappedCat: finalCat,
+      mappedItemName: row.rawItemName,
+      status: "MAPPED",
+    };
+  }
+
+  // Last fallback: if option column indicates Iced or Hot, use that
+  if (optionTemp) {
+    return {
+      ...row,
+      rowSales,
+      mappedCat: optionTemp,
       mappedItemName: row.rawItemName,
       status: "MAPPED",
     };
