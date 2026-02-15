@@ -1,5 +1,5 @@
 import { normalizeText } from "./normalize";
-import type { RawRow, ProcessedRow, MappingEntry, Category } from "./types";
+import { CATEGORIES, type RawRow, type ProcessedRow, type MappingEntry, type Category } from "./types";
 
 const DOT_SIG_PATTERNS = [
   "dot signatures",
@@ -9,14 +9,44 @@ const DOT_SIG_PATTERNS = [
   "dotsignatures",
 ];
 
+// Normalized versions of standard categories for fallback matching
+const CATEGORY_NORMS = CATEGORIES.map(c => ({ cat: c, norm: normalizeText(c) }));
+
 function isDotSignature(rawCatNorm: string): boolean {
-  // Check if any pattern is contained in the normalized category
   const collapsed = rawCatNorm.replace(/[\s-]/g, "");
   for (const p of DOT_SIG_PATTERNS) {
     const pc = p.replace(/[\s-]/g, "");
     if (collapsed.includes(pc)) return true;
   }
   return rawCatNorm.includes("dot signatures");
+}
+
+/**
+ * Strip DEL / delivery prefixes from a normalized category string.
+ * e.g. "del - iced" → "iced", "del-add-ons" → "add-ons"
+ */
+function stripDeliveryPrefix(catNorm: string): string {
+  return catNorm
+    .replace(/^del\s*[-–—]\s*/i, "")
+    .replace(/^del\s+/i, "")
+    .trim();
+}
+
+/**
+ * Try to resolve the raw category to one of the standard categories.
+ * Handles DEL- prefixes and fuzzy matching.
+ */
+function resolveCategory(rawCatNorm: string): Category | null {
+  const stripped = stripDeliveryPrefix(rawCatNorm);
+  for (const { cat, norm } of CATEGORY_NORMS) {
+    if (stripped === norm) return cat;
+  }
+  // Also try collapsing spaces/hyphens for things like "add ons" vs "add-ons"
+  const collapsedStripped = stripped.replace(/[\s-]/g, "");
+  for (const { cat, norm } of CATEGORY_NORMS) {
+    if (collapsedStripped === norm.replace(/[\s-]/g, "")) return cat;
+  }
+  return null;
 }
 
 function isSkipped(row: RawRow): boolean {
@@ -35,7 +65,7 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   const rawItemNorm = normalizeText(row.rawItemName);
   const rawCatNorm = normalizeText(row.rawCategory);
 
-  // Find mapping match
+  // Find exact item mapping match
   const match = mappingTable.find(m => (m.utakNorm || normalizeText(m.UTAK)) === rawItemNorm);
 
   // Override: DOT SIGNATURES → ICED
@@ -45,16 +75,29 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
       rowSales,
       mappedCat: "ICED",
       mappedItemName: match ? match.ITEM_NAME : row.rawItemName,
-      status: match ? "MAPPED" : "UNMAPPED",
+      status: "MAPPED",
     };
   }
 
+  // Exact item name match from mapping table
   if (match) {
     return {
       ...row,
       rowSales,
       mappedCat: match.CAT.toUpperCase() as Category,
       mappedItemName: match.ITEM_NAME,
+      status: "MAPPED",
+    };
+  }
+
+  // Fallback: resolve category from rawCategory column
+  const resolvedCat = resolveCategory(rawCatNorm);
+  if (resolvedCat) {
+    return {
+      ...row,
+      rowSales,
+      mappedCat: resolvedCat,
+      mappedItemName: row.rawItemName,
       status: "MAPPED",
     };
   }
