@@ -1,14 +1,27 @@
-import type { DailyReport } from "@/utils/types";
+import type { DailyReport, BranchId } from "@/utils/types";
+import { BRANCHES } from "@/utils/types";
 import { formatNumber } from "@/utils/format";
-import { Calendar, FileText } from "lucide-react";
+import { Calendar, MapPin } from "lucide-react";
 
 interface Props {
   reports: DailyReport[];
-  activeDate: string | null;
-  onSelect: (date: string) => void;
+  activeReportId: string | null;
+  onSelect: (reportId: string) => void;
 }
 
-export default function DailyHistoryList({ reports, activeDate, onSelect }: Props) {
+// Group reports by date
+function groupByDate(reports: DailyReport[]): Record<string, DailyReport[]> {
+  const grouped: Record<string, DailyReport[]> = {};
+  reports.forEach(report => {
+    if (!grouped[report.date]) {
+      grouped[report.date] = [];
+    }
+    grouped[report.date].push(report);
+  });
+  return grouped;
+}
+
+export default function DailyHistoryList({ reports, activeReportId, onSelect }: Props) {
   if (reports.length === 0) {
     return (
       <div className="bg-card rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center text-muted-foreground">
@@ -21,51 +34,83 @@ export default function DailyHistoryList({ reports, activeDate, onSelect }: Prop
     );
   }
 
+  const groupedReports = groupByDate(reports);
+  const sortedDates = Object.keys(groupedReports).sort((a, b) => b.localeCompare(a));
+
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-foreground/60 mb-4 px-1">
+      <h3 className="text-[10px] font-bold uppercase tracking-widest text-foreground/60 mb-3 px-1">
         Daily History
       </h3>
-      {reports.map(r => (
-        <button
-          key={r.date}
-          onClick={() => onSelect(r.date)}
-          className={`w-full text-left p-4 rounded-2xl transition-all shadow-md ${
-            activeDate === r.date
-              ? "bg-primary text-primary-foreground scale-[1.02] shadow-lg"
-              : "bg-card text-card-foreground hover:bg-card/80 hover:shadow-lg"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className={`font-bold text-base ${activeDate === r.date ? 'text-primary-foreground' : 'text-card-foreground'}`}>
-              {r.date}
-            </span>
-            <span className={`text-sm font-bold ${activeDate === r.date ? 'text-primary-foreground' : 'text-primary'}`}>
-              ₱{formatNumber(r.grandTotal)}
-            </span>
+      {sortedDates.map(date => {
+        const dateReports = groupedReports[date].sort((a, b) => a.branch.localeCompare(b.branch));
+        const dateTotalAmount = dateReports.reduce((sum, r) => sum + r.grandTotal, 0);
+        
+        return (
+          <div key={date} className="space-y-1.5">
+            {/* Date Header */}
+            <div className="px-2.5 py-1.5 bg-muted/50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-card-foreground">{date}</span>
+                <span className="text-xs font-bold text-primary">₱{formatNumber(dateTotalAmount)}</span>
+              </div>
+              {dateReports.length > 1 && (
+                <span className="text-[10px] text-muted-foreground">{dateReports.length} branches</span>
+              )}
+            </div>
+            
+            {/* Branch Items */}
+            <div className="space-y-1.5 pl-1.5">
+              {dateReports.map(report => {
+                const branchLabel = BRANCHES.find(b => b.id === report.branch)?.label || report.branch;
+                const isActive = activeReportId === report.id;
+                
+                return (
+                  <button
+                    key={report.id}
+                    onClick={() => onSelect(report.id)}
+                    className={`w-full text-left p-2 rounded-lg transition-all shadow-sm ${
+                      isActive
+                        ? "bg-primary text-primary-foreground scale-[1.02] shadow-md"
+                        : "bg-card text-card-foreground hover:bg-card/80 hover:shadow-md"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className={`h-3 w-3 ${isActive ? 'text-primary-foreground' : 'text-primary'}`} />
+                        <span className={`font-semibold text-xs ${isActive ? 'text-primary-foreground' : 'text-card-foreground'}`}>
+                          {branchLabel}
+                        </span>
+                      </div>
+                      <span className={`text-xs font-bold ${isActive ? 'text-primary-foreground' : 'text-primary'}`}>
+                        ₱{formatNumber(report.grandTotal)}
+                      </span>
+                    </div>
+                    
+                    {/* Category chips */}
+                    <div className="flex flex-wrap gap-1">
+                      {(["ICED", "HOT", "SNACKS", "ADD-ONS"] as const).map(cat => (
+                        report.summaryTotalsByCat[cat] > 0 && (
+                          <span
+                            key={cat}
+                            className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold ${
+                              isActive
+                                ? 'bg-primary-foreground/20 text-primary-foreground'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {cat}: {formatNumber(report.summaryTotalsByCat[cat])}
+                          </span>
+                        )
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className={`flex items-center gap-2 text-xs mb-3 ${activeDate === r.date ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-            <FileText className="h-3.5 w-3.5" />
-            <span className="truncate">{r.filename}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {(["ICED", "HOT", "SNACKS", "ADD-ONS", "PACKAGING"] as const).map(cat => (
-              r.summaryTotalsByCat[cat] > 0 && (
-                <span
-                  key={cat}
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                    activeDate === r.date
-                      ? 'bg-primary-foreground/20 text-primary-foreground'
-                      : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {cat}: {formatNumber(r.summaryTotalsByCat[cat])}
-                </span>
-              )
-            ))}
-          </div>
-        </button>
-      ))}
+        );
+      })}
     </div>
   );
 }

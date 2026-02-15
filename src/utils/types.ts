@@ -5,6 +5,16 @@ export const CATEGORIES = [
 
 export type Category = typeof CATEGORIES[number];
 
+export const BRANCHES = [
+  { id: "greenbelt", label: "Greenbelt" },
+  { id: "podium", label: "Podium" },
+  { id: "mind_museum", label: "The Mind Museum" },
+  { id: "trinoma", label: "Trinoma" },
+  { id: "uptown", label: "Uptown" },
+] as const;
+
+export type BranchId = typeof BRANCHES[number]["id"];
+
 export const EMPTY_ROWS_TOP = 7;
 export const EMPTY_ROWS_MIDDLE = 3;
 
@@ -36,9 +46,22 @@ export interface UnmappedSummary {
   totalSales: number;
 }
 
+export interface SummaryRow {
+  branch: string; // branch name/label for display
+  totals: Record<Category, number>;
+  quantities: Record<Category, number>;
+  grandTotal: number;
+  grandQuantity: number;
+  percents: Record<Category, number>;
+  rowType: "empty" | "totals" | "quantities" | "percent"; // type of row
+}
+
 export interface DailyReport {
-  date: string;
+  id: string; // unique identifier for this record
+  date: string; // the report date (dateKey)
+  branch: BranchId; // branch identifier
   filename: string;
+  uploadedAt: number; // timestamp
   totalRows: number;
   mappedRows: number;
   unmappedRows: number;

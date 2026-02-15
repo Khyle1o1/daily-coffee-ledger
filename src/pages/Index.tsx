@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { Calendar, Upload, FileSpreadsheet, Trash2, Coffee } from "lucide-react";
+import { Calendar, Upload, FileSpreadsheet, Trash2, Coffee, MapPin, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
@@ -19,14 +20,17 @@ import { mapRow } from "@/utils/mapRow";
 import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
-import type { DailyReport, MappingEntry, ColumnMapping, RawRow } from "@/utils/types";
-import { CATEGORIES } from "@/utils/types";
+import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId } from "@/utils/types";
+import { CATEGORIES, BRANCHES } from "@/utils/types";
 
 const Index = () => {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+  const [selectedBranch, setSelectedBranch] = useState<BranchId | "">("");
   const [mappingTable, setMappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
-  const [activeReportDate, setActiveReportDate] = useState<string | null>(null);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"single" | "combined">("single"); // single branch or all branches
+  const [branchError, setBranchError] = useState(false);
 
   // CSV file state
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -35,11 +39,20 @@ const Index = () => {
   const [showMapper, setShowMapper] = useState(false);
   const [autoMapping, setAutoMapping] = useState<Partial<Record<string, string>>>({});
 
-  const activeReport = dailyReports.find(r => r.date === activeReportDate) || null;
+  const activeReport = dailyReports.find(r => r.id === activeReportId) || null;
 
   const handleCsvUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Check if branch is selected
+    if (!selectedBranch) {
+      setBranchError(true);
+      e.target.value = "";
+      return;
+    }
+    
+    setBranchError(false);
     setCsvFile(file);
     try {
       const { headers, data } = await parseCsvFile(file);
@@ -56,7 +69,7 @@ const Index = () => {
     }
     // Reset input so same file can be re-uploaded
     e.target.value = "";
-  }, []);
+  }, [selectedBranch]);
 
   const handleMappingUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -79,9 +92,12 @@ const Index = () => {
   }, []);
 
   const compute = useCallback((colMapping?: ColumnMapping) => {
-    if (!selectedDate || csvData.length === 0) return;
+    if (!dateRange.from || csvData.length === 0 || !selectedBranch) return;
 
-    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    // If no end date, use start date as end date
+    const endDate = dateRange.to || dateRange.from;
+    
+    const dateStr = format(dateRange.from, "yyyy-MM-dd");
     const mapping = colMapping || {
       rawCategory: autoMapping.rawCategory || "",
       rawItemName: autoMapping.rawItemName || "",
@@ -102,9 +118,13 @@ const Index = () => {
     const { totals, quantities, grandTotal, grandQuantity, percents } = aggregateByCategory(processed);
     const unmappedSummary = getUnmappedSummary(processed);
 
+    const reportId = `${dateStr}-${selectedBranch}`;
     const report: DailyReport = {
+      id: reportId,
       date: dateStr,
+      branch: selectedBranch,
       filename: csvFile?.name || "unknown.csv",
+      uploadedAt: Date.now(),
       totalRows: processed.length,
       mappedRows: processed.filter(r => r.status === "MAPPED").length,
       unmappedRows: processed.filter(r => r.status === "UNMAPPED").length,
@@ -119,12 +139,18 @@ const Index = () => {
     };
 
     setDailyReports(prev => {
-      const without = prev.filter(r => r.date !== dateStr);
-      return [report, ...without].sort((a, b) => b.date.localeCompare(a.date));
+      // Replace if same date + branch exists
+      const without = prev.filter(r => r.id !== reportId);
+      return [report, ...without].sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        return a.branch.localeCompare(b.branch);
+      });
     });
-    setActiveReportDate(dateStr);
+    setActiveReportId(reportId);
+    setViewMode("single");
     setShowMapper(false);
-  }, [selectedDate, csvData, csvFile, autoMapping, mappingTable]);
+  }, [dateRange, selectedBranch, csvData, csvFile, autoMapping, mappingTable]);
 
   const handleColumnConfirm = useCallback((colMapping: ColumnMapping) => {
     setAutoMapping({
@@ -137,16 +163,97 @@ const Index = () => {
     compute(colMapping);
   }, [compute]);
 
-  const canCompute = selectedDate && csvData.length > 0;
+  const canCompute = dateRange.from && csvData.length > 0 && selectedBranch;
 
   const clearSession = () => {
     setDailyReports([]);
-    setActiveReportDate(null);
+    setActiveReportId(null);
     setCsvFile(null);
     setCsvHeaders([]);
     setCsvData([]);
-    setSelectedDate(undefined);
+    setDateRange({ from: undefined, to: undefined });
+    setSelectedBranch("");
+    setBranchError(false);
+    setViewMode("single");
   };
+
+  // Get combined report for a specific date (all branches)
+  const getCombinedReport = useCallback((date: string): DailyReport | null => {
+    const reportsForDate = dailyReports.filter(r => r.date === date);
+    if (reportsForDate.length === 0) return null;
+    if (reportsForDate.length === 1) return reportsForDate[0];
+
+    // Merge all reports for this date
+    const combinedTotals = { ...reportsForDate[0].summaryTotalsByCat };
+    const combinedQuantities = { ...reportsForDate[0].summaryQuantitiesByCat };
+    let grandTotal = 0;
+    let grandQuantity = 0;
+    let totalRows = 0;
+    let mappedRows = 0;
+    let unmappedRows = 0;
+    let skippedRows = 0;
+    const allRows: typeof reportsForDate[0]["rowDetails"] = [];
+    const unmappedMap = new Map<string, { count: number; totalSales: number }>();
+
+    reportsForDate.forEach(report => {
+      CATEGORIES.forEach(cat => {
+        combinedTotals[cat] = (combinedTotals[cat] || 0) + (report.summaryTotalsByCat[cat] || 0);
+        combinedQuantities[cat] = (combinedQuantities[cat] || 0) + (report.summaryQuantitiesByCat[cat] || 0);
+      });
+      grandTotal += report.grandTotal;
+      grandQuantity += report.grandQuantity;
+      totalRows += report.totalRows;
+      mappedRows += report.mappedRows;
+      unmappedRows += report.unmappedRows;
+      skippedRows += report.skippedRows;
+      allRows.push(...report.rowDetails);
+      
+      report.unmappedSummary.forEach(item => {
+        const existing = unmappedMap.get(item.rawItemName);
+        if (existing) {
+          existing.count += item.count;
+          existing.totalSales += item.totalSales;
+        } else {
+          unmappedMap.set(item.rawItemName, { count: item.count, totalSales: item.totalSales });
+        }
+      });
+    });
+
+    const combinedPercents = { ...reportsForDate[0].percentByCat };
+    CATEGORIES.forEach(cat => {
+      combinedPercents[cat] = grandTotal > 0 ? (combinedTotals[cat] / grandTotal) * 100 : 0;
+    });
+
+    const unmappedSummary = Array.from(unmappedMap.entries()).map(([rawItemName, data]) => ({
+      rawItemName,
+      count: data.count,
+      totalSales: data.totalSales,
+    }));
+
+    return {
+      id: `${date}-combined`,
+      date,
+      branch: "greenbelt" as BranchId, // placeholder
+      filename: `Combined (${reportsForDate.length} branches)`,
+      uploadedAt: Math.max(...reportsForDate.map(r => r.uploadedAt)),
+      totalRows,
+      mappedRows,
+      unmappedRows,
+      skippedRows,
+      summaryTotalsByCat: combinedTotals,
+      summaryQuantitiesByCat: combinedQuantities,
+      grandTotal,
+      grandQuantity,
+      percentByCat: combinedPercents,
+      rowDetails: allRows,
+      unmappedSummary,
+    };
+  }, [dailyReports]);
+
+  // Get the display report based on view mode
+  const displayReport = activeReport && viewMode === "combined" 
+    ? getCombinedReport(activeReport.date) 
+    : activeReport;
 
   return (
     <div className="min-h-screen bg-background">
@@ -161,29 +268,70 @@ const Index = () => {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-4">
-            {/* Date Picker - Pill Style */}
+            {/* Date Range Picker - Pill Style */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   className={cn(
                     "px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all",
-                    !selectedDate && "text-primary-foreground/70"
+                    !dateRange.from && "text-primary-foreground/70"
                   )}
                 >
                   <Calendar className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "yyyy-MM-dd") : "Select date"}
+                  {dateRange.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "MMM dd, yyyy")} — {format(dateRange.to, "MMM dd, yyyy")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "MMM dd, yyyy")
+                    )
+                  ) : (
+                    "Select date range"
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <CalendarUI
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
                   className="p-3 pointer-events-auto rounded-2xl"
+                  numberOfMonths={2}
                 />
               </PopoverContent>
             </Popover>
+
+            {/* Branch Selector - Pill Style */}
+            <Select value={selectedBranch} onValueChange={(value) => {
+              setSelectedBranch(value as BranchId);
+              setBranchError(false);
+            }}>
+              <SelectTrigger className={cn(
+                "w-[200px] px-5 py-2.5 h-auto rounded-full bg-transparent border-2 text-primary-foreground hover:bg-primary-foreground/10 transition-all",
+                branchError ? "border-red-400" : "border-primary-foreground/70",
+                !selectedBranch && "text-primary-foreground/70"
+              )}>
+                <MapPin className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Select branch" />
+              </SelectTrigger>
+              <SelectContent>
+                {BRANCHES.map(branch => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Branch Error Message */}
+            {branchError && (
+              <span className="flex items-center gap-1 text-red-300 text-sm font-medium">
+                <AlertCircle className="h-4 w-4" />
+                Select branch first
+              </span>
+            )}
 
             {/* CSV Upload - Pill Style */}
             <label className="flex items-center gap-3 px-5 py-2.5 rounded-full border-2 border-primary-foreground/70 bg-transparent text-primary-foreground cursor-pointer hover:bg-primary-foreground/10 transition-all">
@@ -239,36 +387,93 @@ const Index = () => {
 
       {/* Main Content - Blue Background with White Cards */}
       <div className="max-w-[1600px] mx-auto px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8">
-          {/* Left: History Sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
+          {/* Left: History Sidebar - Compact */}
           <aside>
             <DailyHistoryList
               reports={dailyReports}
-              activeDate={activeReportDate}
-              onSelect={setActiveReportDate}
+              activeReportId={activeReportId}
+              onSelect={setActiveReportId}
             />
           </aside>
 
           {/* Right: Report Panel - White Card */}
           <main className="min-w-0">
-            {activeReport ? (
+            {displayReport ? (
               <div className="bg-card rounded-3xl shadow-xl p-8">
                 {/* Report header */}
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-card-foreground mb-2">
-                    Report for {activeReport.date}
+                    Report for {dateRange.from && dateRange.to && dateRange.from.getTime() !== dateRange.to.getTime() ? (
+                      <>
+                        {format(dateRange.from, "MMM dd, yyyy")} — {format(dateRange.to, "MMM dd, yyyy")}
+                      </>
+                    ) : dateRange.from ? (
+                      format(dateRange.from, "MMM dd, yyyy")
+                    ) : (
+                      displayReport.date
+                    )}
                   </h2>
-                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-                    <span>File: <span className="font-medium text-card-foreground">{activeReport.filename}</span></span>
-                    <span>Rows: <span className="font-semibold text-card-foreground">{activeReport.totalRows}</span></span>
-                    <span className="text-emerald-600 font-medium">✓ Mapped: {activeReport.mappedRows}</span>
-                    <span className="text-amber-600 font-medium">⚠ Unmapped: {activeReport.unmappedRows}</span>
-                    <span>Skipped: {activeReport.skippedRows}</span>
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-3">
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <span className="font-semibold text-primary">
+                        {viewMode === "combined" 
+                          ? "All Branches" 
+                          : BRANCHES.find(b => b.id === displayReport.branch)?.label}
+                      </span>
+                    </span>
+                    <span>File: <span className="font-medium text-card-foreground">{displayReport.filename}</span></span>
+                    <span>Rows: <span className="font-semibold text-card-foreground">{displayReport.totalRows}</span></span>
+                    <span className="text-emerald-600 font-medium">✓ Mapped: {displayReport.mappedRows}</span>
+                    <span className="text-amber-600 font-medium">⚠ Unmapped: {displayReport.unmappedRows}</span>
+                    <span>Skipped: {displayReport.skippedRows}</span>
                     <span className="font-bold text-primary text-lg">
-                      Total: ₱{formatNumber(activeReport.grandTotal)}
+                      Total: ₱{formatNumber(displayReport.grandTotal)}
                     </span>
                   </div>
+                  
+                  {/* View Mode Toggle */}
+                  {dailyReports.filter(r => r.date === displayReport.date).length > 1 && (
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        size="sm"
+                        variant={viewMode === "single" ? "default" : "outline"}
+                        onClick={() => setViewMode("single")}
+                        className="rounded-full"
+                      >
+                        This Branch
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={viewMode === "combined" ? "default" : "outline"}
+                        onClick={() => setViewMode("combined")}
+                        className="rounded-full"
+                      >
+                        All Branches (This Date)
+                      </Button>
+                    </div>
+                  )}
                 </div>
+
+                {/* Branch Breakdown for Combined View */}
+                {viewMode === "combined" && (
+                  <div className="mb-6 p-4 bg-muted/50 rounded-2xl">
+                    <h3 className="text-sm font-semibold text-card-foreground mb-3">Branch Breakdown</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {dailyReports.filter(r => r.date === displayReport.date).map(report => (
+                        <div key={report.id} className="flex items-center justify-between p-3 bg-card rounded-xl">
+                          <span className="font-medium text-sm">
+                            {BRANCHES.find(b => b.id === report.branch)?.label}
+                          </span>
+                          <span className="font-bold text-primary">
+                            ₱{formatNumber(report.grandTotal)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Tabs - Pill Style */}
                 <Tabs defaultValue="summary">
@@ -280,26 +485,35 @@ const Index = () => {
                       Details
                     </TabsTrigger>
                     <TabsTrigger value="unmapped" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                      Unmapped ({activeReport.unmappedSummary.length})
+                      Unmapped ({displayReport.unmappedSummary.length})
                     </TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="summary">
-                    <SummaryTable
-                      totals={activeReport.summaryTotalsByCat}
-                      quantities={activeReport.summaryQuantitiesByCat}
-                      grandTotal={activeReport.grandTotal}
-                      grandQuantity={activeReport.grandQuantity}
-                      percents={activeReport.percentByCat}
-                    />
+                    {viewMode === "combined" ? (
+                      <SummaryTable
+                        mode="multi"
+                        reports={dailyReports.filter(r => r.date === displayReport.date)}
+                      />
+                    ) : (
+                      <SummaryTable
+                        mode="single"
+                        totals={displayReport.summaryTotalsByCat}
+                        quantities={displayReport.summaryQuantitiesByCat}
+                        grandTotal={displayReport.grandTotal}
+                        grandQuantity={displayReport.grandQuantity}
+                        percents={displayReport.percentByCat}
+                        branchLabel={BRANCHES.find(b => b.id === displayReport.branch)?.label || displayReport.branch}
+                      />
+                    )}
                   </TabsContent>
 
                   <TabsContent value="details">
-                    <DetailsTable rows={activeReport.rowDetails} />
+                    <DetailsTable rows={displayReport.rowDetails} />
                   </TabsContent>
 
                   <TabsContent value="unmapped">
-                    <UnmappedList items={activeReport.unmappedSummary} />
+                    <UnmappedList items={displayReport.unmappedSummary} />
                   </TabsContent>
                 </Tabs>
               </div>
@@ -310,7 +524,7 @@ const Index = () => {
                 </div>
                 <p className="text-2xl font-bold text-card-foreground mb-2">No report selected</p>
                 <p className="text-base text-muted-foreground max-w-md">
-                  Select a date, upload a CSV file, and hit Compute to generate your daily summary
+                  Select a date, choose a branch, upload a CSV file, and hit Compute to generate your daily summary
                 </p>
               </div>
             )}
