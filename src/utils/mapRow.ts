@@ -55,8 +55,10 @@ function resolveCategory(rawCatNorm: string): Category | null {
  */
 function detectTempFromOption(optionNorm: string): "ICED" | "HOT" | null {
   if (!optionNorm) return null;
-  if (/\biced\b/.test(optionNorm)) return "ICED";
-  if (/\bhot\b/.test(optionNorm)) return "HOT";
+  // Check for "iced" anywhere in the option text
+  if (optionNorm.includes("iced")) return "ICED";
+  // Check for "hot" anywhere in the option text
+  if (optionNorm.includes("hot")) return "HOT";
   return null;
 }
 
@@ -83,12 +85,12 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   // Find exact item mapping match
   const match = mappingTable.find(m => (m.utakNorm || normalizeText(m.UTAK)) === rawItemNorm);
 
-  // Override: DOT SIGNATURES → ICED
+  // Override: DOT SIGNATURES → ICED (unless option says HOT)
   if (isDotSignature(rawCatNorm)) {
     return {
       ...row,
       rowSales,
-      mappedCat: "ICED",
+      mappedCat: optionTemp || "ICED", // Use option temp if present, otherwise default to ICED
       mappedItemName: match ? match.ITEM_NAME : row.rawItemName,
       status: "MAPPED",
     };
@@ -96,10 +98,15 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
 
   // Exact item name match from mapping table
   if (match) {
-    // If mapping table has a category, use it; but if the option says Iced/Hot,
-    // override the category to ICED or HOT (option column takes priority for temperature)
-    let cat = match.CAT.toUpperCase() as Category;
-    if (optionTemp) cat = optionTemp;
+    // Option column temperature takes absolute priority for ICED/HOT classification
+    let cat: Category;
+    if (optionTemp) {
+      // Option explicitly says "Iced" or "Hot" - use that
+      cat = optionTemp;
+    } else {
+      // No temperature in option, use mapping table category
+      cat = match.CAT.toUpperCase() as Category;
+    }
     return {
       ...row,
       rowSales,

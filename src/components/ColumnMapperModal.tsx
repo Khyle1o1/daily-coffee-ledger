@@ -31,27 +31,27 @@ export default function ColumnMapperModal({ open, headers, autoDetected, onConfi
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg rounded-3xl p-8">
         <DialogHeader>
-          <DialogTitle className="text-lg">Map CSV Columns</DialogTitle>
-          <p className="text-xs text-muted-foreground mt-1">
+          <DialogTitle className="text-2xl font-bold text-card-foreground">Map CSV Columns</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-2">
             Select which CSV column corresponds to each required field.
           </p>
         </DialogHeader>
-        <div className="space-y-3 py-2">
+        <div className="space-y-4 py-4">
           {FIELDS.map(f => (
-            <div key={f.key} className="flex items-center gap-3">
-              <label className="text-sm font-medium w-28 shrink-0">
-                {f.label}{f.required && <span className="text-primary ml-0.5">*</span>}
+            <div key={f.key} className="flex items-center gap-4">
+              <label className="text-sm font-semibold w-32 shrink-0 text-card-foreground">
+                {f.label}{f.required && <span className="text-primary ml-1">*</span>}
               </label>
               <Select
                 value={mapping[f.key] || ""}
                 onValueChange={v => setMapping(prev => ({ ...prev, [f.key]: v }))}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-10 text-sm rounded-xl border-2 focus:border-primary">
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {!f.required && <SelectItem value="__none__">(none)</SelectItem>}
                   {headers.map(h => (
                     <SelectItem key={h} value={h}>{h}</SelectItem>
@@ -61,17 +61,29 @@ export default function ColumnMapperModal({ open, headers, autoDetected, onConfi
             </div>
           ))}
         </div>
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
-          <Button size="sm" disabled={!isComplete} onClick={() => {
-            onConfirm({
-              rawCategory: mapping.rawCategory!,
-              rawItemName: mapping.rawItemName!,
-              option: mapping.option === "__none__" ? "" : (mapping.option || ""),
-              quantity: mapping.quantity!,
-              unitPrice: mapping.unitPrice!,
-            });
-          }}>
+        <DialogFooter className="gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            className="px-6 py-2.5 h-auto rounded-full border-2"
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={!isComplete}
+            onClick={() => {
+              onConfirm({
+                rawCategory: mapping.rawCategory!,
+                rawItemName: mapping.rawItemName!,
+                option: mapping.option === "__none__" ? "" : (mapping.option || ""),
+                quantity: mapping.quantity!,
+                unitPrice: mapping.unitPrice!,
+              });
+            }}
+            className="px-6 py-2.5 h-auto rounded-full bg-primary text-primary-foreground font-semibold shadow-lg"
+          >
             Confirm Mapping
           </Button>
         </DialogFooter>

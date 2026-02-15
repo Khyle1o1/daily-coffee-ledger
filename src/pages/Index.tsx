@@ -99,7 +99,7 @@ const Index = () => {
     }));
 
     const processed = rawRows.map(r => mapRow(r, mappingTable));
-    const { totals, grandTotal, percents } = aggregateByCategory(processed);
+    const { totals, quantities, grandTotal, grandQuantity, percents } = aggregateByCategory(processed);
     const unmappedSummary = getUnmappedSummary(processed);
 
     const report: DailyReport = {
@@ -110,7 +110,9 @@ const Index = () => {
       unmappedRows: processed.filter(r => r.status === "UNMAPPED").length,
       skippedRows: processed.filter(r => r.status === "SKIPPED").length,
       summaryTotalsByCat: totals,
+      summaryQuantitiesByCat: quantities,
       grandTotal,
+      grandQuantity,
       percentByCat: percents,
       rowDetails: processed,
       unmappedSummary,
@@ -148,23 +150,28 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card sticky top-0 z-20">
-        <div className="max-w-[1600px] mx-auto px-4 py-3">
-          <div className="flex items-center gap-3 mb-3">
-            <Coffee className="h-6 w-6 text-primary" />
-            <h1 className="text-lg font-bold tracking-tight">DOT Coffee Daily Summary</h1>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">MVP</span>
+      {/* HEADER - Royal Blue with White Text */}
+      <header className="bg-primary sticky top-0 z-20 shadow-md">
+        <div className="max-w-[1600px] mx-auto px-8 py-5">
+          <div className="flex items-center gap-4 mb-5">
+            <Coffee className="h-8 w-8 text-primary-foreground" strokeWidth={2.5} />
+            <h1 className="text-2xl font-bold tracking-tight text-primary-foreground">DOT Coffee Daily Summary</h1>
+            <span className="text-xs px-3 py-1 rounded-full border-2 border-primary-foreground/70 text-primary-foreground font-semibold">
+              MVP
+            </span>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Date Picker */}
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Date Picker - Pill Style */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className={cn("w-[180px] justify-start text-left text-xs h-9", !selectedDate && "text-muted-foreground")}
+                  className={cn(
+                    "px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all",
+                    !selectedDate && "text-primary-foreground/70"
+                  )}
                 >
-                  <Calendar className="mr-2 h-3.5 w-3.5" />
+                  <Calendar className="mr-2 h-4 w-4" />
                   {selectedDate ? format(selectedDate, "yyyy-MM-dd") : "Select date"}
                 </Button>
               </PopoverTrigger>
@@ -173,46 +180,56 @@ const Index = () => {
                   mode="single"
                   selected={selectedDate}
                   onSelect={setSelectedDate}
-                  className="p-3 pointer-events-auto"
+                  className="p-3 pointer-events-auto rounded-2xl"
                 />
               </PopoverContent>
             </Popover>
 
-            {/* CSV Upload */}
-            <label className="flex items-center gap-2 px-3 py-2 h-9 rounded-md border border-border bg-card text-xs cursor-pointer hover:bg-muted transition-colors">
-              <Upload className="h-3.5 w-3.5 text-primary" />
+            {/* CSV Upload - Pill Style */}
+            <label className="flex items-center gap-3 px-5 py-2.5 rounded-full border-2 border-primary-foreground/70 bg-transparent text-primary-foreground cursor-pointer hover:bg-primary-foreground/10 transition-all">
+              <Upload className="h-4 w-4" />
               {csvFile ? (
-                <span className="max-w-[140px] truncate">{csvFile.name}</span>
+                <span className="max-w-[180px] truncate font-medium">{csvFile.name}</span>
               ) : (
-                <span className="text-muted-foreground">Transactions CSV</span>
+                <span className="font-medium">Transactions CSV</span>
               )}
               <input type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
             </label>
 
-            {/* Mapping Upload */}
-            <label className="flex items-center gap-2 px-3 py-2 h-9 rounded-md border border-dashed border-border bg-card text-xs cursor-pointer hover:bg-muted transition-colors">
-              <FileSpreadsheet className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-muted-foreground">Mapping CSV (optional)</span>
+            {/* Mapping Upload - Pill Style Dashed */}
+            <label className="flex items-center gap-3 px-5 py-2.5 rounded-full border-2 border-dashed border-primary-foreground/50 bg-transparent text-primary-foreground/80 cursor-pointer hover:bg-primary-foreground/10 transition-all">
+              <FileSpreadsheet className="h-4 w-4" />
+              <span className="font-medium text-sm">Mapping CSV</span>
               <input type="file" accept=".csv" className="hidden" onChange={handleMappingUpload} />
             </label>
 
-            {/* Compute */}
-            <Button size="sm" className="h-9 text-xs" disabled={!canCompute} onClick={() => {
-              const required = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
-              const allDetected = required.every(f => autoMapping[f]);
-              if (allDetected) {
-                compute();
-              } else {
-                setShowMapper(true);
-              }
-            }}>
+            {/* Compute Button - Solid White */}
+            <Button
+              size="sm"
+              className="px-6 py-2.5 h-auto rounded-full bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!canCompute}
+              onClick={() => {
+                const required = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
+                const allDetected = required.every(f => autoMapping[f]);
+                if (allDetected) {
+                  compute();
+                } else {
+                  setShowMapper(true);
+                }
+              }}
+            >
               Compute
             </Button>
 
-            {/* Clear */}
+            {/* Clear Button */}
             {dailyReports.length > 0 && (
-              <Button variant="outline" size="sm" className="h-9 text-xs ml-auto" onClick={clearSession}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-5 py-2.5 h-auto rounded-full ml-auto border-2 border-primary-foreground/70 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 transition-all"
+                onClick={clearSession}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
                 Clear Session
               </Button>
             )}
@@ -220,11 +237,11 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="max-w-[1600px] mx-auto px-4 py-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
-          {/* Left: History */}
-          <aside className="lg:border-r lg:pr-4 border-border">
+      {/* Main Content - Blue Background with White Cards */}
+      <div className="max-w-[1600px] mx-auto px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8">
+          {/* Left: History Sidebar */}
+          <aside>
             <DailyHistoryList
               reports={dailyReports}
               activeDate={activeReportDate}
@@ -232,30 +249,37 @@ const Index = () => {
             />
           </aside>
 
-          {/* Right: Report Panel */}
+          {/* Right: Report Panel - White Card */}
           <main className="min-w-0">
             {activeReport ? (
-              <div>
+              <div className="bg-card rounded-3xl shadow-xl p-8">
                 {/* Report header */}
-                <div className="mb-4">
-                  <h2 className="text-base font-bold">Report for {activeReport.date}</h2>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
-                    <span>File: {activeReport.filename}</span>
-                    <span>Rows: {activeReport.totalRows}</span>
-                    <span className="text-emerald-600">Mapped: {activeReport.mappedRows}</span>
-                    <span className="text-primary">Unmapped: {activeReport.unmappedRows}</span>
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-card-foreground mb-2">
+                    Report for {activeReport.date}
+                  </h2>
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                    <span>File: <span className="font-medium text-card-foreground">{activeReport.filename}</span></span>
+                    <span>Rows: <span className="font-semibold text-card-foreground">{activeReport.totalRows}</span></span>
+                    <span className="text-emerald-600 font-medium">✓ Mapped: {activeReport.mappedRows}</span>
+                    <span className="text-amber-600 font-medium">⚠ Unmapped: {activeReport.unmappedRows}</span>
                     <span>Skipped: {activeReport.skippedRows}</span>
-                    <span className="font-bold text-foreground">
+                    <span className="font-bold text-primary text-lg">
                       Total: ₱{formatNumber(activeReport.grandTotal)}
                     </span>
                   </div>
                 </div>
 
+                {/* Tabs - Pill Style */}
                 <Tabs defaultValue="summary">
-                  <TabsList className="mb-3">
-                    <TabsTrigger value="summary" className="text-xs">Summary</TabsTrigger>
-                    <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
-                    <TabsTrigger value="unmapped" className="text-xs">
+                  <TabsList className="mb-6 bg-muted p-1.5 rounded-2xl">
+                    <TabsTrigger value="summary" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                      Summary
+                    </TabsTrigger>
+                    <TabsTrigger value="details" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                      Details
+                    </TabsTrigger>
+                    <TabsTrigger value="unmapped" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                       Unmapped ({activeReport.unmappedSummary.length})
                     </TabsTrigger>
                   </TabsList>
@@ -263,7 +287,9 @@ const Index = () => {
                   <TabsContent value="summary">
                     <SummaryTable
                       totals={activeReport.summaryTotalsByCat}
+                      quantities={activeReport.summaryQuantitiesByCat}
                       grandTotal={activeReport.grandTotal}
+                      grandQuantity={activeReport.grandQuantity}
                       percents={activeReport.percentByCat}
                     />
                   </TabsContent>
@@ -278,10 +304,14 @@ const Index = () => {
                 </Tabs>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                <Coffee className="h-16 w-16 mb-4 opacity-20" />
-                <p className="text-lg font-medium mb-1">No report selected</p>
-                <p className="text-sm">Select a date, upload a CSV, and hit Compute</p>
+              <div className="bg-card rounded-3xl shadow-xl p-16 flex flex-col items-center justify-center text-center">
+                <div className="bg-primary/5 rounded-full p-8 mb-6">
+                  <Coffee className="h-20 w-20 text-primary/30" strokeWidth={1.5} />
+                </div>
+                <p className="text-2xl font-bold text-card-foreground mb-2">No report selected</p>
+                <p className="text-base text-muted-foreground max-w-md">
+                  Select a date, upload a CSV file, and hit Compute to generate your daily summary
+                </p>
               </div>
             )}
           </main>

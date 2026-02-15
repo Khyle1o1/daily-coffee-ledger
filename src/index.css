@@ -4,96 +4,56 @@
 
 @layer base {
   :root {
-    --background: 30 20% 97%;
-    --foreground: 220 20% 12%;
+    /* DOT BLUE BRAND PALETTE */
+    /* Primary Royal Blue: #1E63B6 (HSL: 212 72% 42%) */
+    /* Soft Cream: #F4F1EA (HSL: 40 22% 93%) */
+    
+    --background: 212 72% 42%; /* Royal Blue background */
+    --foreground: 0 0% 100%; /* White text on blue background */
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 12%;
+    --card: 0 0% 100%; /* Pure white cards */
+    --card-foreground: 212 30% 20%; /* Dark text on white cards */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 12%;
+    --popover-foreground: 212 30% 20%;
 
-    --primary: 25 90% 50%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 212 72% 42%; /* Royal Blue #1E63B6 */
+    --primary-foreground: 0 0% 100%; /* White text on blue */
 
-    --secondary: 30 15% 92%;
-    --secondary-foreground: 220 20% 12%;
+    --secondary: 212 15% 95%; /* Very light blue-gray */
+    --secondary-foreground: 212 30% 20%; /* Dark text */
 
-    --muted: 30 10% 94%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 212 20% 96%; /* Very light blue tint */
+    --muted-foreground: 212 20% 40%; /* Darker for better contrast */
 
-    --accent: 25 80% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 212 50% 88%; /* Light blue accent */
+    --accent-foreground: 212 72% 42%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 15% 86%;
-    --input: 30 15% 86%;
-    --ring: 25 90% 50%;
+    --border: 212 15% 88%; /* Soft blue-gray borders */
+    --input: 212 15% 88%;
+    --ring: 212 72% 42%; /* Blue focus ring */
 
-    --radius: 0.5rem;
+    --radius: 1rem; /* Increased border radius for modern look */
 
-    /* Custom tokens */
-    --table-header: 25 85% 52%;
+    /* DOT BLUE CUSTOM TOKENS */
+    --table-header: 212 72% 42%; /* Royal blue headers */
     --table-header-foreground: 0 0% 100%;
-    --table-grid: 30 10% 80%;
-    --table-totals: 25 60% 96%;
-    --table-highlight: 25 90% 50%;
-    --history-card: 0 0% 100%;
-    --history-card-hover: 30 20% 96%;
+    --table-grid: 212 10% 90%; /* Subtle grid lines */
+    --table-totals: 212 50% 95%; /* Soft blue highlight */
+    --table-row-hover: 212 80% 97%; /* Light blue hover */
+    --history-card: 0 0% 100%; /* White history cards */
+    --history-card-hover: 212 20% 97%;
+    --history-card-active: 212 72% 42%; /* Blue for active */
     --badge-mapped: 142 60% 40%;
-    --badge-unmapped: 25 90% 50%;
-    --badge-skipped: 220 10% 60%;
+    --badge-unmapped: 33 100% 50%; /* Keep warning color visible */
+    --badge-skipped: 212 15% 60%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 220 20% 8%;
-    --foreground: 30 20% 95%;
-    --card: 220 18% 12%;
-    --card-foreground: 30 20% 95%;
-    --popover: 220 18% 12%;
-    --popover-foreground: 30 20% 95%;
-    --primary: 25 90% 50%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 30 20% 95%;
-    --muted: 220 12% 18%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 25 80% 55%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 22%;
-    --input: 220 15% 22%;
-    --ring: 25 90% 50%;
-    --table-header: 25 85% 45%;
-    --table-header-foreground: 0 0% 100%;
-    --table-grid: 220 12% 25%;
-    --table-totals: 220 15% 14%;
-    --table-highlight: 25 90% 50%;
-    --history-card: 220 18% 14%;
-    --history-card-hover: 220 18% 18%;
-    --badge-mapped: 142 60% 35%;
-    --badge-unmapped: 25 80% 45%;
-    --badge-skipped: 220 10% 50%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 212 50% 96%; /* Soft blue sidebar */
+    --sidebar-foreground: 212 30% 20%; /* Dark text */
+    --sidebar-border: 212 15% 88%;
   }
 }
 
@@ -103,26 +63,74 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-family: 'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  
+  /* Modern smooth scrolling */
+  html {
+    scroll-behavior: smooth;
   }
 }
 
 @layer components {
+  /* DOT BLUE MINIMAL TABLE STYLES */
   .spreadsheet-cell {
-    @apply border border-dotted px-3 py-2 text-right text-sm tabular-nums;
-    border-color: hsl(var(--table-grid));
+    @apply px-4 py-3 text-right text-sm tabular-nums;
+    border: none; /* Remove dotted borders */
+    border-bottom: 1px solid hsl(var(--table-grid));
+    background: white;
+    color: hsl(212 30% 20%); /* Dark text for readability */
+    transition: background-color 0.2s ease;
   }
+  
   .spreadsheet-header {
-    @apply px-3 py-2 text-xs font-bold text-center uppercase tracking-wider;
+    @apply px-4 py-3 text-xs font-semibold text-center uppercase tracking-wider;
     background: hsl(var(--table-header));
     color: hsl(var(--table-header-foreground));
+    border: none;
   }
+  
+  /* First header cell rounded top-left */
+  .spreadsheet-header:first-child {
+    border-top-left-radius: 1rem;
+  }
+  
+  /* Last header cell rounded top-right */
+  .spreadsheet-header:last-child {
+    border-top-right-radius: 1rem;
+  }
+  
   .totals-row .spreadsheet-cell {
     @apply font-bold text-base;
     background: hsl(var(--table-totals));
+    color: hsl(212 30% 20%); /* Dark text */
+    border-bottom: 2px solid hsl(var(--table-grid));
   }
+  
+  .quantities-row .spreadsheet-cell {
+    @apply font-medium text-sm;
+    background: hsl(var(--muted));
+    color: hsl(212 30% 20%); /* Dark text */
+  }
+  
   .percent-row .spreadsheet-cell {
-    @apply font-semibold text-sm italic;
-    color: hsl(var(--table-highlight));
+    @apply font-semibold text-sm;
+    color: hsl(var(--primary));
+    font-style: normal; /* Remove italic */
+  }
+  
+  /* Hover effect on table rows */
+  tbody tr:hover .spreadsheet-cell {
+    background: hsl(var(--table-row-hover));
+  }
+  
+  /* Override hover for special rows */
+  .totals-row:hover .spreadsheet-cell {
+    background: hsl(var(--table-totals));
+  }
+  
+  .quantities-row:hover .spreadsheet-cell {
+    background: hsl(var(--muted));
   }
 }

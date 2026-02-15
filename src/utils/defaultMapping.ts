@@ -15,6 +15,7 @@ const RAW_MAPPING: Omit<MappingEntry, "utakNorm">[] = [
   { CAT: "ICED", ITEM_NAME: "Iced Matcha Latte", UTAK: "Iced Matcha Latte" },
   { CAT: "ICED", ITEM_NAME: "Iced Dark Mocha", UTAK: "Iced Dark Mocha" },
   { CAT: "ICED", ITEM_NAME: "Iced Chocolate", UTAK: "Iced Chocolate" },
+  { CAT: "ICED", ITEM_NAME: "Chocolate Milk", UTAK: "Chocolate Milk" },
   { CAT: "ICED", ITEM_NAME: "DOT Signature Iced Coffee", UTAK: "DOT Signature Iced Coffee" },
   { CAT: "ICED", ITEM_NAME: "Iced Coffee", UTAK: "Iced Coffee" },
   { CAT: "ICED", ITEM_NAME: "Iced Cafe Latte", UTAK: "Iced Cafe Latte" },

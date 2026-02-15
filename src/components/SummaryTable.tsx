@@ -3,11 +3,13 @@ import { formatNumber, formatPercent } from "@/utils/format";
 
 interface Props {
   totals: Record<Category, number>;
+  quantities: Record<Category, number>;
   grandTotal: number;
+  grandQuantity: number;
   percents: Record<Category, number>;
 }
 
-export default function SummaryTable({ totals, grandTotal, percents }: Props) {
+export default function SummaryTable({ totals, quantities, grandTotal, grandQuantity, percents }: Props) {
   const cats = [...CATEGORIES];
   const allCols = [...cats, "TOTAL" as const];
 
@@ -15,6 +17,10 @@ export default function SummaryTable({ totals, grandTotal, percents }: Props) {
   const totalsRow = () => [
     ...cats.map(c => formatNumber(totals[c])),
     formatNumber(grandTotal),
+  ];
+  const quantitiesRow = () => [
+    ...cats.map(c => formatNumber(quantities[c])),
+    formatNumber(grandQuantity),
   ];
   const percentRow = () => [
     ...cats.map(c => formatPercent(percents[c])),
@@ -27,26 +33,30 @@ export default function SummaryTable({ totals, grandTotal, percents }: Props) {
   for (let i = 0; i < EMPTY_ROWS_TOP; i++) {
     rows.push({ cells: zeroRow(), className: "" });
   }
-  // Totals row
+  // Totals row (sales)
   rows.push({ cells: totalsRow(), className: "totals-row" });
+  // Quantities row
+  rows.push({ cells: quantitiesRow(), className: "quantities-row" });
   // Middle empty rows
   for (let i = 0; i < EMPTY_ROWS_MIDDLE; i++) {
     rows.push({ cells: zeroRow(), className: "" });
   }
-  // Repeated totals row
+  // Repeated totals row (sales)
   rows.push({ cells: totalsRow(), className: "totals-row" });
+  // Repeated quantities row
+  rows.push({ cells: quantitiesRow(), className: "quantities-row" });
   // Percentage row
   rows.push({ cells: percentRow(), className: "percent-row" });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="overflow-x-auto rounded-2xl shadow-lg">
       <table className="w-full border-collapse min-w-[900px]">
         <thead className="sticky top-0 z-10">
           <tr>
             {allCols.map(col => (
               <th
                 key={col}
-                className={`spreadsheet-header border border-dotted border-table-grid ${col === "TOTAL" ? "min-w-[100px]" : "min-w-[80px]"}`}
+                className={`spreadsheet-header ${col === "TOTAL" ? "min-w-[100px]" : "min-w-[80px]"}`}
               >
                 {col}
               </th>
@@ -59,7 +69,7 @@ export default function SummaryTable({ totals, grandTotal, percents }: Props) {
               {row.cells.map((cell, ci) => (
                 <td
                   key={ci}
-                  className={`spreadsheet-cell ${ci === allCols.length - 1 ? "font-bold border-l-2 border-l-table-highlight" : ""}`}
+                  className={`spreadsheet-cell ${ci === allCols.length - 1 ? "font-bold border-l-2 border-l-primary" : ""}`}
                 >
                   {cell}
                 </td>

@@ -44,7 +44,9 @@ export interface DailyReport {
   unmappedRows: number;
   skippedRows: number;
   summaryTotalsByCat: Record<Category, number>;
+  summaryQuantitiesByCat: Record<Category, number>;
   grandTotal: number;
+  grandQuantity: number;
   percentByCat: Record<Category, number>;
   rowDetails: ProcessedRow[];
   unmappedSummary: UnmappedSummary[];
