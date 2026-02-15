@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        mono: ['IBM Plex Mono', 'Courier New', 'monospace'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -47,6 +50,13 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        "table-header": "hsl(var(--table-header))",
+        "table-header-fg": "hsl(var(--table-header-foreground))",
+        "table-grid": "hsl(var(--table-grid))",
+        "table-totals": "hsl(var(--table-totals))",
+        "table-highlight": "hsl(var(--table-highlight))",
+        "history-card": "hsl(var(--history-card))",
+        "history-hover": "hsl(var(--history-card-hover))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
