@@ -71,16 +71,22 @@ const RAW_MAPPING: Omit<MappingEntry, "utakNorm">[] = [
 
   // MERCH
   { CAT: "MERCH", ITEM_NAME: "Tumbler", UTAK: "Tumbler" },
+  { CAT: "MERCH", ITEM_NAME: "Tumbler Only Promo Price", UTAK: "Tumbler Only Promo Price" },
   { CAT: "MERCH", ITEM_NAME: "Mug", UTAK: "Mug" },
   { CAT: "MERCH", ITEM_NAME: "Tote Bag", UTAK: "Tote Bag" },
 
   // PROMO
   { CAT: "PROMO", ITEM_NAME: "Promo Bundle", UTAK: "Promo Bundle" },
   { CAT: "PROMO", ITEM_NAME: "Promo Drink", UTAK: "Promo Drink" },
+  { CAT: "PROMO", ITEM_NAME: "Bring your Own Tumbler", UTAK: "Bring your Own Tumbler" },
+  { CAT: "PROMO", ITEM_NAME: "BYO Tumbler Discount", UTAK: "BYO Tumbler Discount" },
 
   // LOYALTY CARD
   { CAT: "LOYALTY CARD", ITEM_NAME: "Loyalty Card", UTAK: "Loyalty Card" },
   { CAT: "LOYALTY CARD", ITEM_NAME: "Loyalty Card Reload", UTAK: "Loyalty Card Reload" },
+  { CAT: "LOYALTY CARD", ITEM_NAME: "LC Free Upsize", UTAK: "LC Free Upsize" },
+  { CAT: "LOYALTY CARD", ITEM_NAME: "LC Discount", UTAK: "LC Discount" },
+  { CAT: "LOYALTY CARD", ITEM_NAME: "LC Free Item", UTAK: "LC Free Item" },
 
   // PACKAGING
   { CAT: "PACKAGING", ITEM_NAME: "Paper Bag", UTAK: "Paper Bag" },

@@ -69,6 +69,43 @@ function isSkipped(row: RawRow): boolean {
   return false;
 }
 
+/**
+ * Detect if an item is a PROMO (discount/promotion).
+ * PROMO = discounts when customer brings their own items or special promotions
+ * NOT items being sold at a promotional price (those keep their original category)
+ */
+function isPromoItem(row: RawRow, rawCatNorm: string, rawItemNorm: string): boolean {
+  // DON'T categorize as PROMO if it's clearly a different category
+  const protectedCategories = [
+    "loyalty card",
+    "lc free",
+    "lc discount",
+    "packaging",
+    "cold brew",
+    "merch",
+    "tumbler only", // "Tumbler Only Promo Price" is MERCH, not PROMO
+  ];
+  
+  for (const cat of protectedCategories) {
+    if (rawCatNorm.includes(cat) || rawItemNorm.includes(cat)) return false;
+  }
+  
+  // Check if category explicitly says "promo" (and item doesn't say "only")
+  if (rawCatNorm.includes("promo") && !rawItemNorm.includes("only")) return true;
+  
+  // ONLY categorize as PROMO if it's a BYO (bring your own) discount
+  const promoKeywords = [
+    "bring your own",
+    "byo",
+  ];
+  
+  for (const keyword of promoKeywords) {
+    if (rawItemNorm.includes(keyword)) return true;
+  }
+  
+  return false;
+}
+
 export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow {
   if (isSkipped(row)) {
     return { ...row, rowSales: 0, mappedCat: null, mappedItemName: null, status: "SKIPPED" };
@@ -81,6 +118,30 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
 
   // Detect temperature from option column (e.g. "Iced Large 16 oz." → ICED)
   const optionTemp = detectTempFromOption(optionNorm);
+
+  // OVERRIDE: Items that are PHYSICAL MERCHANDISE being sold at promo prices
+  // These should be MERCH, not PROMO (PROMO is for discounts, not products)
+  if (rawItemNorm.includes("tumbler only")) {
+    return {
+      ...row,
+      rowSales,
+      mappedCat: "MERCH",
+      mappedItemName: row.rawItemName,
+      status: "MAPPED",
+    };
+  }
+
+  // PRIORITY CHECK: Check if this is a PROMO item FIRST (before any other categorization)
+  // PROMO = discounts like "Bring your Own Tumbler"
+  if (isPromoItem(row, rawCatNorm, rawItemNorm)) {
+    return {
+      ...row,
+      rowSales,
+      mappedCat: "PROMO",
+      mappedItemName: row.rawItemName,
+      status: "MAPPED",
+    };
+  }
 
   // Find exact item mapping match
   const match = mappingTable.find(m => (m.utakNorm || normalizeText(m.UTAK)) === rawItemNorm);

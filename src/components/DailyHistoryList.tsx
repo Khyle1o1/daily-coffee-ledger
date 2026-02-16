@@ -1,12 +1,16 @@
-import type { DailyReport, BranchId } from "@/utils/types";
+import type { DailyReport, BranchId, ViewMode } from "@/utils/types";
 import { BRANCHES } from "@/utils/types";
 import { formatNumber } from "@/utils/format";
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar, MapPin, CalendarDays } from "lucide-react";
+import { getAvailableMonths } from "@/utils/aggregateMonthly";
 
 interface Props {
   reports: DailyReport[];
   activeReportId: string | null;
   onSelect: (reportId: string) => void;
+  viewMode: ViewMode;
+  selectedMonth?: string | null;
+  onMonthSelect?: (monthKey: string) => void;
 }
 
 // Group reports by date
@@ -21,7 +25,14 @@ function groupByDate(reports: DailyReport[]): Record<string, DailyReport[]> {
   return grouped;
 }
 
-export default function DailyHistoryList({ reports, activeReportId, onSelect }: Props) {
+export default function DailyHistoryList({ 
+  reports, 
+  activeReportId, 
+  onSelect, 
+  viewMode, 
+  selectedMonth, 
+  onMonthSelect 
+}: Props) {
   if (reports.length === 0) {
     return (
       <div className="bg-card rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center text-muted-foreground">
@@ -36,81 +47,140 @@ export default function DailyHistoryList({ reports, activeReportId, onSelect }: 
 
   const groupedReports = groupByDate(reports);
   const sortedDates = Object.keys(groupedReports).sort((a, b) => b.localeCompare(a));
+  const availableMonths = getAvailableMonths(reports);
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-foreground/60 mb-3 px-1">
-        Daily History
-      </h3>
-      {sortedDates.map(date => {
-        const dateReports = groupedReports[date].sort((a, b) => a.branch.localeCompare(b.branch));
-        const dateTotalAmount = dateReports.reduce((sum, r) => sum + r.grandTotal, 0);
-        
-        return (
-          <div key={date} className="space-y-1.5">
-            {/* Date Header */}
-            <div className="px-2.5 py-1.5 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-card-foreground">{date}</span>
-                <span className="text-xs font-bold text-primary">₱{formatNumber(dateTotalAmount)}</span>
+    <div className="space-y-6">
+      {/* Daily History Section */}
+      <div className="space-y-3">
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-foreground/60 mb-3 px-1">
+          Daily History
+        </h3>
+        {sortedDates.map(date => {
+          const dateReports = groupedReports[date].sort((a, b) => a.branch.localeCompare(b.branch));
+          const dateTotalAmount = dateReports.reduce((sum, r) => sum + r.grandTotal, 0);
+          
+          return (
+            <div key={date} className="space-y-1.5">
+              {/* Date Header */}
+              <div className="px-2.5 py-1.5 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-card-foreground">{date}</span>
+                  <span className="text-xs font-bold text-primary">₱{formatNumber(dateTotalAmount)}</span>
+                </div>
+                {dateReports.length > 1 && (
+                  <span className="text-[10px] text-muted-foreground">{dateReports.length} branches</span>
+                )}
               </div>
-              {dateReports.length > 1 && (
-                <span className="text-[10px] text-muted-foreground">{dateReports.length} branches</span>
-              )}
-            </div>
-            
-            {/* Branch Items */}
-            <div className="space-y-1.5 pl-1.5">
-              {dateReports.map(report => {
-                const branchLabel = BRANCHES.find(b => b.id === report.branch)?.label || report.branch;
-                const isActive = activeReportId === report.id;
-                
-                return (
-                  <button
-                    key={report.id}
-                    onClick={() => onSelect(report.id)}
-                    className={`w-full text-left p-2 rounded-lg transition-all shadow-sm ${
-                      isActive
-                        ? "bg-primary text-primary-foreground scale-[1.02] shadow-md"
-                        : "bg-card text-card-foreground hover:bg-card/80 hover:shadow-md"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className={`h-3 w-3 ${isActive ? 'text-primary-foreground' : 'text-primary'}`} />
-                        <span className={`font-semibold text-xs ${isActive ? 'text-primary-foreground' : 'text-card-foreground'}`}>
-                          {branchLabel}
+              
+              {/* Branch Items */}
+              <div className="space-y-1.5 pl-1.5">
+                {dateReports.map(report => {
+                  const branchLabel = BRANCHES.find(b => b.id === report.branch)?.label || report.branch;
+                  const isActive = activeReportId === report.id && viewMode === "daily";
+                  
+                  return (
+                    <button
+                      key={report.id}
+                      onClick={() => onSelect(report.id)}
+                      className={`w-full text-left p-2 rounded-lg transition-all shadow-sm ${
+                        isActive
+                          ? "bg-primary text-primary-foreground scale-[1.02] shadow-md"
+                          : "bg-card text-card-foreground hover:bg-card/80 hover:shadow-md"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className={`h-3 w-3 ${isActive ? 'text-primary-foreground' : 'text-primary'}`} />
+                          <span className={`font-semibold text-xs ${isActive ? 'text-primary-foreground' : 'text-card-foreground'}`}>
+                            {branchLabel}
+                          </span>
+                        </div>
+                        <span className={`text-xs font-bold ${isActive ? 'text-primary-foreground' : 'text-primary'}`}>
+                          ₱{formatNumber(report.grandTotal)}
                         </span>
                       </div>
-                      <span className={`text-xs font-bold ${isActive ? 'text-primary-foreground' : 'text-primary'}`}>
-                        ₱{formatNumber(report.grandTotal)}
-                      </span>
-                    </div>
-                    
-                    {/* Category chips */}
-                    <div className="flex flex-wrap gap-1">
-                      {(["ICED", "HOT", "SNACKS", "ADD-ONS"] as const).map(cat => (
-                        report.summaryTotalsByCat[cat] > 0 && (
-                          <span
-                            key={cat}
-                            className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold ${
-                              isActive
-                                ? 'bg-primary-foreground/20 text-primary-foreground'
-                                : 'bg-muted text-muted-foreground'
-                            }`}
-                          >
-                            {cat}: {formatNumber(report.summaryTotalsByCat[cat])}
-                          </span>
-                        )
-                      ))}
-                    </div>
-                  </button>
-                );
-              })}
+                      
+                      {/* Category chips */}
+                      <div className="flex flex-wrap gap-1">
+                        {(["ICED", "HOT", "SNACKS", "ADD-ONS"] as const).map(cat => (
+                          report.summaryTotalsByCat[cat] > 0 && (
+                            <span
+                              key={cat}
+                              className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold ${
+                                isActive
+                                  ? 'bg-primary-foreground/20 text-primary-foreground'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {cat}: {formatNumber(report.summaryTotalsByCat[cat])}
+                            </span>
+                          )
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {/* Monthly History Section */}
+      {availableMonths.length > 0 && onMonthSelect && (
+        <div className="space-y-3 pt-3 border-t-2 border-muted">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-foreground/60 mb-3 px-1">
+            Monthly History
+          </h3>
+          {availableMonths.map(month => {
+            const isActive = selectedMonth === month.monthKey && viewMode === "monthly";
+            
+            // Get top categories for this month (simplified)
+            const topCats = ["ICED", "HOT", "SNACKS"].slice(0, 3);
+            
+            return (
+              <button
+                key={month.monthKey}
+                onClick={() => onMonthSelect(month.monthKey)}
+                className={`w-full text-left p-3 rounded-lg transition-all shadow-sm ${
+                  isActive
+                    ? "bg-primary text-primary-foreground scale-[1.02] shadow-md"
+                    : "bg-card text-card-foreground hover:bg-card/80 hover:shadow-md"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <CalendarDays className={`h-3.5 w-3.5 ${isActive ? 'text-primary-foreground' : 'text-primary'}`} />
+                    <span className={`font-semibold text-xs ${isActive ? 'text-primary-foreground' : 'text-card-foreground'}`}>
+                      {month.displayMonth}
+                    </span>
+                  </div>
+                  <span className={`text-xs font-bold ${isActive ? 'text-primary-foreground' : 'text-primary'}`}>
+                    ₱{formatNumber(month.totalAmount)}
+                  </span>
+                </div>
+                
+                {/* Top category badges */}
+                <div className="flex flex-wrap gap-1">
+                  {topCats.map(cat => (
+                    <span
+                      key={cat}
+                      className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold ${
+                        isActive
+                          ? 'bg-primary-foreground/20 text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

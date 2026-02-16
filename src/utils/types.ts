@@ -82,3 +82,42 @@ export interface ColumnMapping {
   quantity: string;
   unitPrice: string;
 }
+
+// View mode type
+export type ViewMode = "daily" | "monthly";
+
+// Month key type for grouping (YYYY-MM format)
+export type MonthKey = string;
+
+// Monthly report structure
+export interface MonthlyReport {
+  monthKey: MonthKey; // Format: "2026-02"
+  displayMonth: string; // Format: "February 2026"
+  branch: BranchId | "all"; // "all" for combined view
+  totalFiles: number;
+  totalRows: number;
+  mappedRows: number;
+  unmappedRows: number;
+  skippedRows: number;
+  grandTotal: number;
+  grandQuantity: number;
+  // Per-branch breakdown (only populated when branch is "all")
+  branchBreakdown: {
+    branchId: BranchId;
+    branchLabel: string;
+    totals: Record<Category, number>;
+    quantities: Record<Category, number>;
+    grandTotal: number;
+    grandQuantity: number;
+    percents: Record<Category, number>;
+  }[];
+  // Daily breakdown within the month
+  dailyBreakdown: {
+    date: string; // YYYY-MM-DD
+    branches: BranchId[];
+    totals: Record<Category, number>;
+    grandTotal: number;
+  }[];
+  // Unmapped items for the month
+  unmappedSummary: UnmappedSummary[];
+}
