@@ -62,6 +62,13 @@ function detectTempFromOption(optionNorm: string): "ICED" | "HOT" | null {
   return null;
 }
 
+/**
+ * Check if an item is Cold Brew (which should be categorized as ICED)
+ */
+function isColdBrew(rawItemNorm: string, rawCatNorm: string): boolean {
+  return rawItemNorm.includes("cold brew") || rawCatNorm.includes("cold brew") || rawCatNorm.includes("coldbrew");
+}
+
 function isSkipped(row: RawRow): boolean {
   const name = row.rawItemName.trim();
   if (!name || name === "-") return true;
@@ -126,6 +133,17 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
       ...row,
       rowSales,
       mappedCat: "MERCH",
+      mappedItemName: row.rawItemName,
+      status: "MAPPED",
+    };
+  }
+
+  // OVERRIDE: Cold Brew should be categorized as ICED
+  if (isColdBrew(rawItemNorm, rawCatNorm)) {
+    return {
+      ...row,
+      rowSales,
+      mappedCat: "ICED",
       mappedItemName: row.rawItemName,
       status: "MAPPED",
     };

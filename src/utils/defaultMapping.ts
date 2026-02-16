@@ -64,10 +64,11 @@ const RAW_MAPPING: Omit<MappingEntry, "utakNorm">[] = [
   { CAT: "CANNED", ITEM_NAME: "Bottled Water", UTAK: "Bottled Water" },
   { CAT: "CANNED", ITEM_NAME: "Soda", UTAK: "Soda" },
 
-  // COLD BREW
-  { CAT: "COLD BREW", ITEM_NAME: "Cold Brew Black", UTAK: "Cold Brew Black" },
-  { CAT: "COLD BREW", ITEM_NAME: "Cold Brew Latte", UTAK: "Cold Brew Latte" },
-  { CAT: "COLD BREW", ITEM_NAME: "Cold Brew Vanilla", UTAK: "Cold Brew Vanilla" },
+  // COLD BREW (categorized as ICED, but tracked separately in details)
+  { CAT: "ICED", ITEM_NAME: "Cold Brew Black", UTAK: "Cold Brew Black" },
+  { CAT: "ICED", ITEM_NAME: "Cold Brew Latte", UTAK: "Cold Brew Latte" },
+  { CAT: "ICED", ITEM_NAME: "Cold Brew Vanilla", UTAK: "Cold Brew Vanilla" },
+  { CAT: "ICED", ITEM_NAME: "Cold Brew", UTAK: "Cold Brew" },
 
   // MERCH
   { CAT: "MERCH", ITEM_NAME: "Tumbler", UTAK: "Tumbler" },
@@ -80,6 +81,11 @@ const RAW_MAPPING: Omit<MappingEntry, "utakNorm">[] = [
   { CAT: "PROMO", ITEM_NAME: "Promo Drink", UTAK: "Promo Drink" },
   { CAT: "PROMO", ITEM_NAME: "Bring your Own Tumbler", UTAK: "Bring your Own Tumbler" },
   { CAT: "PROMO", ITEM_NAME: "BYO Tumbler Discount", UTAK: "BYO Tumbler Discount" },
+  { CAT: "PROMO", ITEM_NAME: "GC 100", UTAK: "GC 100" },
+  { CAT: "PROMO", ITEM_NAME: "GC 50", UTAK: "GC 50" },
+  { CAT: "PROMO", ITEM_NAME: "GC 200", UTAK: "GC 200" },
+  { CAT: "PROMO", ITEM_NAME: "GC 500", UTAK: "GC 500" },
+  { CAT: "PROMO", ITEM_NAME: "Gift Certificate", UTAK: "Gift Certificate" },
 
   // LOYALTY CARD
   { CAT: "LOYALTY CARD", ITEM_NAME: "Loyalty Card", UTAK: "Loyalty Card" },

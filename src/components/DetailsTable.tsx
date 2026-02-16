@@ -12,12 +12,29 @@ type Filter = "ALL" | "MAPPED" | "UNMAPPED" | "SKIPPED";
 
 export default function DetailsTable({ rows }: Props) {
   const [filter, setFilter] = useState<Filter>("ALL");
-  const [categoryFilter, setCategoryFilter] = useState<Category | "ALL">("ALL");
+  const [categoryFilter, setCategoryFilter] = useState<Category | "ALL" | "COLD BREW">("ALL");
   const [search, setSearch] = useState("");
+
+  // Identify Cold Brew items (they're in ICED category but contain "cold brew")
+  const isColdBrewItem = (r: ProcessedRow) => {
+    return r.mappedCat === "ICED" && 
+           (r.rawItemName.toLowerCase().includes("cold brew") || 
+            r.rawCategory.toLowerCase().includes("cold brew"));
+  };
+
+  const coldBrewRows = rows.filter(isColdBrewItem);
+  const coldBrewTotal = coldBrewRows.reduce((sum, r) => sum + r.quantity, 0);
 
   const filtered = rows.filter(r => {
     if (filter !== "ALL" && r.status !== filter) return false;
-    if (categoryFilter !== "ALL" && r.mappedCat !== categoryFilter) return false;
+    
+    // Special handling for Cold Brew filter
+    if (categoryFilter === "COLD BREW") {
+      if (!isColdBrewItem(r)) return false;
+    } else if (categoryFilter !== "ALL" && r.mappedCat !== categoryFilter) {
+      return false;
+    }
+    
     if (search) {
       const s = search.toLowerCase();
       return (
@@ -87,6 +104,20 @@ export default function DetailsTable({ rows }: Props) {
             </button>
           );
         })}
+        
+        {/* Special Cold Brew Filter (subcategory of ICED) */}
+        {coldBrewTotal > 0 && (
+          <button
+            onClick={() => setCategoryFilter("COLD BREW")}
+            className={`text-sm px-4 py-1.5 rounded-full font-semibold transition-all border-2 ${
+              categoryFilter === "COLD BREW"
+                ? "bg-primary text-primary-foreground shadow-lg border-primary"
+                : "bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100"
+            }`}
+          >
+            🧊 COLD BREW ({coldBrewTotal})
+          </button>
+        )}
       </div>
 
       {/* Clean Table */}
