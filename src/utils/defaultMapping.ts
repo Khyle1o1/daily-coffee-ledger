@@ -93,6 +93,7 @@ const RAW_MAPPING: Omit<MappingEntry, "utakNorm">[] = [
   { CAT: "LOYALTY CARD", ITEM_NAME: "LC Free Upsize", UTAK: "LC Free Upsize" },
   { CAT: "LOYALTY CARD", ITEM_NAME: "LC Discount", UTAK: "LC Discount" },
   { CAT: "LOYALTY CARD", ITEM_NAME: "LC Free Item", UTAK: "LC Free Item" },
+  { CAT: "LOYALTY CARD", ITEM_NAME: "Gift Card Sleeves", UTAK: "Gift Card Sleeves" },
 
   // PACKAGING
   { CAT: "PACKAGING", ITEM_NAME: "Paper Bag", UTAK: "Paper Bag" },

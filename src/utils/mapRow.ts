@@ -126,6 +126,17 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   // Detect temperature from option column (e.g. "Iced Large 16 oz." → ICED)
   const optionTemp = detectTempFromOption(optionNorm);
 
+  // OVERRIDE: Gift Card Sleeves should be LOYALTY CARD (not MERCH)
+  if (rawItemNorm.includes("gift card sleeves") || rawItemNorm.includes("giftcard sleeves")) {
+    return {
+      ...row,
+      rowSales,
+      mappedCat: "LOYALTY CARD",
+      mappedItemName: "Gift Card Sleeves",
+      status: "MAPPED",
+    };
+  }
+
   // OVERRIDE: Items that are PHYSICAL MERCHANDISE being sold at promo prices
   // These should be MERCH, not PROMO (PROMO is for discounts, not products)
   if (rawItemNorm.includes("tumbler only")) {
