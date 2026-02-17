@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { Calendar, Upload, FileSpreadsheet, Trash2, Coffee, MapPin, AlertCircle, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import SummaryTable from "@/components/SummaryTable";
@@ -29,9 +30,27 @@ import { computeMonthlyReport, getMonthKey } from "@/utils/aggregateMonthly";
 import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId, ViewMode } from "@/utils/types";
 import { CATEGORIES, BRANCHES } from "@/utils/types";
 
+// Supabase integration
+import { 
+  getBranches, 
+  seedBranchesIfEmpty, 
+  saveDailyReport, 
+  listAllDailyReports 
+} from "@/services/reportsService";
+import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
+import type { Branch } from "@/lib/supabase-types";
+
 const Index = () => {
+  const { toast } = useToast();
+  
   // Main view mode: Daily or Monthly
   const [mainViewMode, setMainViewMode] = useState<ViewMode>("daily");
+  
+  // Supabase state
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
+  const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Daily mode state
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
@@ -57,6 +76,47 @@ const Index = () => {
   const [autoMapping, setAutoMapping] = useState<Partial<Record<string, string>>>({});
 
   const activeReport = dailyReports.find(r => r.id === activeReportId) || null;
+
+  // ============================================================================
+  // SUPABASE INTEGRATION: Load branches and reports on mount
+  // ============================================================================
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        setIsLoadingBranches(true);
+        
+        // Seed branches if needed
+        await seedBranchesIfEmpty();
+        
+        // Fetch branches
+        const fetchedBranches = await getBranches();
+        setBranches(fetchedBranches);
+        
+        // Load all existing reports from Supabase
+        setIsLoadingReports(true);
+        const reportRows = await listAllDailyReports();
+        const reports = dailyReportsFromRows(reportRows);
+        setDailyReports(reports);
+        
+        toast({
+          title: "Connected to Supabase",
+          description: `Loaded ${fetchedBranches.length} branches and ${reports.length} reports`,
+        });
+      } catch (error) {
+        console.error('Failed to initialize data:', error);
+        toast({
+          variant: "destructive",
+          title: "Supabase Connection Error",
+          description: error instanceof Error ? error.message : "Failed to connect to Supabase",
+        });
+      } finally {
+        setIsLoadingBranches(false);
+        setIsLoadingReports(false);
+      }
+    };
+
+    initializeData();
+  }, [toast]);
 
   const handleCsvUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -108,13 +168,14 @@ const Index = () => {
     e.target.value = "";
   }, []);
 
-  const compute = useCallback((colMapping?: ColumnMapping) => {
+  const compute = useCallback(async (colMapping?: ColumnMapping) => {
     if (!dateRange.from || csvData.length === 0 || !selectedBranch) return;
 
     // If no end date, use start date as end date
     const endDate = dateRange.to || dateRange.from;
     
     const dateStr = format(dateRange.from, "yyyy-MM-dd");
+    const dateEndStr = format(endDate, "yyyy-MM-dd");
     const mapping = colMapping || {
       rawCategory: autoMapping.rawCategory || "",
       rawItemName: autoMapping.rawItemName || "",
@@ -135,9 +196,8 @@ const Index = () => {
     const { totals, quantities, grandTotal, grandQuantity, percents } = aggregateByCategory(processed);
     const unmappedSummary = getUnmappedSummary(processed);
 
-    const reportId = `${dateStr}-${selectedBranch}`;
     const report: DailyReport = {
-      id: reportId,
+      id: "", // Will be set by Supabase
       date: dateStr,
       branch: selectedBranch,
       filename: csvFile?.name || "unknown.csv",
@@ -155,19 +215,64 @@ const Index = () => {
       unmappedSummary,
     };
 
-    setDailyReports(prev => {
-      // Replace if same date + branch exists
-      const without = prev.filter(r => r.id !== reportId);
-      return [report, ...without].sort((a, b) => {
-        const dateCompare = b.date.localeCompare(a.date);
-        if (dateCompare !== 0) return dateCompare;
-        return a.branch.localeCompare(b.branch);
+    // ============================================================================
+    // SUPABASE INTEGRATION: Save to database
+    // ============================================================================
+    try {
+      setIsSaving(true);
+      
+      // Get branch UUID
+      const branchUuid = getBranchId(branches, selectedBranch);
+      if (!branchUuid) {
+        throw new Error(`Branch not found: ${selectedBranch}`);
+      }
+
+      // Convert to JSON format and save to Supabase
+      const summaryJson = dailyReportToJSON(report);
+      const savedReport = await saveDailyReport({
+        branchId: branchUuid,
+        reportDate: dateStr,
+        dateRangeStart: dateStr,
+        dateRangeEnd: dateEndStr,
+        transactionsFileName: csvFile?.name || "unknown.csv",
+        summaryJson,
       });
-    });
-    setActiveReportId(reportId);
-    setViewMode("single");
-    setShowMapper(false);
-  }, [dateRange, selectedBranch, csvData, csvFile, autoMapping, mappingTable]);
+
+      // Update local state with the saved report
+      const savedReportWithData: DailyReport = {
+        ...report,
+        id: savedReport.id,
+      };
+
+      setDailyReports(prev => {
+        // Remove any existing report with the same id
+        const without = prev.filter(r => r.id !== savedReportWithData.id);
+        return [savedReportWithData, ...without].sort((a, b) => {
+          const dateCompare = b.date.localeCompare(a.date);
+          if (dateCompare !== 0) return dateCompare;
+          return a.branch.localeCompare(b.branch);
+        });
+      });
+      
+      setActiveReportId(savedReportWithData.id);
+      setViewMode("single");
+      setShowMapper(false);
+
+      toast({
+        title: "Report saved",
+        description: `Daily report for ${selectedBranch} on ${dateStr} saved successfully`,
+      });
+    } catch (error) {
+      console.error('Failed to save report:', error);
+      toast({
+        variant: "destructive",
+        title: "Failed to save report",
+        description: error instanceof Error ? error.message : "An error occurred",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [dateRange, selectedBranch, csvData, csvFile, autoMapping, mappingTable, branches, toast]);
 
   const handleColumnConfirm = useCallback((colMapping: ColumnMapping) => {
     setAutoMapping({
@@ -183,15 +288,19 @@ const Index = () => {
   const canCompute = dateRange.from && csvData.length > 0 && selectedBranch;
 
   const clearSession = () => {
-    setDailyReports([]);
+    // Note: This only clears the UI state, not the database
     setActiveReportId(null);
     setCsvFile(null);
     setCsvHeaders([]);
     setCsvData([]);
     setDateRange({ from: undefined, to: undefined });
-    setSelectedBranch("");
     setBranchError(false);
     setViewMode("single");
+    
+    toast({
+      title: "Session cleared",
+      description: "UI state cleared. Reports remain saved in Supabase.",
+    });
   };
 
   // Get combined report for a specific date (all branches)
@@ -359,17 +468,21 @@ const Index = () => {
                 </Popover>
 
                 {/* Branch Selector - Pill Style */}
-                <Select value={selectedBranch} onValueChange={(value) => {
-                  setSelectedBranch(value as BranchId);
-                  setBranchError(false);
-                }}>
+                <Select 
+                  value={selectedBranch} 
+                  onValueChange={(value) => {
+                    setSelectedBranch(value as BranchId);
+                    setBranchError(false);
+                  }}
+                  disabled={isLoadingBranches}
+                >
                   <SelectTrigger className={cn(
                     "w-[200px] px-5 py-2.5 h-auto rounded-full bg-transparent border-2 text-primary-foreground hover:bg-primary-foreground/10 transition-all",
                     branchError ? "border-red-400" : "border-primary-foreground/70",
                     !selectedBranch && "text-primary-foreground/70"
                   )}>
                     <MapPin className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Select branch" />
+                    <SelectValue placeholder={isLoadingBranches ? "Loading..." : "Select branch"} />
                   </SelectTrigger>
                   <SelectContent>
                     {BRANCHES.map(branch => (
@@ -410,7 +523,7 @@ const Index = () => {
                 <Button
                   size="sm"
                   className="px-6 py-2.5 h-auto rounded-full bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!canCompute}
+                  disabled={!canCompute || isSaving || isLoadingBranches}
                   onClick={() => {
                     const required = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
                     const allDetected = required.every(f => autoMapping[f]);
@@ -421,7 +534,7 @@ const Index = () => {
                     }
                   }}
                 >
-                  Compute
+                  {isSaving ? "Saving..." : "Compute"}
                 </Button>
               </>
             )}
