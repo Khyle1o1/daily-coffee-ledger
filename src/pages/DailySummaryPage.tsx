@@ -1,7 +1,629 @@
-import Index from './Index';
+import { useState, useCallback, useEffect } from "react";
+import { format } from "date-fns";
+import { Calendar, Upload, FileSpreadsheet, Trash2, Coffee, MapPin, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
-// For now, the Daily Summary page is just the existing Index component
-// The header is now in AppShell, so Index will only render the content area
+import SummaryTable from "@/components/SummaryTable";
+import DailyHistoryList from "@/components/DailyHistoryList";
+import DetailsTable from "@/components/DetailsTable";
+import UnmappedList from "@/components/UnmappedList";
+import ColumnMapperModal from "@/components/ColumnMapperModal";
+
+import { parseCsvFile, autoDetectColumns } from "@/utils/parseCsv";
+import { normalizeText } from "@/utils/normalize";
+import { mapRow } from "@/utils/mapRow";
+import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
+import { formatNumber } from "@/utils/format";
+import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
+import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId } from "@/utils/types";
+import { CATEGORIES, BRANCHES } from "@/utils/types";
+
+import { 
+  getBranches, 
+  seedBranchesIfEmpty, 
+  saveDailyReport, 
+  listAllDailyReports 
+} from "@/services/reportsService";
+import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
+import type { Branch } from "@/lib/supabase-types";
+
 export default function DailySummaryPage() {
-  return <Index />;
+  const { toast } = useToast();
+  
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
+  const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+  const [selectedBranch, setSelectedBranch] = useState<BranchId | "">("");
+  const [mappingTable, setMappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
+  const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"single" | "combined">("single");
+  const [branchError, setBranchError] = useState(false);
+
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvData, setCsvData] = useState<Record<string, string>[]>([]);
+  const [showMapper, setShowMapper] = useState(false);
+  const [autoMapping, setAutoMapping] = useState<Partial<Record<string, string>>>({});
+
+  const activeReport = dailyReports.find(r => r.id === activeReportId) || null;
+
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        setIsLoadingBranches(true);
+        
+        await seedBranchesIfEmpty();
+        const fetchedBranches = await getBranches();
+        setBranches(fetchedBranches);
+        
+        setIsLoadingReports(true);
+        const reportRows = await listAllDailyReports();
+        const reports = dailyReportsFromRows(reportRows);
+        setDailyReports(reports);
+        
+        toast({
+          title: "Connected to Supabase",
+          description: `Loaded ${fetchedBranches.length} branches and ${reports.length} reports`,
+        });
+      } catch (error) {
+        console.error('Failed to initialize data:', error);
+        toast({
+          variant: "destructive",
+          title: "Supabase Connection Error",
+          description: error instanceof Error ? error.message : "Failed to connect to Supabase",
+        });
+      } finally {
+        setIsLoadingBranches(false);
+        setIsLoadingReports(false);
+      }
+    };
+
+    initializeData();
+  }, [toast]);
+
+  const handleCsvUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!selectedBranch) {
+      setBranchError(true);
+      e.target.value = "";
+      return;
+    }
+    
+    setBranchError(false);
+    setCsvFile(file);
+    try {
+      const { headers, data } = await parseCsvFile(file);
+      setCsvHeaders(headers);
+      setCsvData(data);
+      const detected = autoDetectColumns(headers);
+      setAutoMapping(detected);
+      const required = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
+      const allDetected = required.every(f => detected[f]);
+      if (!allDetected) setShowMapper(true);
+    } catch {
+      alert("Failed to parse CSV file");
+    }
+    e.target.value = "";
+  }, [selectedBranch]);
+
+  const handleMappingUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const { data } = await parseCsvFile(file);
+      const entries: MappingEntry[] = data
+        .filter(r => r.CAT && r.UTAK)
+        .map(r => ({
+          CAT: r.CAT?.trim() || "",
+          ITEM_NAME: r.ITEM_NAME?.trim() || r.CAT?.trim() || "",
+          UTAK: r.UTAK?.trim() || "",
+          utakNorm: normalizeText(r.UTAK),
+        }));
+      if (entries.length > 0) setMappingTable(entries);
+    } catch {
+      alert("Failed to parse mapping CSV");
+    }
+    e.target.value = "";
+  }, []);
+
+  const compute = useCallback(async (colMapping?: ColumnMapping) => {
+    if (!dateRange.from || csvData.length === 0 || !selectedBranch) return;
+
+    const endDate = dateRange.to || dateRange.from;
+    const dateStr = format(dateRange.from, "yyyy-MM-dd");
+    const dateEndStr = format(endDate, "yyyy-MM-dd");
+    const mapping = colMapping || {
+      rawCategory: autoMapping.rawCategory || "",
+      rawItemName: autoMapping.rawItemName || "",
+      option: autoMapping.option || "",
+      quantity: autoMapping.quantity || "",
+      unitPrice: autoMapping.unitPrice || "",
+    };
+
+    const rawRows: RawRow[] = csvData.map(row => ({
+      rawCategory: row[mapping.rawCategory] || "",
+      rawItemName: row[mapping.rawItemName] || "",
+      option: mapping.option ? (row[mapping.option] || "") : "",
+      quantity: parseFloat(row[mapping.quantity]) || 0,
+      unitPrice: parseFloat(row[mapping.unitPrice]) || 0,
+    }));
+
+    const processed = rawRows.map(r => mapRow(r, mappingTable));
+    const { totals, quantities, grandTotal, grandQuantity, percents } = aggregateByCategory(processed);
+    const unmappedSummary = getUnmappedSummary(processed);
+
+    const report: DailyReport = {
+      id: "",
+      date: dateStr,
+      branch: selectedBranch,
+      filename: csvFile?.name || "unknown.csv",
+      uploadedAt: Date.now(),
+      totalRows: processed.length,
+      mappedRows: processed.filter(r => r.status === "MAPPED").length,
+      unmappedRows: processed.filter(r => r.status === "UNMAPPED").length,
+      skippedRows: processed.filter(r => r.status === "SKIPPED").length,
+      summaryTotalsByCat: totals,
+      summaryQuantitiesByCat: quantities,
+      grandTotal,
+      grandQuantity,
+      percentByCat: percents,
+      rowDetails: processed,
+      unmappedSummary,
+    };
+
+    try {
+      setIsSaving(true);
+      
+      const branchUuid = getBranchId(branches, selectedBranch);
+      if (!branchUuid) {
+        throw new Error(`Branch not found: ${selectedBranch}`);
+      }
+
+      const summaryJson = dailyReportToJSON(report);
+      const savedReport = await saveDailyReport({
+        branchId: branchUuid,
+        reportDate: dateStr,
+        dateRangeStart: dateStr,
+        dateRangeEnd: dateEndStr,
+        transactionsFileName: csvFile?.name || "unknown.csv",
+        summaryJson,
+      });
+
+      const savedReportWithData: DailyReport = {
+        ...report,
+        id: savedReport.id,
+      };
+
+      setDailyReports(prev => {
+        const without = prev.filter(r => r.id !== savedReportWithData.id);
+        return [savedReportWithData, ...without].sort((a, b) => {
+          const dateCompare = b.date.localeCompare(a.date);
+          if (dateCompare !== 0) return dateCompare;
+          return a.branch.localeCompare(b.branch);
+        });
+      });
+      
+      setActiveReportId(savedReportWithData.id);
+      setViewMode("single");
+      setShowMapper(false);
+
+      toast({
+        title: "Report saved",
+        description: `Daily report for ${selectedBranch} on ${dateStr} saved successfully`,
+      });
+    } catch (error) {
+      console.error('Failed to save report:', error);
+      toast({
+        variant: "destructive",
+        title: "Failed to save report",
+        description: error instanceof Error ? error.message : "An error occurred",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [dateRange, selectedBranch, csvData, csvFile, autoMapping, mappingTable, branches, toast]);
+
+  const handleColumnConfirm = useCallback((colMapping: ColumnMapping) => {
+    setAutoMapping({
+      rawCategory: colMapping.rawCategory,
+      rawItemName: colMapping.rawItemName,
+      option: colMapping.option,
+      quantity: colMapping.quantity,
+      unitPrice: colMapping.unitPrice,
+    });
+    compute(colMapping);
+  }, [compute]);
+
+  const canCompute = dateRange.from && csvData.length > 0 && selectedBranch;
+
+  const clearSession = () => {
+    setActiveReportId(null);
+    setCsvFile(null);
+    setCsvHeaders([]);
+    setCsvData([]);
+    setDateRange({ from: undefined, to: undefined });
+    setBranchError(false);
+    setViewMode("single");
+    
+    toast({
+      title: "Session cleared",
+      description: "UI state cleared. Reports remain saved in Supabase.",
+    });
+  };
+
+  const getCombinedReport = useCallback((date: string): DailyReport | null => {
+    const reportsForDate = dailyReports.filter(r => r.date === date);
+    if (reportsForDate.length === 0) return null;
+    if (reportsForDate.length === 1) return reportsForDate[0];
+
+    const combinedTotals = { ...reportsForDate[0].summaryTotalsByCat };
+    const combinedQuantities = { ...reportsForDate[0].summaryQuantitiesByCat };
+    let grandTotal = 0;
+    let grandQuantity = 0;
+    let totalRows = 0;
+    let mappedRows = 0;
+    let unmappedRows = 0;
+    let skippedRows = 0;
+    const allRows: typeof reportsForDate[0]["rowDetails"] = [];
+    const unmappedMap = new Map<string, { count: number; totalSales: number }>();
+
+    reportsForDate.forEach(report => {
+      CATEGORIES.forEach(cat => {
+        combinedTotals[cat] = (combinedTotals[cat] || 0) + (report.summaryTotalsByCat[cat] || 0);
+        combinedQuantities[cat] = (combinedQuantities[cat] || 0) + (report.summaryQuantitiesByCat[cat] || 0);
+      });
+      grandTotal += report.grandTotal;
+      grandQuantity += report.grandQuantity;
+      totalRows += report.totalRows;
+      mappedRows += report.mappedRows;
+      unmappedRows += report.unmappedRows;
+      skippedRows += report.skippedRows;
+      allRows.push(...report.rowDetails);
+      
+      report.unmappedSummary.forEach(item => {
+        const existing = unmappedMap.get(item.rawItemName);
+        if (existing) {
+          existing.count += item.count;
+          existing.totalSales += item.totalSales;
+        } else {
+          unmappedMap.set(item.rawItemName, { count: item.count, totalSales: item.totalSales });
+        }
+      });
+    });
+
+    const combinedPercents = { ...reportsForDate[0].percentByCat };
+    CATEGORIES.forEach(cat => {
+      combinedPercents[cat] = grandTotal > 0 ? (combinedTotals[cat] / grandTotal) * 100 : 0;
+    });
+
+    const unmappedSummary = Array.from(unmappedMap.entries()).map(([rawItemName, data]) => ({
+      rawItemName,
+      count: data.count,
+      totalSales: data.totalSales,
+    }));
+
+    return {
+      id: `${date}-combined`,
+      date,
+      branch: "greenbelt" as BranchId,
+      filename: `Combined (${reportsForDate.length} branches)`,
+      uploadedAt: Math.max(...reportsForDate.map(r => r.uploadedAt)),
+      totalRows,
+      mappedRows,
+      unmappedRows,
+      skippedRows,
+      summaryTotalsByCat: combinedTotals,
+      summaryQuantitiesByCat: combinedQuantities,
+      grandTotal,
+      grandQuantity,
+      percentByCat: combinedPercents,
+      rowDetails: allRows,
+      unmappedSummary,
+    };
+  }, [dailyReports]);
+
+  const displayReport = activeReport && viewMode === "combined" 
+    ? getCombinedReport(activeReport.date) 
+    : activeReport;
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Controls Bar */}
+      <div className="bg-primary shadow-md">
+        <div className="max-w-[1600px] mx-auto px-8 py-5">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Date Range Picker */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all",
+                    !dateRange.from && "text-primary-foreground/70"
+                  )}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {dateRange.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "MMM dd, yyyy")} — {format(dateRange.to, "MMM dd, yyyy")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "MMM dd, yyyy")
+                    )
+                  ) : (
+                    "Select date range"
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarUI
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
+                  className="p-3 pointer-events-auto rounded-2xl"
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
+
+            {/* Branch Selector */}
+            <Select 
+              value={selectedBranch} 
+              onValueChange={(value) => {
+                setSelectedBranch(value as BranchId);
+                setBranchError(false);
+              }}
+              disabled={isLoadingBranches}
+            >
+              <SelectTrigger className={cn(
+                "w-[200px] px-5 py-2.5 h-auto rounded-full bg-transparent border-2 text-primary-foreground hover:bg-primary-foreground/10 transition-all",
+                branchError ? "border-red-400" : "border-primary-foreground/70",
+                !selectedBranch && "text-primary-foreground/70"
+              )}>
+                <MapPin className="mr-2 h-4 w-4" />
+                <SelectValue placeholder={isLoadingBranches ? "Loading..." : "Select branch"} />
+              </SelectTrigger>
+              <SelectContent>
+                {BRANCHES.map(branch => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {branchError && (
+              <span className="flex items-center gap-1 text-red-300 text-sm font-medium">
+                <AlertCircle className="h-4 w-4" />
+                Select branch first
+              </span>
+            )}
+
+            {/* CSV Upload */}
+            <label className="flex items-center gap-3 px-5 py-2.5 rounded-full border-2 border-primary-foreground/70 bg-transparent text-primary-foreground cursor-pointer hover:bg-primary-foreground/10 transition-all">
+              <Upload className="h-4 w-4" />
+              {csvFile ? (
+                <span className="max-w-[180px] truncate font-medium">{csvFile.name}</span>
+              ) : (
+                <span className="font-medium">Transactions CSV</span>
+              )}
+              <input type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
+            </label>
+
+            {/* Mapping Upload */}
+            <label className="flex items-center gap-3 px-5 py-2.5 rounded-full border-2 border-dashed border-primary-foreground/50 bg-transparent text-primary-foreground/80 cursor-pointer hover:bg-primary-foreground/10 transition-all">
+              <FileSpreadsheet className="h-4 w-4" />
+              <span className="font-medium text-sm">Mapping CSV</span>
+              <input type="file" accept=".csv" className="hidden" onChange={handleMappingUpload} />
+            </label>
+
+            {/* Compute Button */}
+            <Button
+              size="sm"
+              className="px-6 py-2.5 h-auto rounded-full bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!canCompute || isSaving || isLoadingBranches}
+              onClick={() => {
+                const required = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
+                const allDetected = required.every(f => autoMapping[f]);
+                if (allDetected) {
+                  compute();
+                } else {
+                  setShowMapper(true);
+                }
+              }}
+            >
+              {isSaving ? "Saving..." : "Compute"}
+            </Button>
+
+            {/* Clear Button */}
+            {dailyReports.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-5 py-2.5 h-auto rounded-full ml-auto border-2 border-primary-foreground/70 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 transition-all"
+                onClick={clearSession}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear Session
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-[1600px] mx-auto px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
+          {/* Left: History Sidebar */}
+          <aside>
+            <DailyHistoryList
+              reports={dailyReports}
+              activeReportId={activeReportId}
+              onSelect={(id) => {
+                setActiveReportId(id);
+              }}
+              viewMode="daily"
+              selectedMonth=""
+              onMonthSelect={() => {}}
+            />
+          </aside>
+
+          {/* Right: Report Panel */}
+          <main className="min-w-0">
+            {displayReport ? (
+              <div className="bg-card rounded-3xl shadow-xl p-8">
+                {/* Report header */}
+                <div className="mb-6">
+                  <h2 className="text-2xl font-bold text-card-foreground mb-2">
+                    Report for {dateRange.from && dateRange.to && dateRange.from.getTime() !== dateRange.to.getTime() ? (
+                      <>
+                        {format(dateRange.from, "MMM dd, yyyy")} — {format(dateRange.to, "MMM dd, yyyy")}
+                      </>
+                    ) : dateRange.from ? (
+                      format(dateRange.from, "MMM dd, yyyy")
+                    ) : (
+                      displayReport.date
+                    )}
+                  </h2>
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-3">
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <span className="font-semibold text-primary">
+                        {viewMode === "combined" 
+                          ? "All Branches" 
+                          : BRANCHES.find(b => b.id === displayReport.branch)?.label}
+                      </span>
+                    </span>
+                    <span>File: <span className="font-medium text-card-foreground">{displayReport.filename}</span></span>
+                    <span>Rows: <span className="font-semibold text-card-foreground">{displayReport.totalRows}</span></span>
+                    <span className="text-emerald-600 font-medium">✓ Mapped: {displayReport.mappedRows}</span>
+                    <span className="text-amber-600 font-medium">⚠ Unmapped: {displayReport.unmappedRows}</span>
+                    <span>Skipped: {displayReport.skippedRows}</span>
+                    <span className="font-bold text-primary text-lg">
+                      Total: ₱{formatNumber(displayReport.grandTotal)}
+                    </span>
+                  </div>
+                  
+                  {/* View Mode Toggle */}
+                  {dailyReports.filter(r => r.date === displayReport.date).length > 1 && (
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        size="sm"
+                        variant={viewMode === "single" ? "default" : "outline"}
+                        onClick={() => setViewMode("single")}
+                        className="rounded-full"
+                      >
+                        This Branch
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={viewMode === "combined" ? "default" : "outline"}
+                        onClick={() => setViewMode("combined")}
+                        className="rounded-full"
+                      >
+                        All Branches (This Date)
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Branch Breakdown for Combined View */}
+                {viewMode === "combined" && (
+                  <div className="mb-6 p-4 bg-muted/50 rounded-2xl">
+                    <h3 className="text-sm font-semibold text-card-foreground mb-3">Branch Breakdown</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {dailyReports.filter(r => r.date === displayReport.date).map(report => (
+                        <div key={report.id} className="flex items-center justify-between p-3 bg-card rounded-xl">
+                          <span className="font-medium text-sm">
+                            {BRANCHES.find(b => b.id === report.branch)?.label}
+                          </span>
+                          <span className="font-bold text-primary">
+                            ₱{formatNumber(report.grandTotal)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tabs */}
+                <Tabs defaultValue="summary">
+                  <TabsList className="mb-6 bg-muted p-1.5 rounded-2xl">
+                    <TabsTrigger value="summary" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                      Summary
+                    </TabsTrigger>
+                    <TabsTrigger value="details" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                      Details
+                    </TabsTrigger>
+                    <TabsTrigger value="unmapped" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                      Unmapped ({displayReport.unmappedSummary.length})
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="summary">
+                    {viewMode === "combined" ? (
+                      <SummaryTable
+                        mode="multi"
+                        reports={dailyReports.filter(r => r.date === displayReport.date)}
+                      />
+                    ) : (
+                      <SummaryTable
+                        mode="single"
+                        totals={displayReport.summaryTotalsByCat}
+                        quantities={displayReport.summaryQuantitiesByCat}
+                        grandTotal={displayReport.grandTotal}
+                        grandQuantity={displayReport.grandQuantity}
+                        percents={displayReport.percentByCat}
+                        branchLabel={BRANCHES.find(b => b.id === displayReport.branch)?.label || displayReport.branch}
+                      />
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="details">
+                    <DetailsTable rows={displayReport.rowDetails} />
+                  </TabsContent>
+
+                  <TabsContent value="unmapped">
+                    <UnmappedList items={displayReport.unmappedSummary} />
+                  </TabsContent>
+                </Tabs>
+              </div>
+            ) : (
+              <div className="bg-card rounded-3xl shadow-xl p-16 flex flex-col items-center justify-center text-center">
+                <div className="bg-primary/5 rounded-full p-8 mb-6">
+                  <Coffee className="h-20 w-20 text-primary/30" strokeWidth={1.5} />
+                </div>
+                <p className="text-2xl font-bold text-card-foreground mb-2">No report selected</p>
+                <p className="text-base text-muted-foreground max-w-md">
+                  Select a date, choose a branch, upload a CSV file, and hit Compute to generate your daily summary
+                </p>
+              </div>
+            )}
+          </main>
+        </div>
+      </div>
+
+      {/* Column Mapper Modal */}
+      <ColumnMapperModal
+        open={showMapper}
+        headers={csvHeaders}
+        autoDetected={autoMapping}
+        onConfirm={handleColumnConfirm}
+        onCancel={() => setShowMapper(false)}
+      />
+    </div>
+  );
 }
