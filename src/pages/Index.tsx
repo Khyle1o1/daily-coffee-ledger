@@ -395,22 +395,15 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* HEADER - Royal Blue with White Text */}
-      <header className="bg-primary sticky top-0 z-20 shadow-md">
+      {/* CONTROLS BAR - Below AppShell Header */}
+      <div className="bg-primary shadow-md">
         <div className="max-w-[1600px] mx-auto px-8 py-5">
           <div className="flex items-center gap-4 mb-5">
-            <Coffee className="h-8 w-8 text-primary-foreground" strokeWidth={2.5} />
-            <h1 className="text-2xl font-bold tracking-tight text-primary-foreground">DOT Coffee Daily Summary</h1>
-            <span className="text-xs px-3 py-1 rounded-full border-2 border-primary-foreground/70 text-primary-foreground font-semibold">
-              MVP
-            </span>
-            
             {/* View Mode Toggle */}
             <ToggleGroup 
               type="single" 
               value={mainViewMode} 
               onValueChange={(value) => value && setMainViewMode(value as ViewMode)}
-              className="ml-4"
             >
               <ToggleGroupItem 
                 value="daily" 
@@ -587,7 +580,7 @@ const Index = () => {
             )}
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content - Blue Background with White Cards */}
       <div className="max-w-[1600px] mx-auto px-8 py-8">

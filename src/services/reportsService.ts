@@ -118,6 +118,13 @@ export async function saveDailyReport(
   payload: SaveDailyReportPayload
 ): Promise<DailyReportRow> {
   try {
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error('User must be authenticated to save reports');
+    }
+
     const { data, error } = await supabase
       .from('reports_daily')
       .upsert(
@@ -129,9 +136,10 @@ export async function saveDailyReport(
           transactions_file_name: payload.transactionsFileName,
           mapping_file_name: payload.mappingFileName || null,
           summary_json: payload.summaryJson as any,
+          user_id: user.id,
         },
         {
-          onConflict: 'branch_id,report_date',
+          onConflict: 'user_id,branch_id,report_date',
         }
       )
       .select('*, branch:branches(*)')
@@ -276,6 +284,13 @@ export async function saveMonthlyReport(
   payload: SaveMonthlyReportPayload
 ): Promise<MonthlyReportRow> {
   try {
+    // Get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error('User must be authenticated to save reports');
+    }
+
     const { data, error } = await supabase
       .from('reports_monthly')
       .upsert(
@@ -285,9 +300,10 @@ export async function saveMonthlyReport(
           date_range_start: payload.dateRangeStart,
           date_range_end: payload.dateRangeEnd,
           summary_json: payload.summaryJson as any,
+          user_id: user.id,
         },
         {
-          onConflict: 'branch_id,month_key',
+          onConflict: 'user_id,branch_id,month_key',
         }
       )
       .select('*, branch:branches(*)')
