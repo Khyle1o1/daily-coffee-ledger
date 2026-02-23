@@ -86,8 +86,8 @@
   
   .spreadsheet-header {
     @apply px-4 py-3 text-xs font-semibold text-center uppercase tracking-wider;
-    background: hsl(var(--table-header));
-    color: hsl(var(--table-header-foreground));
+    background: #2B67B2; /* primary blue header */
+    color: #FFFFFF;
     border: none;
   }
   
@@ -103,9 +103,9 @@
   
   .totals-row .spreadsheet-cell {
     @apply font-bold text-base;
-    background: hsl(var(--table-totals));
+    background: #FFFFFF; /* white surface for totals */
     color: hsl(212 30% 20%); /* Dark text */
-    border-bottom: 2px solid hsl(var(--table-grid));
+    border-bottom: 1px solid hsl(var(--table-grid));
   }
   
   .quantities-row .spreadsheet-cell {
@@ -115,8 +115,9 @@
   }
   
   .percent-row .spreadsheet-cell {
-    @apply font-semibold text-sm;
-    color: hsl(var(--primary));
+    @apply font-semibold text-xs;
+    background: #EEF4FB; /* light blue tint */
+    color: #2B67B2;
     font-style: normal; /* Remove italic */
   }
   

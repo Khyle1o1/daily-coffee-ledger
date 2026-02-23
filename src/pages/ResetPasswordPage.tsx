@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
         title: 'Password updated!',
         description: 'Your password has been successfully updated.',
       });
-      navigate('/app/daily');
+      navigate('/app/summary');
     }
   };
 

@@ -83,10 +83,10 @@ export default function SummaryTable(props: Props) {
       });
     }
     
-    // Percentage row
+    // Percentage row - lighter, more subdued
     rows.push({ 
       cells: percentRow(branchLabel, percents, grandTotal), 
-      className: "percent-row" 
+      className: "percent-row text-xs bg-muted/30 text-muted-foreground" 
     });
   } else {
     // Multi-branch mode - show all branches together
@@ -161,13 +161,13 @@ export default function SummaryTable(props: Props) {
     // Add percentage row for combined data
     rows.push({ 
       cells: percentRow("COMBINED TOTAL", combinedPercents, combinedGrandTotal), 
-      className: "percent-row font-bold" 
+      className: "percent-row font-bold text-xs bg-muted/30 text-muted-foreground" 
     });
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl shadow-lg">
-      <table className="w-full border-collapse min-w-[1000px]">
+    <div className="overflow-x-auto rounded-2xl shadow-lg border border-[#E2E8F0] bg-white">
+      <table className="w-full border-collapse min-w-[1000px] bg-white">
         <thead className="sticky top-0 z-10">
           <tr>
             {allCols.map(col => (
@@ -194,16 +194,16 @@ export default function SummaryTable(props: Props) {
             return (
               <tr 
                 key={ri} 
-                className={row.className}
+                className={`${row.className} even:bg-[#F7F9FC]`}
                 onClick={isClickable && row.branchLabel ? () => toggleBranch(row.branchLabel!) : undefined}
               >
                 {displayCells.map((cell, ci) => (
                   <td
                     key={ci}
-                    className={`spreadsheet-cell ${
+                    className={`spreadsheet-cell py-3 ${
                       ci === 0 ? "font-semibold text-left sticky left-0 bg-inherit z-5" : 
-                      ci === displayCells.length - 1 ? "font-bold border-l-2 border-l-primary" : 
-                      ""
+                      ci === displayCells.length - 1 ? "font-bold border-l-2 border-l-primary text-center" : 
+                      "text-center"
                     }`}
                   >
                     {ci === 0 && isClickable ? (

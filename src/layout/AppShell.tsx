@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Coffee, Calendar, CalendarDays, LogOut, User, Shield } from 'lucide-react';
+import { Coffee, Calendar, LogOut, User, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/auth/useAuth';
@@ -32,7 +32,7 @@ function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
         </p>
 
         <NavLink
-          to="/app/daily"
+          to="/app/summary"
           className={({ isActive }) =>
             `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
               isActive
@@ -42,21 +42,7 @@ function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
           }
         >
           <Calendar className="h-5 w-5" />
-          <span>Daily Summary</span>
-        </NavLink>
-
-        <NavLink
-          to="/app/monthly"
-          className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
-              isActive
-                ? "bg-white text-[#0e2d49] shadow-lg shadow-black/40"
-                : "text-primary-foreground/80 hover:bg-white/10"
-            }`
-          }
-        >
-          <CalendarDays className="h-5 w-5" />
-          <span>Monthly Summary</span>
+          <span>Summary</span>
         </NavLink>
 
         {isAdmin && (
@@ -95,8 +81,7 @@ export default function AppShell() {
   };
 
   const getPageTitle = () => {
-    if (location.pathname.includes('/daily')) return 'Daily Summary';
-    if (location.pathname.includes('/monthly')) return 'Monthly Summary';
+    if (location.pathname.includes('/summary')) return 'Summary';
     if (location.pathname.includes('/users')) return 'User Management';
     return 'Dashboard';
   };

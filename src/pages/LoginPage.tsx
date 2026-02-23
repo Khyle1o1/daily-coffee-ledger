@@ -22,7 +22,7 @@ export default function LoginPage() {
   // If user is already logged in, redirect to app
   useEffect(() => {
     if (user) {
-      navigate('/app/daily', { replace: true });
+      navigate('/app/summary', { replace: true });
     }
   }, [user, navigate]);
 
@@ -66,7 +66,7 @@ export default function LoginPage() {
         title: 'Welcome back!',
         description: 'You have successfully signed in.',
       });
-      navigate('/app/daily');
+      navigate('/app/summary');
     }
   };
 

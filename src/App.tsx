@@ -9,8 +9,7 @@ import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AppShell from "./layout/AppShell";
-import DailySummaryPage from "./pages/DailySummaryPage";
-import MonthlySummaryPage from "./pages/MonthlySummaryPage";
+import SummaryPage from "./pages/SummaryPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import NotFound from "./pages/NotFound";
 
@@ -43,9 +42,8 @@ const App = () => (
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Navigate to="/app/daily" replace />} />
-              <Route path="daily" element={<DailySummaryPage />} />
-              <Route path="monthly" element={<MonthlySummaryPage />} />
+              <Route index element={<Navigate to="/app/summary" replace />} />
+              <Route path="summary" element={<SummaryPage />} />
               <Route path="users" element={<UserManagementPage />} />
             </Route>
 

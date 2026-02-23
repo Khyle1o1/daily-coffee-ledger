@@ -51,84 +51,88 @@ export default function DetailsTable({ rows }: Props) {
   return (
     <div>
       {/* Filter Pills */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        {filters.map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`text-sm px-5 py-2 rounded-full font-semibold transition-all ${
-              filter === f
-                ? "bg-primary text-primary-foreground shadow-lg"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
-          >
-            {f} ({f === "ALL" ? rows.length : rows.filter(r => r.status === f).length})
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {filters.map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`text-xs px-4 py-1.5 rounded-full font-semibold transition-all ${
+                filter === f
+                  ? "bg-[#2B67B2] text-white shadow-md"
+                  : "bg-[#F1F5F9] text-[#334155] hover:bg-[#E5EBF3]"
+              }`}
+            >
+              {f} ({f === "ALL" ? rows.length : rows.filter(r => r.status === f).length})
+            </button>
+          ))}
+        </div>
         <Input
           placeholder="Search items..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="ml-auto max-w-[240px] h-10 text-sm rounded-full border-2 px-4"
+          className="ml-auto max-w-[240px] h-9 text-xs rounded-full border px-3 bg-white text-[#0F172A] placeholder:text-[#94A3B8]"
         />
       </div>
 
       {/* Category Filter Pills */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <span className="text-sm font-semibold text-muted-foreground">Category:</span>
-        <button
-          onClick={() => setCategoryFilter("ALL")}
-          className={`text-sm px-4 py-1.5 rounded-full font-semibold transition-all ${
-            categoryFilter === "ALL"
-              ? "bg-primary text-primary-foreground shadow-lg"
-              : "bg-muted text-muted-foreground hover:bg-muted/80"
-          }`}
-        >
-          ALL
-        </button>
-        {CATEGORIES.map(cat => {
-          const categoryRows = rows.filter(r => r.mappedCat === cat);
-          const totalQty = categoryRows.reduce((sum, r) => sum + r.quantity, 0);
-          if (totalQty === 0) return null;
-          return (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
-              className={`text-sm px-4 py-1.5 rounded-full font-semibold transition-all ${
-                categoryFilter === cat
-                  ? "bg-primary text-primary-foreground shadow-lg"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              {cat} ({totalQty})
-            </button>
-          );
-        })}
-        
-        {/* Special Cold Brew Filter (subcategory of ICED) */}
-        {coldBrewTotal > 0 && (
+      <div className="space-y-2 mb-5">
+        <span className="text-xs font-semibold text-muted-foreground block">Category</span>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
           <button
-            onClick={() => setCategoryFilter("COLD BREW")}
-            className={`text-sm px-4 py-1.5 rounded-full font-semibold transition-all border-2 ${
-              categoryFilter === "COLD BREW"
-                ? "bg-primary text-primary-foreground shadow-lg border-primary"
-                : "bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100"
+            onClick={() => setCategoryFilter("ALL")}
+            className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-full font-semibold transition-all ${
+              categoryFilter === "ALL"
+                ? "bg-[#2B67B2] text-white shadow-md"
+                : "bg-[#F1F5F9] text-[#334155] hover:bg-[#E5EBF3]"
             }`}
           >
-            🧊 COLD BREW ({coldBrewTotal})
+            ALL
           </button>
-        )}
+          {CATEGORIES.map(cat => {
+            const categoryRows = rows.filter(r => r.mappedCat === cat);
+            const totalQty = categoryRows.reduce((sum, r) => sum + r.quantity, 0);
+            if (totalQty === 0) return null;
+            return (
+              <button
+                key={cat}
+                onClick={() => setCategoryFilter(cat)}
+                className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-full font-semibold transition-all ${
+                  categoryFilter === cat
+                    ? "bg-[#2B67B2] text-white shadow-md"
+                    : "bg-[#F1F5F9] text-[#334155] hover:bg-[#E5EBF3]"
+                }`}
+              >
+                {cat} ({totalQty})
+              </button>
+            );
+          })}
+          
+          {/* Special Cold Brew Filter (subcategory of ICED) */}
+          {coldBrewTotal > 0 && (
+            <button
+              onClick={() => setCategoryFilter("COLD BREW")}
+              className={`whitespace-nowrap text-xs px-3 py-1.5 rounded-full font-semibold transition-all border ${
+                categoryFilter === "COLD BREW"
+                  ? "bg-[#2B67B2] text-white shadow-md border-[#2B67B2]"
+                  : "bg-[#E0F2FE] text-[#0369A1] border-[#BAE6FD] hover:bg-[#CFF0FF]"
+              }`}
+            >
+              🧊 COLD BREW ({coldBrewTotal})
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Clean Table */}
-      <div className="overflow-x-auto rounded-2xl shadow-lg">
+      <div className="overflow-x-auto rounded-2xl shadow-lg max-h-[340px] bg-white border border-[#E2E8F0]">
         <table className="w-full border-collapse text-sm min-w-[800px] bg-white">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr>
               {["Category", "Item Name", "Option", "Qty", "Unit Price", "Sales", "Mapped Cat", "Mapped Name", "Status"].map((h, i) => (
                 <th
                   key={h}
-                  className={`px-4 py-3 text-left font-semibold text-primary-foreground bg-primary border-none ${
+                  className={`px-4 py-3 text-left font-semibold text-white bg-[#2B67B2] border-none ${
                     i === 0 ? 'rounded-tl-2xl' : i === 8 ? 'rounded-tr-2xl' : ''
                   }`}
                 >
@@ -139,7 +143,7 @@ export default function DetailsTable({ rows }: Props) {
           </thead>
           <tbody>
             {filtered.slice(0, 200).map((r, i) => (
-              <tr key={i} className="border-b border-border hover:bg-table-row-hover transition-colors">
+              <tr key={i} className="border-b border-border hover:bg-[#EEF2F7] transition-colors even:bg-[#F7F9FC]">
                 <td className="px-4 py-3 text-card-foreground">{r.rawCategory}</td>
                 <td className="px-4 py-3 text-card-foreground">{r.rawItemName}</td>
                 <td className="px-4 py-3 text-muted-foreground">{r.option || "—"}</td>
@@ -149,7 +153,7 @@ export default function DetailsTable({ rows }: Props) {
                 <td className="px-4 py-3 text-card-foreground">{r.mappedCat || "—"}</td>
                 <td className="px-4 py-3 text-card-foreground">{r.mappedItemName || "—"}</td>
                 <td className="px-4 py-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                     r.status === "MAPPED" ? "bg-emerald-100 text-emerald-700" :
                     r.status === "UNMAPPED" ? "bg-amber-100 text-amber-700" :
                     "bg-gray-100 text-gray-500"
