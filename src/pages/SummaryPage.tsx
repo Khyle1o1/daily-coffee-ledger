@@ -34,7 +34,7 @@ import type {
   MappingEntry,
   RawRow,
 } from "@/utils/types";
-import { BRANCHES, CATEGORIES } from "@/utils/types";
+import { BRANCHES, CATEGORIES, type Category } from "@/utils/types";
 
 import {
   getBranches,
@@ -44,6 +44,7 @@ import {
 } from "@/services/reportsService";
 import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
 import type { Branch } from "@/lib/supabase-types";
+import { exportCategoryRankingPdf, type RankedCategory } from "@/utils/exportCategoryRankingPdf";
 
 interface DateRange {
   from: Date | undefined;
@@ -51,6 +52,8 @@ interface DateRange {
 }
 
 type Step = 1 | 2 | 3;
+type SortOrder = "desc" | "asc";
+type CategoryScope = "all" | "selected";
 
 export default function SummaryPage() {
   const { toast } = useToast();
@@ -66,6 +69,10 @@ export default function SummaryPage() {
   // Filters for the main summary view
   const [filterDateRange, setFilterDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [filterBranch, setFilterBranch] = useState<BranchId | "all">("all");
+  const [categoryScope, setCategoryScope] = useState<CategoryScope>("all");
+  const [selectedCategories, setSelectedCategories] = useState<Category[]>([...CATEGORIES]);
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [isExporting, setIsExporting] = useState(false);
 
   // Mapping table (kept internal, no manual upload in UI)
   const [mappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
@@ -372,77 +379,263 @@ export default function SummaryPage() {
     };
   }, [filteredReports]);
 
+  const rankedCategories: RankedCategory[] = useMemo(() => {
+    if (!combinedSummaryForFilters) return [];
+
+    const totalSales = combinedSummaryForFilters.grandTotal || 0;
+
+    const baseCategories =
+      categoryScope === "all"
+        ? CATEGORIES
+        : CATEGORIES.filter((c) => selectedCategories.includes(c));
+
+    const rows = baseCategories.map((cat) => {
+      const total = combinedSummaryForFilters.totals[cat] || 0;
+      const percentOfTotal = totalSales > 0 ? (total / totalSales) * 100 : 0;
+      return { category: cat, total, percentOfTotal };
+    });
+
+    rows.sort((a, b) =>
+      sortOrder === "desc" ? b.total - a.total : a.total - b.total,
+    );
+
+    return rows.map((row, index) => ({
+      rank: index + 1,
+      category: row.category,
+      total: row.total,
+      percentOfTotal: row.percentOfTotal,
+    }));
+  }, [combinedSummaryForFilters, categoryScope, selectedCategories, sortOrder]);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Top Controls + Primary Action */}
       <div className="bg-primary shadow-md">
         <div className="max-w-[1600px] mx-auto px-8 py-5">
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Date Range Filter */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all",
-                    !filterDateRange.from && "text-primary-foreground/70",
-                  )}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {filterDateRange.from ? (
-                    filterDateRange.to ? (
-                      <>
-                        {format(filterDateRange.from, "MMM dd, yyyy")} —{" "}
-                        {format(filterDateRange.to, "MMM dd, yyyy")}
-                      </>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Date Range Filter */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all",
+                      !filterDateRange.from && "text-primary-foreground/70",
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {filterDateRange.from ? (
+                      filterDateRange.to ? (
+                        <>
+                          {format(filterDateRange.from, "MMM dd, yyyy")} —{" "}
+                          {format(filterDateRange.to, "MMM dd, yyyy")}
+                        </>
+                      ) : (
+                        format(filterDateRange.from, "MMM dd, yyyy")
+                      )
                     ) : (
-                      format(filterDateRange.from, "MMM dd, yyyy")
-                    )
-                  ) : (
-                    "Filter by date range"
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <CalendarUI
-                  mode="range"
-                  selected={filterDateRange}
-                  onSelect={(range) => setFilterDateRange(range || { from: undefined, to: undefined })}
-                  className="p-3 pointer-events-auto rounded-2xl"
-                  numberOfMonths={2}
-                />
-              </PopoverContent>
-            </Popover>
+                      "Filter by date range"
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarUI
+                    mode="range"
+                    selected={filterDateRange}
+                    onSelect={(range) => setFilterDateRange(range || { from: undefined, to: undefined })}
+                    className="p-3 pointer-events-auto rounded-2xl"
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
 
-            {/* Branch Filter */}
-            <Select
-              value={filterBranch}
-              onValueChange={(value) => setFilterBranch(value as BranchId | "all")}
-              disabled={isLoadingBranches}
-            >
-              <SelectTrigger className="w-[220px] px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all">
-                <MapPin className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="All branches" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All branches</SelectItem>
-                {BRANCHES.map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id}>
-                    {branch.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Spacer */}
-            <div className="ml-auto flex items-center gap-3">
-              <Button
-                size="lg"
-                className="rounded-full px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2"
-                onClick={handleOpenAddModal}
+              {/* Branch Filter */}
+              <Select
+                value={filterBranch}
+                onValueChange={(value) => setFilterBranch(value as BranchId | "all")}
+                disabled={isLoadingBranches}
               >
-                <PlusCircle className="h-5 w-5" />
-                ADD REPORT
+                <SelectTrigger className="w-[220px] px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all">
+                  <MapPin className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="All branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All branches</SelectItem>
+                  {BRANCHES.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Spacer */}
+              <div className="ml-auto flex items-center gap-3">
+                <Button
+                  size="lg"
+                  className="rounded-full px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2"
+                  onClick={handleOpenAddModal}
+                >
+                  <PlusCircle className="h-5 w-5" />
+                  ADD REPORT
+                </Button>
+              </div>
+            </div>
+
+            {/* Category Ranking Bar */}
+            <div className="mt-1 flex flex-wrap items-center gap-3 bg-primary/20 border border-primary/30 rounded-2xl px-4 py-3">
+              <span className="text-xs font-semibold tracking-[0.16em] uppercase text-primary-foreground/80">
+                Category Ranking
+              </span>
+
+              {/* Sort by (future-safe) */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-primary-foreground/80">Sort by</span>
+                <div className="px-3 py-1.5 rounded-full bg-primary-foreground/10 text-primary-foreground text-[11px] font-semibold">
+                  Category Total Sales
+                </div>
+              </div>
+
+              {/* Order */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-primary-foreground/80">Order</span>
+                <div className="inline-flex rounded-full bg-primary-foreground/10 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder("desc")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-[11px] font-semibold",
+                      sortOrder === "desc"
+                        ? "bg-primary-foreground text-primary"
+                        : "text-primary-foreground/80",
+                    )}
+                  >
+                    Highest → Lowest
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder("asc")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-[11px] font-semibold",
+                      sortOrder === "asc"
+                        ? "bg-primary-foreground text-primary"
+                        : "text-primary-foreground/80",
+                    )}
+                  >
+                    Lowest → Highest
+                  </button>
+                </div>
+              </div>
+
+              {/* Scope */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-primary-foreground/80">Scope</span>
+                <div className="inline-flex rounded-full bg-primary-foreground/10 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryScope("all");
+                      setSelectedCategories([...CATEGORIES]);
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-[11px] font-semibold",
+                      categoryScope === "all"
+                        ? "bg-primary-foreground text-primary"
+                        : "text-primary-foreground/80",
+                    )}
+                  >
+                    All Categories
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryScope("selected")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-[11px] font-semibold",
+                      categoryScope === "selected"
+                        ? "bg-primary-foreground text-primary"
+                        : "text-primary-foreground/80",
+                    )}
+                  >
+                    Selected Categories
+                  </button>
+                </div>
+              </div>
+
+              {/* Category Multi-select */}
+              <div className="flex-1 min-w-[220px]">
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                  {CATEGORIES.map((cat) => {
+                    const isActive = selectedCategories.includes(cat);
+                    const disabled = categoryScope === "all";
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          if (!isActive) {
+                            setSelectedCategories((prev) => [...prev, cat]);
+                          } else {
+                            setSelectedCategories((prev) =>
+                              prev.filter((c) => c !== cat),
+                            );
+                          }
+                        }}
+                        className={cn(
+                          "text-[11px] px-3 py-1.5 rounded-full font-semibold transition-colors",
+                          disabled && "opacity-40 cursor-not-allowed",
+                          !disabled &&
+                            (isActive
+                              ? "bg-primary-foreground text-primary shadow-sm"
+                              : "bg-primary-foreground/5 text-primary-foreground/90 hover:bg-primary-foreground/15"),
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Download PDF */}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!rankedCategories.length || isExporting || !combinedSummaryForFilters}
+                onClick={async () => {
+                  if (!combinedSummaryForFilters || !rankedCategories.length) return;
+                  setIsExporting(true);
+                  try {
+                    const totalSales = combinedSummaryForFilters.grandTotal || 0;
+                    const branchLabel =
+                      filterBranch === "all"
+                        ? "All branches"
+                        : BRANCHES.find((b) => b.id === filterBranch)?.label || "Branch";
+
+                    const dateRangeLabel = filterDateRange.from
+                      ? filterDateRange.to &&
+                        filterDateRange.from.getTime() !== filterDateRange.to.getTime()
+                        ? `${format(filterDateRange.from, "MMM dd, yyyy")} — ${format(
+                            filterDateRange.to,
+                            "MMM dd, yyyy",
+                          )}`
+                        : format(filterDateRange.from, "MMM dd, yyyy")
+                      : "All dates";
+
+                    await exportCategoryRankingPdf({
+                      rankedCategories,
+                      branchLabel,
+                      dateRangeLabel,
+                      totalSales,
+                    });
+                  } finally {
+                    setIsExporting(false);
+                  }
+                }}
+                className="ml-auto rounded-full border-white/70 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20"
+              >
+                {isExporting ? "Generating..." : "Download PDF"}
               </Button>
             </div>
           </div>
@@ -497,6 +690,59 @@ export default function SummaryPage() {
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No reports match the current filters yet.
+                </p>
+              )}
+            </div>
+
+            {/* Top Categories (Ranked) */}
+            <div className="bg-card rounded-3xl shadow-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
+                    Top Categories (Ranked)
+                  </p>
+                  <h2 className="text-xl font-bold text-card-foreground">
+                    Category ranking by sales
+                  </h2>
+                </div>
+              </div>
+
+              {rankedCategories.length ? (
+                <div className="overflow-x-auto rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-[#2B67B2] text-white">
+                        <th className="px-4 py-3 text-left w-[70px]">Rank</th>
+                        <th className="px-4 py-3 text-left">Category</th>
+                        <th className="px-4 py-3 text-right w-[160px]">Total Sales</th>
+                        <th className="px-4 py-3 text-right w-[120px]">% of Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rankedCategories.map((row) => (
+                        <tr key={row.category} className="border-t border-[#E2E8F0] even:bg-[#F7F9FC]">
+                          <td className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500">
+                            {row.rank}
+                          </td>
+                          <td className="px-4 py-2.5 text-card-foreground text-sm font-medium">
+                            {row.category}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">
+                            ₱{formatNumber(row.total)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-xs font-semibold text-[#2B67B2]">
+                            {combinedSummaryForFilters?.grandTotal
+                              ? `${((row.total / combinedSummaryForFilters.grandTotal) * 100).toFixed(1)}%`
+                              : "0.0%"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No category data available for the current filters.
                 </p>
               )}
             </div>

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Coffee, Calendar, LogOut, User, Shield } from 'lucide-react';
+import { Coffee, Calendar, LogOut, User, Shield, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/auth/useAuth';
@@ -70,6 +71,7 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -89,7 +91,9 @@ export default function AppShell() {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Left Sidebar */}
-      <SidebarNav isAdmin={!!isAdmin} />
+      {!isSidebarCollapsed && (
+        <SidebarNav isAdmin={!!isAdmin} />
+      )}
 
       {/* Right Content Area */}
       <div className="flex-1 flex flex-col">
@@ -97,10 +101,25 @@ export default function AppShell() {
         <header className="bg-primary shadow-md">
           <div className="px-8 py-5">
             <div className="flex items-center justify-between">
-              {/* Page Title */}
-              <h2 className="text-xl font-bold text-primary-foreground">
-                {getPageTitle()}
-              </h2>
+              {/* Page Title + Sidebar Toggle */}
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 rounded-full border-2 border-primary-foreground/70 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground hover:text-primary"
+                  onClick={() => setIsSidebarCollapsed(prev => !prev)}
+                >
+                  {isSidebarCollapsed ? (
+                    <PanelLeftOpen className="h-4 w-4" />
+                  ) : (
+                    <PanelLeftClose className="h-4 w-4" />
+                  )}
+                </Button>
+                <h2 className="text-xl font-bold text-primary-foreground">
+                  {getPageTitle()}
+                </h2>
+              </div>
 
               {/* User Info and Logout */}
               <div className="flex items-center gap-4">
