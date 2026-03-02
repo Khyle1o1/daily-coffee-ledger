@@ -85,11 +85,12 @@ export async function seedBranchesIfEmpty(): Promise<void> {
 
     // Seed the branches
     const branches = [
-      { name: 'greenbelt', label: 'Greenbelt' },
       { name: 'podium', label: 'Podium' },
       { name: 'mind_museum', label: 'The Mind Museum' },
       { name: 'trinoma', label: 'Trinoma' },
       { name: 'uptown', label: 'Uptown' },
+      { name: 'wgc', label: 'WGC' },
+      { name: 'wcc', label: 'WCC' },
     ];
 
     const { error: insertError } = await supabase

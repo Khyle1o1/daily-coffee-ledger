@@ -133,6 +133,7 @@ export default function ReportsPage() {
   const [canvasData, setCanvasData] = useState<ReportCanvasData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -439,10 +440,10 @@ export default function ReportsPage() {
   // ============================================================================
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9]">
+    <div className="min-h-screen bg-[#F4F6F9] flex flex-col overflow-hidden">
       {/* Page header */}
-      <div className="bg-primary shadow-md px-8 py-5">
-        <div className="max-w-[1600px] mx-auto">
+      <div className="bg-primary shadow-md px-4 sm:px-8 py-4 sm:py-5">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <BarChart3 className="h-5 w-5 text-primary-foreground" />
             <div>
@@ -454,30 +455,51 @@ export default function ReportsPage() {
               </p>
             </div>
           </div>
+
+          {/* Mobile filters toggle */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full border-primary-foreground/60 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20"
+              onClick={() => setShowFiltersMobile((prev) => !prev)}
+            >
+              Filters
+            </Button>
+          </div>
         </div>
       </div>
 
       {isLoadingData && (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <span className="ml-3 text-slate-500">Loading data…</span>
         </div>
       )}
 
       {!isLoadingData && (
-        <div className="max-w-[1600px] mx-auto px-6 py-6">
-          <div className="flex gap-6 items-start">
+        <div className="flex-1 max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6 h-[calc(100vh-80px)]">
+          <div className="h-full grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-6 overflow-hidden">
             {/* ── Left panel ─────────────────────────────────────────────── */}
-            <div className="w-[310px] flex-shrink-0 space-y-4">
-
+            <div
+              className={cn(
+                "flex flex-col gap-4 h-full",
+                "lg:block",
+                showFiltersMobile ? "block" : "hidden lg:block",
+              )}
+            >
               {/* Filter card */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
-                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest">
-                  Filters
-                </h2>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full max-h-full overflow-hidden">
+                <div className="px-5 pt-5 pb-3 border-b border-slate-200 sticky top-0 z-10 bg-white">
+                  <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest">
+                    Filters
+                  </h2>
+                </div>
 
-                {/* Report type */}
-                <div className="space-y-1.5">
+                {/* Scrollable content */}
+                <div className="flex-1 min-h-0 px-5 pb-4 pt-2 space-y-4 overflow-y-auto">
+                  {/* Report type */}
+                  <div className="space-y-1.5">
                   <Label className="text-xs text-slate-500 uppercase tracking-wider">
                     Report Type
                   </Label>
@@ -503,8 +525,8 @@ export default function ReportsPage() {
                   </Select>
                 </div>
 
-                {/* Branch */}
-                <div className="space-y-1.5">
+                  {/* Branch */}
+                  <div className="space-y-1.5">
                   <Label className="text-xs text-slate-500 uppercase tracking-wider">
                     Branch
                   </Label>
@@ -525,10 +547,10 @@ export default function ReportsPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                  </div>
 
-                {/* Date range */}
-                <div className="space-y-1.5">
+                  {/* Date range */}
+                  <div className="space-y-1.5">
                   <Label className="text-xs text-slate-500 uppercase tracking-wider">
                     Date Range <span className="text-red-400">*</span>
                   </Label>
@@ -579,10 +601,10 @@ export default function ReportsPage() {
                       />
                     </PopoverContent>
                   </Popover>
-                </div>
+                  </div>
 
-                {/* Compare mode toggle */}
-                <div className="flex items-center gap-3">
+                  {/* Compare mode toggle */}
+                  <div className="flex items-center gap-3">
                   <Switch
                     id="compare-mode"
                     checked={compareMode}
@@ -594,10 +616,10 @@ export default function ReportsPage() {
                   >
                     Compare period
                   </Label>
-                </div>
+                  </div>
 
-                {compareMode && (
-                  <div className="space-y-1.5">
+                  {compareMode && (
+                    <div className="space-y-1.5">
                     <Label className="text-xs text-slate-500 uppercase tracking-wider">
                       Compare Date Range <span className="text-red-400">*</span>
                     </Label>
@@ -641,12 +663,12 @@ export default function ReportsPage() {
                         />
                       </PopoverContent>
                     </Popover>
-                  </div>
-                )}
+                    </div>
+                  )}
 
-                {/* Running category picker (only for RUNNING_SALES_MIX_CATEGORY) */}
-                {reportType === "RUNNING_SALES_MIX_CATEGORY" && (
-                  <div className="space-y-1.5">
+                  {/* Running category picker (only for RUNNING_SALES_MIX_CATEGORY) */}
+                  {reportType === "RUNNING_SALES_MIX_CATEGORY" && (
+                    <div className="space-y-1.5">
                     <Label className="text-xs text-slate-500 uppercase tracking-wider">
                       Category
                     </Label>
@@ -665,12 +687,12 @@ export default function ReportsPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                )}
+                    </div>
+                  )}
 
-                {/* Categories multi-select */}
-                {reportType !== "RUNNING_SALES_MIX_CATEGORY" && (
-                  <div className="space-y-2">
+                  {/* Categories multi-select */}
+                  {reportType !== "RUNNING_SALES_MIX_CATEGORY" && (
+                    <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs text-slate-500 uppercase tracking-wider">
                         Categories
@@ -712,43 +734,44 @@ export default function ReportsPage() {
                       })}
                     </div>
                   </div>
-                )}
+                  )}
+                </div>
 
-                <Separator />
-
-                {/* Action buttons */}
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1 rounded-xl bg-[#1e3a5f] hover:bg-[#0e2d49] text-white font-semibold"
-                    disabled={!canGenerate || isGenerating}
-                    onClick={handleGenerate}
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Generating…
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Generate
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="rounded-xl border-slate-200 text-slate-500 hover:text-slate-800"
-                    onClick={handleReset}
-                    title="Reset filters"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                {/* Sticky footer actions */}
+                <div className="px-5 py-3 border-t border-slate-200 bg-white sticky bottom-0 mt-auto">
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1 rounded-xl bg-[#1e3a5f] hover:bg-[#0e2d49] text-white font-semibold"
+                      disabled={!canGenerate || isGenerating}
+                      onClick={handleGenerate}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating…
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Generate
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="rounded-xl border-slate-200 text-slate-500 hover:text-slate-800"
+                      onClick={handleReset}
+                      title="Reset filters"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 
               {/* Report History */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 h-[260px] overflow-hidden">
                 <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-3">
                   History
                 </h2>
@@ -757,7 +780,7 @@ export default function ReportsPage() {
                     No generated reports yet.
                   </p>
                 ) : (
-                  <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                  <div className="space-y-2 h-full overflow-y-auto pr-1">
                     {history.map((row) => (
                       <div
                         key={row.id}
@@ -801,9 +824,9 @@ export default function ReportsPage() {
             </div>
 
             {/* ── Right: Canvas area ──────────────────────────────────────── */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
               {/* Export bar */}
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
                   {canvasData ? (
                     <p className="text-sm text-slate-600">
@@ -823,7 +846,7 @@ export default function ReportsPage() {
                     </p>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -857,21 +880,23 @@ export default function ReportsPage() {
               </div>
 
               {/* Paper canvas */}
-              {canvasData ? (
-                <div className="overflow-x-auto">
-                  <ReportCanvas ref={canvasRef} data={canvasData} />
-                </div>
-              ) : (
-                <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center min-h-[500px] text-slate-400">
-                  <BarChart3 className="h-16 w-16 mb-4 text-slate-200" />
-                  <p className="text-lg font-semibold text-slate-300">
-                    No report generated yet
-                  </p>
-                  <p className="text-sm text-slate-300 mt-1">
-                    Choose filters on the left and click Generate Report.
-                  </p>
-                </div>
-              )}
+              <div className="flex-1 min-h-0 overflow-auto">
+                {canvasData ? (
+                  <div className="overflow-x-auto">
+                    <ReportCanvas ref={canvasRef} data={canvasData} />
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center min-h-[400px] text-slate-400">
+                    <BarChart3 className="h-16 w-16 mb-4 text-slate-200" />
+                    <p className="text-lg font-semibold text-slate-300">
+                      No report generated yet
+                    </p>
+                    <p className="text-sm text-slate-300 mt-1">
+                      Choose filters on the left and click Generate Report.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
