@@ -32,6 +32,8 @@ export interface RawRow {
   option: string;
   quantity: number;
   unitPrice: number;
+  // Optional: original payment type / channel indicator from the CSV
+  paymentType?: string;
 }
 
 export interface ProcessedRow extends RawRow {
@@ -82,6 +84,7 @@ export interface ColumnMapping {
   option: string;
   quantity: string;
   unitPrice: string;
+  paymentType?: string;
 }
 
 // View mode type

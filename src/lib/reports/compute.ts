@@ -1,5 +1,7 @@
 import type { DailyReport, Category, ProcessedRow } from "@/utils/types";
 import { CATEGORIES } from "@/utils/types";
+import type { Top5ByChannel } from "./computeTop5ByChannel";
+import { computeTop5ByChannelFromRows } from "./computeTop5ByChannel";
 
 // ============================================================================
 // Filter types
@@ -50,6 +52,7 @@ export interface ComputedSalesMix {
   categoryTotals: CategoryTotal[];
   grandTotal: number;
   compareGrandTotal?: number;
+  top5ByChannel?: Top5ByChannel;
 }
 
 export interface ComputedProductMix {
@@ -111,6 +114,13 @@ function getRows(reports: DailyReport[], filters: ReportFilters): ProcessedRow[]
         activeCats.includes(row.mappedCat as Category)
     )
   );
+}
+
+export function getRowsForFilters(
+  reports: DailyReport[],
+  filters: ReportFilters
+): ProcessedRow[] {
+  return getRows(reports, filters);
 }
 
 function getCompareRows(
@@ -181,8 +191,9 @@ export function computeCategoryTotals(
       };
     })
     .sort((a, b) => b.sales - a.sales);
+  const top5ByChannel = computeTop5ByChannelFromRows(rows);
 
-  return { categoryTotals, grandTotal, compareGrandTotal };
+  return { categoryTotals, grandTotal, compareGrandTotal, top5ByChannel };
 }
 
 export function computeProductTotals(

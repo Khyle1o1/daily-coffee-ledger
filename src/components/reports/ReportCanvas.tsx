@@ -7,12 +7,14 @@ import type {
   ComputedTop5,
   ComputedCategoryPerformance,
 } from "@/lib/reports/compute";
+import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChannel";
 
 import SalesMixOverviewReport from "./renderers/SalesMixOverviewReport";
 import ProductMixReport from "./renderers/ProductMixReport";
 import Top5ProductsReport from "./renderers/Top5ProductsReport";
 import RunningSalesMixCategoryReport from "./renderers/RunningSalesMixCategoryReport";
 import CategoryPerformanceReport from "./renderers/CategoryPerformanceReport";
+import ProductMixChannelReport from "./renderers/ProductMixChannelReport";
 
 export interface ReportCanvasData {
   reportType: ReportType;
@@ -23,6 +25,7 @@ export interface ReportCanvasData {
   // Populated depending on reportType
   salesMix?: ComputedSalesMix;
   productMix?: ComputedProductMix;
+  productMixChannel?: ProductMixChannelData;
   top5?: ComputedTop5;
   runningSalesMixCategory?: ComputedProductMix;
   categoryPerformance?: ComputedCategoryPerformance;
@@ -55,6 +58,13 @@ const ReportCanvas = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
           branchLabel={data.branchLabel}
           dateRangeLabel={data.dateRangeLabel}
           compareLabel={data.compareLabel}
+        />
+      )}
+
+      {data.reportType === "PRODUCT_MIX_CHANNEL" && data.productMixChannel && (
+        <ProductMixChannelReport
+          data={data.productMixChannel}
+          branchLabel={data.branchLabel}
         />
       )}
 

@@ -1,13 +1,7 @@
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import type { ReportCanvasData } from "@/components/reports/ReportCanvas";
-
-function formatPHP(value: number) {
-  return `\u20B1${value.toLocaleString("en-PH", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}
+import { formatPHP } from "@/utils/format";
 
 function pct(n: number | undefined) {
   if (n === undefined) return "";
@@ -75,6 +69,7 @@ export async function exportReportPdf(
     runningSalesCategory,
     categoryPerformance,
     selectedCategories,
+    productMixChannel,
   } = canvasData;
 
   if (reportType === "SALES_MIX_OVERVIEW" && salesMix) {
@@ -119,6 +114,70 @@ export async function exportReportPdf(
       alternateRowStyles: { fillColor: ALT_ROW_COLOR },
       margin: { left: marginLeft, right: marginLeft },
     });
+
+    y = (doc as any).lastAutoTable?.finalY ?? y;
+
+    // Top 5 per channel section
+    const channels: { key: "WALK_IN" | "GRAB" | "FOODPANDA"; label: string }[] = [
+      { key: "WALK_IN", label: "Walk-in" },
+      { key: "GRAB", label: "Grab" },
+      { key: "FOODPANDA", label: "FoodPanda" },
+    ];
+
+    y += 24;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...HEADER_COLOR);
+    doc.text("Top 5 items per channel", marginLeft, y);
+    y += 10;
+
+    for (const channel of channels) {
+      const channelData = salesMix.top5ByChannel?.[channel.key];
+      const items = channelData?.items ?? [];
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(channel.label, marginLeft, y);
+      y += 6;
+
+      if (!items.length) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(148, 163, 184);
+        doc.text("No data for this channel in the selected filters.", marginLeft, y);
+        y += 18;
+        continue;
+      }
+
+      // @ts-ignore
+      doc.autoTable({
+        startY: y,
+        head: [["#", "Item", "Qty", "Sales"]],
+        body: [
+          ...items.map((item, idx) => [
+            String(idx + 1),
+            item.name,
+            item.qty.toLocaleString("en-PH"),
+            formatPHP(item.sales),
+          ]),
+          channelData?.totals
+            ? [
+                "",
+                "Total",
+                channelData.totals.totalQty.toLocaleString("en-PH"),
+                formatPHP(channelData.totals.totalSales),
+              ]
+            : [],
+        ],
+        styles: { font: "helvetica", fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+        margin: { left: marginLeft, right: marginLeft },
+      });
+      y = (doc as any).lastAutoTable?.finalY ?? y;
+      y += 12;
+    }
   }
 
   else if (reportType === "PRODUCT_MIX" && productMix) {
@@ -159,6 +218,88 @@ export async function exportReportPdf(
         : { 2: { halign: "right" }, 3: { halign: "right" } },
     });
     y = (doc as any).lastAutoTable?.finalY ?? y;
+  }
+
+  else if (reportType === "PRODUCT_MIX_CHANNEL" && productMixChannel) {
+    const categoryLabel =
+      productMixChannel.category === "ALL"
+        ? "ALL CATEGORIES"
+        : productMixChannel.category;
+    const title =
+      productMixChannel.category === "ALL"
+        ? `Product Mix (Channel) — ${productMixChannel.periodLabel}`
+        : `Product Mix (Channel) — ${productMixChannel.category} — ${productMixChannel.periodLabel}`;
+    let y = drawHeader(doc, title, branchLabel, dateRangeLabel, marginLeft);
+
+    const head: string[][] = [
+      [
+        "#",
+        "Menu",
+        `${productMixChannel.periodLabel} Qty`,
+        `${productMixChannel.periodLabel} Sales`,
+        "Walk-in Qty",
+        "Walk-in Sales",
+        "Grab Qty",
+        "Grab Sales",
+        "FoodPanda Qty",
+        "FoodPanda Sales",
+      ],
+    ];
+
+    const body = productMixChannel.rows.map((row, idx) => [
+      String(idx + 1).padStart(2, "0"),
+      row.name,
+      row.totalQty.toLocaleString("en-PH"),
+      formatPHP(row.totalSales),
+      row.walkInQty.toLocaleString("en-PH"),
+      formatPHP(row.walkInSales),
+      row.grabQty.toLocaleString("en-PH"),
+      formatPHP(row.grabSales),
+      row.foodpandaQty.toLocaleString("en-PH"),
+      formatPHP(row.foodpandaSales),
+    ]);
+
+    const t = productMixChannel.totals;
+
+    // @ts-ignore
+    doc.autoTable({
+      startY: y,
+      head,
+      body,
+      foot: [
+        [
+          "",
+          "TOTAL",
+          t.totalQty.toLocaleString("en-PH"),
+          formatPHP(t.totalSales),
+          t.walkInQty.toLocaleString("en-PH"),
+          formatPHP(t.walkInSales),
+          t.grabQty.toLocaleString("en-PH"),
+          formatPHP(t.grabSales),
+          t.foodpandaQty.toLocaleString("en-PH"),
+          formatPHP(t.foodpandaSales),
+        ],
+      ],
+      styles: { font: "helvetica", fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+      margin: { left: marginLeft, right: marginLeft },
+      columnStyles: {
+        0: { halign: "left" },
+        1: { halign: "left" },
+        2: { halign: "right" },
+        3: { halign: "right" },
+        4: { halign: "right" },
+        5: { halign: "right" },
+        6: { halign: "right" },
+        7: { halign: "right" },
+        8: { halign: "right" },
+        9: { halign: "right" },
+      },
+    });
+   	const yEnd = (doc as any).lastAutoTable?.finalY ?? y;
+    y = yEnd;
   }
 
   else if (reportType === "TOP_5_PRODUCTS" && top5) {

@@ -60,6 +60,7 @@ import {
   computeCategoryPerformance,
   type ReportFilters,
 } from "@/lib/reports/compute";
+import { computeProductMixChannel } from "@/lib/reports/computeProductMixChannel";
 
 // ============================================================================
 // Constants
@@ -75,6 +76,11 @@ const REPORT_TYPE_OPTIONS: { value: ReportType; label: string; desc: string }[] 
     value: "PRODUCT_MIX",
     label: "Product Mix",
     desc: "Full ranked menu item list for a category",
+  },
+  {
+    value: "PRODUCT_MIX_CHANNEL",
+    label: "Product Mix (Channel)",
+    desc: "Ranked items with quantity by channel",
   },
   {
     value: "TOP_5_PRODUCTS",
@@ -128,6 +134,7 @@ export default function ReportsPage() {
     ...CATEGORIES,
   ]);
   const [runningCategory, setRunningCategory] = useState<Category>("ICED");
+  const [channelCategory, setChannelCategory] = useState<Category | "ALL">("ALL");
 
   // ── Generation state ──────────────────────────────────────────────────────
   const [canvasData, setCanvasData] = useState<ReportCanvasData | null>(null);
@@ -314,6 +321,28 @@ export default function ReportsPage() {
           selectedCategories,
           categoryPerformance,
         };
+      } else if (reportType === "PRODUCT_MIX_CHANNEL") {
+        const channelFilters =
+          channelCategory === "ALL"
+            ? filters
+            : {
+                ...filters,
+                selectedCategories: [channelCategory],
+              };
+        const productMixChannel = computeProductMixChannel(
+          dailyReports,
+          channelFilters,
+          dateRangeLabel,
+          channelCategory,
+        );
+        canvas = {
+          reportType,
+          branchLabel,
+          dateRangeLabel,
+          compareLabel,
+          selectedCategories,
+          productMixChannel,
+        };
       }
 
       if (!canvas) return;
@@ -371,6 +400,7 @@ export default function ReportsPage() {
     compareLabel,
     selectedCategories,
     runningCategory,
+    channelCategory,
     branches,
     filterBranch,
     toast,
@@ -425,6 +455,7 @@ export default function ReportsPage() {
     setCompareDateRange({ from: undefined, to: undefined });
     setSelectedCategories([...CATEGORIES]);
     setRunningCategory("ICED");
+    setChannelCategory("ALL");
     setCanvasData(null);
   }, []);
 
@@ -478,148 +509,136 @@ export default function ReportsPage() {
       )}
 
       {!isLoadingData && (
-        <div className="flex-1 max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6 h-[calc(100vh-80px)]">
-          <div className="h-full grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-6 overflow-hidden">
-            {/* ── Left panel ─────────────────────────────────────────────── */}
-            <div
-              className={cn(
-                "flex flex-col gap-4 h-full",
-                "lg:block",
-                showFiltersMobile ? "block" : "hidden lg:block",
-              )}
-            >
-              {/* Filter card */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full max-h-full overflow-hidden">
-                <div className="px-5 pt-5 pb-3 border-b border-slate-200 sticky top-0 z-10 bg-white">
-                  <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest">
-                    Filters
-                  </h2>
-                </div>
-
-                {/* Scrollable content */}
-                <div className="flex-1 min-h-0 px-5 pb-4 pt-2 space-y-4 overflow-y-auto">
-                  {/* Report type */}
-                  <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-500 uppercase tracking-wider">
-                    Report Type
-                  </Label>
-                  <Select
-                    value={reportType}
-                    onValueChange={(v) => setReportType(v as ReportType)}
-                  >
-                    <SelectTrigger className="w-full rounded-xl text-sm border-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REPORT_TYPE_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          <div>
-                            <div className="font-medium text-sm">{opt.label}</div>
-                            <div className="text-xs text-slate-400 leading-tight">
-                              {opt.desc}
-                            </div>
+        <div className="flex-1 max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
+          {/* Top filters bar */}
+          <div className="mb-4 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+            <div className="px-5 pt-5 pb-3 border-b border-slate-200">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest">
+                Filters
+              </h2>
+            </div>
+            <div className="px-5 pb-3 pt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {/* Report type */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500 uppercase tracking-wider">
+                  Report Type
+                </Label>
+                <Select
+                  value={reportType}
+                  onValueChange={(v) => setReportType(v as ReportType)}
+                >
+                  <SelectTrigger className="w-full rounded-xl text-sm border-slate-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORT_TYPE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <div>
+                          <div className="font-medium text-sm">{opt.label}</div>
+                          <div className="text-xs text-slate-400 leading-tight">
+                            {opt.desc}
                           </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                  {/* Branch */}
-                  <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-500 uppercase tracking-wider">
-                    Branch
-                  </Label>
-                  <Select
-                    value={filterBranch}
-                    onValueChange={(v) => setFilterBranch(v as BranchId | "all")}
-                  >
-                    <SelectTrigger className="w-full rounded-xl text-sm border-slate-200">
-                      <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
-                      <SelectValue placeholder="All branches" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Branches</SelectItem>
-                      {BRANCHES.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>
-                          {b.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  </div>
+              {/* Branch */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500 uppercase tracking-wider">
+                  Branch
+                </Label>
+                <Select
+                  value={filterBranch}
+                  onValueChange={(v) => setFilterBranch(v as BranchId | "all")}
+                >
+                  <SelectTrigger className="w-full rounded-xl text-sm border-slate-200">
+                    <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
+                    <SelectValue placeholder="All branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Branches</SelectItem>
+                    {BRANCHES.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                  {/* Date range */}
-                  <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-500 uppercase tracking-wider">
-                    Date Range <span className="text-red-400">*</span>
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left text-sm rounded-xl border-slate-200 font-normal",
-                          !dateRange.from && "text-slate-400"
-                        )}
-                      >
-                        <Calendar className="mr-2 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        {dateRange.from ? (
-                          dateRange.to &&
-                          dateRange.from.getTime() !==
-                            dateRange.to.getTime() ? (
-                            `${format(dateRange.from, "MMM dd")} — ${format(
-                              dateRange.to,
-                              "MMM dd, yyyy"
-                            )}`
-                          ) : (
-                            format(dateRange.from, "MMM dd, yyyy")
-                          )
+              {/* Date range */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500 uppercase tracking-wider">
+                  Date Range <span className="text-red-400">*</span>
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left text-sm rounded-xl border-slate-200 font-normal",
+                        !dateRange.from && "text-slate-400"
+                      )}
+                    >
+                      <Calendar className="mr-2 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {dateRange.from ? (
+                        dateRange.to &&
+                        dateRange.from.getTime() !== dateRange.to.getTime() ? (
+                          `${format(dateRange.from, "MMM dd")} — ${format(
+                            dateRange.to,
+                            "MMM dd, yyyy"
+                          )}`
                         ) : (
-                          "Pick date range"
-                        )}
-                        {dateRange.from && (
-                          <X
-                            className="ml-auto h-3.5 w-3.5 text-slate-400 hover:text-slate-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDateRange({ from: undefined, to: undefined });
-                            }}
-                          />
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarUI
-                        mode="range"
-                        selected={dateRange}
-                        onSelect={(r) =>
-                          setDateRange(r || { from: undefined, to: undefined })
-                        }
-                        numberOfMonths={2}
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  </div>
+                          format(dateRange.from, "MMM dd, yyyy")
+                        )
+                      ) : (
+                        "Pick date range"
+                      )}
+                      {dateRange.from && (
+                        <X
+                          className="ml-auto h-3.5 w-3.5 text-slate-400 hover:text-slate-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDateRange({ from: undefined, to: undefined });
+                          }}
+                        />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarUI
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={(r) =>
+                        setDateRange((r as any) || { from: undefined, to: undefined })
+                      }
+                      numberOfMonths={2}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-                  {/* Compare mode toggle */}
-                  <div className="flex items-center gap-3">
+              {/* Category / compare section */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
                   <Switch
-                    id="compare-mode"
+                    id="compare-mode-top"
                     checked={compareMode}
                     onCheckedChange={setCompareMode}
                   />
                   <Label
-                    htmlFor="compare-mode"
+                    htmlFor="compare-mode-top"
                     className="text-sm text-slate-700 cursor-pointer"
                   >
                     Compare period
                   </Label>
-                  </div>
-
-                  {compareMode && (
-                    <div className="space-y-1.5">
+                </div>
+                {compareMode && (
+                  <div className="space-y-1.5">
                     <Label className="text-xs text-slate-500 uppercase tracking-wider">
                       Compare Date Range <span className="text-red-400">*</span>
                     </Label>
@@ -637,7 +656,10 @@ export default function ReportsPage() {
                             compareDateRange.to &&
                             compareDateRange.from.getTime() !==
                               compareDateRange.to.getTime() ? (
-                              `${format(compareDateRange.from, "MMM dd")} — ${format(
+                              `${format(
+                                compareDateRange.from,
+                                "MMM dd"
+                              )} — ${format(
                                 compareDateRange.to,
                                 "MMM dd, yyyy"
                               )}`
@@ -655,7 +677,7 @@ export default function ReportsPage() {
                           selected={compareDateRange}
                           onSelect={(r) =>
                             setCompareDateRange(
-                              r || { from: undefined, to: undefined }
+                              (r as any) || { from: undefined, to: undefined }
                             )
                           }
                           numberOfMonths={2}
@@ -663,12 +685,15 @@ export default function ReportsPage() {
                         />
                       </PopoverContent>
                     </Popover>
-                    </div>
-                  )}
-
-                  {/* Running category picker (only for RUNNING_SALES_MIX_CATEGORY) */}
-                  {reportType === "RUNNING_SALES_MIX_CATEGORY" && (
-                    <div className="space-y-1.5">
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-5 pb-3 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3">
+              {/* Category controls depending on report type */}
+              <div className="flex flex-wrap items-center gap-3">
+                {reportType === "RUNNING_SALES_MIX_CATEGORY" && (
+                  <div className="space-y-1.5">
                     <Label className="text-xs text-slate-500 uppercase tracking-wider">
                       Category
                     </Label>
@@ -676,7 +701,7 @@ export default function ReportsPage() {
                       value={runningCategory}
                       onValueChange={(v) => setRunningCategory(v as Category)}
                     >
-                      <SelectTrigger className="w-full rounded-xl text-sm border-slate-200">
+                      <SelectTrigger className="w-[180px] rounded-xl text-sm border-slate-200">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -687,91 +712,108 @@ export default function ReportsPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Categories multi-select */}
-                  {reportType !== "RUNNING_SALES_MIX_CATEGORY" && (
-                    <div className="space-y-2">
-                    <div className="flex items-center justify-between">
+                {reportType === "PRODUCT_MIX_CHANNEL" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-slate-500 uppercase tracking-wider">
+                      Category
+                    </Label>
+                    <Select
+                      value={channelCategory}
+                      onValueChange={(v) =>
+                        setChannelCategory(v as Category | "ALL")
+                      }
+                    >
+                      <SelectTrigger className="w-[200px] rounded-xl text-sm border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">ALL CATEGORIES</SelectItem>
+                        {CATEGORIES.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {reportType !== "RUNNING_SALES_MIX_CATEGORY" &&
+                  reportType !== "PRODUCT_MIX_CHANNEL" && (
+                    <div className="space-y-1.5">
                       <Label className="text-xs text-slate-500 uppercase tracking-wider">
                         Categories
                       </Label>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedCategories(
-                            selectedCategories.length === CATEGORIES.length
-                              ? []
-                              : [...CATEGORIES]
-                          )
-                        }
-                        className="text-[10px] text-blue-500 hover:underline"
-                      >
-                        {selectedCategories.length === CATEGORIES.length
-                          ? "Clear all"
-                          : "Select all"}
-                      </button>
+                      <div className="flex flex-wrap gap-1.5 max-w-[520px]">
+                        {CATEGORIES.map((cat) => {
+                          const active = selectedCategories.includes(cat);
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => toggleCategory(cat)}
+                              className={cn(
+                                "text-[11px] px-2.5 py-1 rounded-full font-semibold transition-colors border",
+                                active
+                                  ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-[#1e3a5f]/40"
+                              )}
+                            >
+                              {cat}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {CATEGORIES.map((cat) => {
-                        const active = selectedCategories.includes(cat);
-                        return (
-                          <button
-                            key={cat}
-                            type="button"
-                            onClick={() => toggleCategory(cat)}
-                            className={cn(
-                              "text-[11px] px-2.5 py-1 rounded-full font-semibold transition-colors border",
-                              active
-                                ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                                : "bg-white text-slate-600 border-slate-200 hover:border-[#1e3a5f]/40"
-                            )}
-                          >
-                            {cat}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
                   )}
-                </div>
-
-                {/* Sticky footer actions */}
-                <div className="px-5 py-3 border-t border-slate-200 bg-white sticky bottom-0 mt-auto">
-                  <div className="flex gap-2">
-                    <Button
-                      className="flex-1 rounded-xl bg-[#1e3a5f] hover:bg-[#0e2d49] text-white font-semibold"
-                      disabled={!canGenerate || isGenerating}
-                      onClick={handleGenerate}
-                    >
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Generating…
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Generate
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="rounded-xl border-slate-200 text-slate-500 hover:text-slate-800"
-                      onClick={handleReset}
-                      title="Reset filters"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
               </div>
 
+              {/* Actions */}
+              <div className="flex items-center gap-2">
+                <Button
+                  className="rounded-xl bg-[#1e3a5f] hover:bg-[#0e2d49] text-white font-semibold"
+                  disabled={!canGenerate || isGenerating}
+                  onClick={handleGenerate}
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-xl border-slate-200 text-slate-500 hover:text-slate-800"
+                  onClick={handleReset}
+                  title="Reset filters"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6 overflow-hidden">
+            {/* ── Left panel (history only; filters moved to top) ────────── */}
+            <div
+              className={cn(
+                "flex flex-col gap-4 h-full",
+                "lg:block",
+                showFiltersMobile ? "block" : "hidden lg:block",
+              )}
+            >
               {/* Report History */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 h-[260px] overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
                 <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-3">
                   History
                 </h2>
@@ -780,7 +822,7 @@ export default function ReportsPage() {
                     No generated reports yet.
                   </p>
                 ) : (
-                  <div className="space-y-2 h-full overflow-y-auto pr-1">
+                  <div className="space-y-2">
                     {history.map((row) => (
                       <div
                         key={row.id}

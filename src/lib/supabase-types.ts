@@ -88,6 +88,7 @@ export interface UpdateUserPayload {
 export type ReportType =
   | "SALES_MIX_OVERVIEW"
   | "PRODUCT_MIX"
+  | "PRODUCT_MIX_CHANNEL"
   | "TOP_5_PRODUCTS"
   | "RUNNING_SALES_MIX_CATEGORY"
   | "CATEGORY_PERFORMANCE";

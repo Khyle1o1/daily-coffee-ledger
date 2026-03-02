@@ -150,6 +150,7 @@ export default function DailySummaryPage() {
       option: autoMapping.option || "",
       quantity: autoMapping.quantity || "",
       unitPrice: autoMapping.unitPrice || "",
+      paymentType: autoMapping.paymentType || "",
     };
 
     const rawRows: RawRow[] = csvData.map(row => ({
@@ -158,6 +159,7 @@ export default function DailySummaryPage() {
       option: mapping.option ? (row[mapping.option] || "") : "",
       quantity: parseFloat(row[mapping.quantity]) || 0,
       unitPrice: parseFloat(row[mapping.unitPrice]) || 0,
+      paymentType: mapping.paymentType ? row[mapping.paymentType] || "" : undefined,
     }));
 
     const processed = rawRows.map(r => mapRow(r, mappingTable));

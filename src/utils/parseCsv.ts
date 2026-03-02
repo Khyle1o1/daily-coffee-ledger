@@ -21,6 +21,7 @@ const HEADER_HINTS: Record<string, string[]> = {
   option: ["option", "modifier", "variant", "size"],
   quantity: ["quantity", "qty", "count", "num"],
   unitPrice: ["unit_price", "unitprice", "price", "unit price", "price per unit"],
+  paymentType: ["payment_type", "payment type", "channel", "order_type", "order type"],
 };
 
 export function autoDetectColumns(headers: string[]): Partial<Record<string, string>> {

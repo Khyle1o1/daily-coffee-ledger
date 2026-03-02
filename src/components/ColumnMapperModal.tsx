@@ -18,6 +18,7 @@ const FIELDS: { key: keyof ColumnMapping; label: string; required: boolean }[] =
   { key: "option", label: "Option / Modifier", required: false },
   { key: "quantity", label: "Quantity", required: true },
   { key: "unitPrice", label: "Unit Price", required: true },
+  { key: "paymentType", label: "Payment Type / Channel", required: false },
 ];
 
 export default function ColumnMapperModal({ open, headers, autoDetected, onConfirm, onCancel }: Props) {
@@ -80,6 +81,10 @@ export default function ColumnMapperModal({ open, headers, autoDetected, onConfi
                 option: mapping.option === "__none__" ? "" : (mapping.option || ""),
                 quantity: mapping.quantity!,
                 unitPrice: mapping.unitPrice!,
+                paymentType:
+                  mapping.paymentType === "__none__"
+                    ? ""
+                    : (mapping.paymentType || ""),
               });
             }}
             className="px-6 py-2.5 h-auto rounded-full bg-primary text-primary-foreground font-semibold shadow-lg"

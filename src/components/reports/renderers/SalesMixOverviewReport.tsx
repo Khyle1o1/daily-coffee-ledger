@@ -172,6 +172,92 @@ export default function SalesMixOverviewReport({ data, branchLabel, dateRangeLab
           </table>
         </div>
       </div>
+      
+      {/* Top 5 per channel */}
+      <div className="mt-8">
+        <h2 className="text-sm font-extrabold tracking-[0.18em] uppercase text-slate-500 mb-3">
+          Top 5 items per channel
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {(["WALK_IN", "GRAB", "FOODPANDA"] as const).map((channel) => {
+            const channelData = data.top5ByChannel?.[channel];
+            const items = channelData?.items ?? [];
+            const title =
+              channel === "WALK_IN" ? "Walk-in" : channel === "GRAB" ? "Grab" : "FoodPanda";
+
+            return (
+              <div
+                key={channel}
+                className="rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col"
+              >
+                <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <span className="text-xs font-semibold tracking-wide text-slate-700">
+                    {title}
+                  </span>
+                  <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                    Top 5
+                  </span>
+                </div>
+                {items.length ? (
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white text-slate-500 border-b border-slate-200">
+                        <th className="px-3 py-1.5 text-left w-8">#</th>
+                        <th className="px-3 py-1.5 text-left">Item</th>
+                        <th className="px-3 py-1.5 text-right">Sales</th>
+                        <th className="px-3 py-1.5 text-right">Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item, idx) => (
+                        <tr
+                          key={item.name}
+                          className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}
+                        >
+                          <td className="px-3 py-1.5 text-left text-[11px] text-slate-500">
+                            {idx + 1}
+                          </td>
+                          <td className="px-3 py-1.5 text-left text-[11px] text-slate-800">
+                            {item.name}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-[11px] font-semibold text-slate-900">
+                            {formatPHP(item.sales)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-[11px] text-slate-700">
+                            {item.qty.toLocaleString("en-PH")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {channelData?.totals && (
+                      <tfoot>
+                        <tr className="border-t border-slate-200 bg-slate-100">
+                          <td className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-700">
+                            #
+                          </td>
+                          <td className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-700">
+                            Total
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-[11px] font-bold text-slate-900">
+                            {formatPHP(channelData.totals.totalSales)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right text-[11px] font-semibold text-slate-800">
+                            {channelData.totals.totalQty.toLocaleString("en-PH")}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                ) : (
+                  <div className="px-4 py-5 text-[11px] text-slate-400">
+                    No data for this channel in the selected filters.
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

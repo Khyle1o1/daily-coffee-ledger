@@ -202,6 +202,7 @@ export default function SummaryPage() {
       option: modalAutoMapping.option || "",
       quantity: modalAutoMapping.quantity || "",
       unitPrice: modalAutoMapping.unitPrice || "",
+      paymentType: modalAutoMapping.paymentType || "",
     };
 
     const required: (keyof ColumnMapping)[] = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
@@ -222,6 +223,7 @@ export default function SummaryPage() {
       option: mapping.option ? row[mapping.option] || "" : "",
       quantity: parseFloat(row[mapping.quantity]) || 0,
       unitPrice: parseFloat(row[mapping.unitPrice]) || 0,
+      paymentType: mapping.paymentType ? row[mapping.paymentType] || "" : undefined,
     }));
 
     const processed = rawRows.map((r) => mapRow(r, mappingTable));
