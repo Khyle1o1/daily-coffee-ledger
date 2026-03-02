@@ -91,7 +91,8 @@ export type ReportType =
   | "PRODUCT_MIX_CHANNEL"
   | "TOP_5_PRODUCTS"
   | "RUNNING_SALES_MIX_CATEGORY"
-  | "CATEGORY_PERFORMANCE";
+  | "CATEGORY_PERFORMANCE"
+  | "POUR_IT_FORWARD";
 
 export interface GeneratedReportRow {
   id: string;

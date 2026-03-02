@@ -8,6 +8,7 @@ import type {
   ComputedCategoryPerformance,
 } from "@/lib/reports/compute";
 import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChannel";
+import type { PourReportData } from "@/lib/reports/computePourItForward";
 
 import SalesMixOverviewReport from "./renderers/SalesMixOverviewReport";
 import ProductMixReport from "./renderers/ProductMixReport";
@@ -15,6 +16,7 @@ import Top5ProductsReport from "./renderers/Top5ProductsReport";
 import RunningSalesMixCategoryReport from "./renderers/RunningSalesMixCategoryReport";
 import CategoryPerformanceReport from "./renderers/CategoryPerformanceReport";
 import ProductMixChannelReport from "./renderers/ProductMixChannelReport";
+import PourItForwardReport from "./renderers/PourItForwardReport";
 
 export interface ReportCanvasData {
   reportType: ReportType;
@@ -30,6 +32,7 @@ export interface ReportCanvasData {
   runningSalesMixCategory?: ComputedProductMix;
   categoryPerformance?: ComputedCategoryPerformance;
   runningSalesCategory?: Category;
+  pourItForward?: PourReportData;
 }
 
 interface Props {
@@ -95,6 +98,10 @@ const ReportCanvas = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
           branchLabel={data.branchLabel}
           dateRangeLabel={data.dateRangeLabel}
         />
+      )}
+
+      {data.reportType === "POUR_IT_FORWARD" && data.pourItForward && (
+        <PourItForwardReport data={data.pourItForward} />
       )}
     </div>
   );

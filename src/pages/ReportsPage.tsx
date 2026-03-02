@@ -61,6 +61,7 @@ import {
   type ReportFilters,
 } from "@/lib/reports/compute";
 import { computeProductMixChannel } from "@/lib/reports/computeProductMixChannel";
+import { computePourItForward } from "@/lib/reports/computePourItForward";
 
 // ============================================================================
 // Constants
@@ -81,6 +82,11 @@ const REPORT_TYPE_OPTIONS: { value: ReportType; label: string; desc: string }[] 
     value: "PRODUCT_MIX_CHANNEL",
     label: "Product Mix (Channel)",
     desc: "Ranked items with quantity by channel",
+  },
+  {
+    value: "POUR_IT_FORWARD",
+    label: "Pour-it-Forward (Cups Sold)",
+    desc: "Cups sold per branch by channel (Foodpanda/Grab/Walk-in)",
   },
   {
     value: "TOP_5_PRODUCTS",
@@ -342,6 +348,21 @@ export default function ReportsPage() {
           compareLabel,
           selectedCategories,
           productMixChannel,
+        };
+      } else if (reportType === "POUR_IT_FORWARD") {
+        const title = `CUPS SOLD ${dateRangeLabel}`;
+        const pourItForward = computePourItForward(
+          dailyReports,
+          filters,
+          title,
+        );
+        canvas = {
+          reportType,
+          branchLabel,
+          dateRangeLabel,
+          compareLabel,
+          selectedCategories,
+          pourItForward,
         };
       }
 

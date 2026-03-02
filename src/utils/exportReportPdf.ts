@@ -1,7 +1,15 @@
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import type { ReportCanvasData } from "@/components/reports/ReportCanvas";
 import { formatPHP } from "@/utils/format";
+
+function formatPHPPdf(value: number) {
+  // Use plain "PHP" text instead of the peso symbol to avoid garbled glyphs in PDFs
+  return `PHP ${value.toLocaleString("en-PH", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
+}
 
 function pct(n: number | undefined) {
   if (n === undefined) return "";
@@ -53,10 +61,6 @@ export async function exportReportPdf(
   canvasData: ReportCanvasData,
   filename: string
 ): Promise<void> {
-  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-  const marginLeft = 48;
-  const pageWidth = doc.internal.pageSize.getWidth();
-
   const {
     reportType,
     branchLabel,
@@ -70,7 +74,15 @@ export async function exportReportPdf(
     categoryPerformance,
     selectedCategories,
     productMixChannel,
+    pourItForward,
   } = canvasData;
+
+  const orientation: "portrait" | "landscape" =
+    reportType === "PRODUCT_MIX_CHANNEL" ? "landscape" : "portrait";
+
+  const doc = new jsPDF({ orientation, unit: "pt", format: "a4" });
+  const marginLeft = 48;
+  const pageWidth = doc.internal.pageSize.getWidth();
 
   if (reportType === "SALES_MIX_OVERVIEW" && salesMix) {
     const title = `PRODUCT MIX for ${dateRangeLabel}`;
@@ -80,7 +92,7 @@ export async function exportReportPdf(
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...HEADER_COLOR);
-    doc.text(`Gross Sales: ${formatPHP(salesMix.grandTotal)}`, marginLeft, y);
+    doc.text(`Gross Sales: ${formatPHPPdf(salesMix.grandTotal)}`, marginLeft, y);
     y += 20;
 
     const hasCompare = salesMix.categoryTotals.some((c) => c.compareSales !== undefined);
@@ -89,25 +101,24 @@ export async function exportReportPdf(
       : [["Category", "Sales", "% Mix"]];
 
     const body = salesMix.categoryTotals.map((row) => {
-      const base = [row.category, formatPHP(row.sales), `${row.percent.toFixed(1)}%`];
+      const base = [row.category, formatPHPPdf(row.sales), `${row.percent.toFixed(1)}%`];
       if (hasCompare) {
         base.push(
-          row.compareSales !== undefined ? formatPHP(row.compareSales) : "—",
+          row.compareSales !== undefined ? formatPHPPdf(row.compareSales) : "—",
           row.pctChange !== undefined ? pct(row.pctChange) : "—"
         );
       }
       return base;
     });
 
-    // @ts-ignore
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head,
       body,
       foot: [hasCompare
-        ? ["TOTAL", formatPHP(salesMix.grandTotal), "100%",
-           salesMix.compareGrandTotal !== undefined ? formatPHP(salesMix.compareGrandTotal) : "—", ""]
-        : ["TOTAL", formatPHP(salesMix.grandTotal), "100%"]],
+        ? ["TOTAL", formatPHPPdf(salesMix.grandTotal), "100%",
+           salesMix.compareGrandTotal !== undefined ? formatPHPPdf(salesMix.compareGrandTotal) : "—", ""]
+        : ["TOTAL", formatPHPPdf(salesMix.grandTotal), "100%"]],
       styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
       headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
       footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
@@ -150,8 +161,7 @@ export async function exportReportPdf(
         continue;
       }
 
-      // @ts-ignore
-      doc.autoTable({
+      autoTable(doc, {
         startY: y,
         head: [["#", "Item", "Qty", "Sales"]],
         body: [
@@ -159,14 +169,14 @@ export async function exportReportPdf(
             String(idx + 1),
             item.name,
             item.qty.toLocaleString("en-PH"),
-            formatPHP(item.sales),
+            formatPHPPdf(item.sales),
           ]),
           channelData?.totals
             ? [
                 "",
                 "Total",
                 channelData.totals.totalQty.toLocaleString("en-PH"),
-                formatPHP(channelData.totals.totalSales),
+                formatPHPPdf(channelData.totals.totalSales),
               ]
             : [],
         ],
@@ -182,7 +192,7 @@ export async function exportReportPdf(
 
   else if (reportType === "PRODUCT_MIX" && productMix) {
     const catLabel = productMix.category ?? "ALL";
-    const title = `Product Mix_${catLabel}   ${formatPHP(productMix.totalSales)}`;
+    const title = `Product Mix_${catLabel}   ${formatPHPPdf(productMix.totalSales)}`;
     let y = drawHeader(doc, title, branchLabel, dateRangeLabel, marginLeft);
 
     const hasCompare = productMix.products.some((p) => p.compareSales !== undefined);
@@ -194,18 +204,17 @@ export async function exportReportPdf(
       const base = [String(idx + 1).padStart(2, "0"), row.name];
       if (hasCompare) {
         base.push(
-          formatPHP(row.sales),
-          row.compareSales !== undefined ? formatPHP(row.compareSales) : "—",
+          formatPHPPdf(row.sales),
+          row.compareSales !== undefined ? formatPHPPdf(row.compareSales) : "—",
           row.pctChange !== undefined ? pct(row.pctChange) : "—"
         );
       } else {
-        base.push(row.qty.toLocaleString(), formatPHP(row.sales));
+        base.push(row.qty.toLocaleString(), formatPHPPdf(row.sales));
       }
       return base;
     });
 
-    // @ts-ignore
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head,
       body,
@@ -231,60 +240,76 @@ export async function exportReportPdf(
         : `Product Mix (Channel) — ${productMixChannel.category} — ${productMixChannel.periodLabel}`;
     let y = drawHeader(doc, title, branchLabel, dateRangeLabel, marginLeft);
 
-    const head: string[][] = [
+    const qtyHead: string[][] = [
       [
         "#",
         "Menu",
         `${productMixChannel.periodLabel} Qty`,
-        `${productMixChannel.periodLabel} Sales`,
         "Walk-in Qty",
-        "Walk-in Sales",
         "Grab Qty",
-        "Grab Sales",
         "FoodPanda Qty",
+      ],
+    ];
+
+    const salesHead: string[][] = [
+      [
+        "#",
+        "Menu",
+        `${productMixChannel.periodLabel} Sales`,
+        "Walk-in Sales",
+        "Grab Sales",
         "FoodPanda Sales",
       ],
     ];
 
-    const body = productMixChannel.rows.map((row, idx) => [
+    const qtyBody = productMixChannel.rows.map((row, idx) => [
       String(idx + 1).padStart(2, "0"),
       row.name,
       row.totalQty.toLocaleString("en-PH"),
-      formatPHP(row.totalSales),
       row.walkInQty.toLocaleString("en-PH"),
-      formatPHP(row.walkInSales),
       row.grabQty.toLocaleString("en-PH"),
-      formatPHP(row.grabSales),
       row.foodpandaQty.toLocaleString("en-PH"),
-      formatPHP(row.foodpandaSales),
+    ]);
+
+    const salesBody = productMixChannel.rows.map((row, idx) => [
+      String(idx + 1).padStart(2, "0"),
+      row.name,
+      formatPHPPdf(row.totalSales),
+      formatPHPPdf(row.walkInSales),
+      formatPHPPdf(row.grabSales),
+      formatPHPPdf(row.foodpandaSales),
     ]);
 
     const t = productMixChannel.totals;
 
-    // @ts-ignore
-    doc.autoTable({
+    const gap = 16;
+    const tableWidth =
+      (pageWidth - marginLeft * 2 - gap) / 2;
+
+    // Left: quantities
+    autoTable(doc, {
       startY: y,
-      head,
-      body,
+      head: qtyHead,
+      body: qtyBody,
       foot: [
         [
           "",
           "TOTAL",
           t.totalQty.toLocaleString("en-PH"),
-          formatPHP(t.totalSales),
           t.walkInQty.toLocaleString("en-PH"),
-          formatPHP(t.walkInSales),
           t.grabQty.toLocaleString("en-PH"),
-          formatPHP(t.grabSales),
           t.foodpandaQty.toLocaleString("en-PH"),
-          formatPHP(t.foodpandaSales),
         ],
       ],
-      styles: { font: "helvetica", fontSize: 8, cellPadding: 4 },
+      styles: { font: "helvetica", fontSize: 6, cellPadding: 2 },
       headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
       footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: ALT_ROW_COLOR },
-      margin: { left: marginLeft, right: marginLeft },
+      margin: {
+        left: marginLeft,
+        right: pageWidth - marginLeft - tableWidth,
+      },
+      tableWidth,
       columnStyles: {
         0: { halign: "left" },
         1: { halign: "left" },
@@ -292,14 +317,45 @@ export async function exportReportPdf(
         3: { halign: "right" },
         4: { halign: "right" },
         5: { halign: "right" },
-        6: { halign: "right" },
-        7: { halign: "right" },
-        8: { halign: "right" },
-        9: { halign: "right" },
       },
     });
-   	const yEnd = (doc as any).lastAutoTable?.finalY ?? y;
-    y = yEnd;
+    const leftEnd = (doc as any).lastAutoTable?.finalY ?? y;
+
+    // Right: sales
+    autoTable(doc, {
+      startY: y,
+      head: salesHead,
+      body: salesBody,
+      foot: [
+        [
+          "",
+          "TOTAL",
+          formatPHPPdf(t.totalSales),
+          formatPHPPdf(t.walkInSales),
+          formatPHPPdf(t.grabSales),
+          formatPHPPdf(t.foodpandaSales),
+        ],
+      ],
+      styles: { font: "helvetica", fontSize: 6, cellPadding: 2 },
+      headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+      margin: {
+        left: marginLeft + tableWidth + gap,
+        right: marginLeft,
+      },
+      tableWidth,
+      columnStyles: {
+        0: { halign: "left" },
+        1: { halign: "left" },
+        2: { halign: "right" },
+        3: { halign: "right" },
+        4: { halign: "right" },
+        5: { halign: "right" },
+      },
+    });
+    const rightEnd = (doc as any).lastAutoTable?.finalY ?? y;
+    y = Math.max(leftEnd, rightEnd);
   }
 
   else if (reportType === "TOP_5_PRODUCTS" && top5) {
@@ -326,8 +382,7 @@ export async function exportReportPdf(
       doc.text(`TOP 5 ${cat}`, marginLeft, y);
       y += 6;
 
-      // @ts-ignore
-      doc.autoTable({
+      autoTable(doc, {
         startY: y,
         head: [["#", "Item", "Qty", "Sales"]],
         body: items.map((item) => [
@@ -367,8 +422,7 @@ export async function exportReportPdf(
       ? [["#", "Item", "Qty", compareLabel ?? "Compare Qty", "Change"]]
       : [["#", "Item", "Qty"]];
 
-    // @ts-ignore
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head,
       body: top5items.map((item, idx) => {
@@ -396,8 +450,7 @@ export async function exportReportPdf(
       doc.text(`Full ${runningSalesCategory} breakdown`, marginLeft, y);
       y += 6;
 
-      // @ts-ignore
-      doc.autoTable({
+      autoTable(doc, {
         startY: y,
         head: hasCompare
           ? [["#", "Item", "Qty", "Compare Qty", "Change"]]
@@ -432,7 +485,7 @@ export async function exportReportPdf(
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...HEADER_COLOR);
-    doc.text(`Gross Sales: ${formatPHP(categoryPerformance.grandTotal)}`, marginLeft, y);
+    doc.text(`Gross Sales: ${formatPHPPdf(categoryPerformance.grandTotal)}`, marginLeft, y);
     y += 20;
 
     const hasCompare = categoryPerformance.categories.some(
@@ -446,33 +499,71 @@ export async function exportReportPdf(
       const base = [
         String(idx + 1),
         row.category,
-        formatPHP(row.sales),
+        formatPHPPdf(row.sales),
         `${row.percent.toFixed(1)}%`,
       ];
       if (hasCompare) {
         base.push(
-          row.compareSales !== undefined ? formatPHP(row.compareSales) : "—",
+          row.compareSales !== undefined ? formatPHPPdf(row.compareSales) : "—",
           row.pctChange !== undefined ? pct(row.pctChange) : "—"
         );
       }
       return base;
     });
 
-    // @ts-ignore
-    doc.autoTable({
+      autoTable(doc, {
       startY: y,
       head,
       body,
       foot: [
         hasCompare
-          ? ["", "TOTAL", formatPHP(categoryPerformance.grandTotal), "100%", "", ""]
-          : ["", "TOTAL", formatPHP(categoryPerformance.grandTotal), "100%"],
+          ? ["", "TOTAL", formatPHPPdf(categoryPerformance.grandTotal), "100%", "", ""]
+          : ["", "TOTAL", formatPHPPdf(categoryPerformance.grandTotal), "100%"],
       ],
       styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
       headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
       footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: ALT_ROW_COLOR },
       margin: { left: marginLeft, right: marginLeft },
+    });
+  }
+
+  else if (reportType === "POUR_IT_FORWARD" && pourItForward) {
+    const title = pourItForward.title;
+    let y = drawHeader(doc, title, branchLabel, dateRangeLabel, marginLeft);
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Branch", "Foodpanda", "Grab", "Walk-in", "Grand Total"]],
+      body: pourItForward.rows.map((row) => [
+        row.branchName,
+        row.foodpandaQty.toLocaleString("en-PH"),
+        row.grabQty.toLocaleString("en-PH"),
+        row.walkinQty.toLocaleString("en-PH"),
+        row.grandTotal.toLocaleString("en-PH"),
+      ]),
+      foot: [
+        [
+          "Grand Total",
+          pourItForward.totals.foodpandaQty.toLocaleString("en-PH"),
+          pourItForward.totals.grabQty.toLocaleString("en-PH"),
+          pourItForward.totals.walkinQty.toLocaleString("en-PH"),
+          pourItForward.totals.grandTotal.toLocaleString("en-PH"),
+        ],
+      ],
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
+      headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+      margin: { left: marginLeft, right: marginLeft },
+      tableWidth: pageWidth - marginLeft * 2,
+      columnStyles: {
+        0: { halign: "left", cellWidth: 200 },
+        1: { halign: "right", cellWidth: 80 },
+        2: { halign: "right", cellWidth: 80 },
+        3: { halign: "right", cellWidth: 80 },
+        4: { halign: "right", cellWidth: 100 },
+      },
     });
   }
 

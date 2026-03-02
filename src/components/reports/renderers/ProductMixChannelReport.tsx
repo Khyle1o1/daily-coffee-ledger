@@ -35,15 +35,23 @@ export default function ProductMixChannelReport({ data, branchLabel }: Props) {
       <div className="mt-2 grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Quantity breakdown */}
         <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
-        <table className="w-full border-collapse text-xs text-slate-900">
+        <table className="w-full table-fixed border-collapse text-xs text-slate-900">
+          <colgroup>
+            <col style={{ width: "48px" }} />
+            <col style={{ width: "340px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "140px" }} />
+          </colgroup>
           <thead className="sticky top-0 z-10">
             <tr className="bg-[#1e3a5f] text-white">
-              <th className="px-4 py-2.5 text-left w-10">#</th>
-              <th className="px-4 py-2.5 text-left">MENU</th>
-              <th className="px-4 py-2.5 text-right">{periodLabel}</th>
-              <th className="px-4 py-2.5 text-right">WALKIN QTY</th>
-              <th className="px-4 py-2.5 text-right">GRAB QTY</th>
-              <th className="px-4 py-2.5 text-right">FOODPANDA QTY</th>
+              <th className="px-3 py-2 text-left">#</th>
+              <th className="px-3 py-2 text-left">MENU</th>
+              <th className="px-3 py-2 text-right">{periodLabel}</th>
+              <th className="px-3 py-2 text-right">WALKIN QTY</th>
+              <th className="px-3 py-2 text-right">GRAB QTY</th>
+              <th className="px-3 py-2 text-right">FOODPANDA QTY</th>
             </tr>
           </thead>
           <tbody>
@@ -55,7 +63,7 @@ export default function ProductMixChannelReport({ data, branchLabel }: Props) {
                 <td className="px-3 py-1.5 text-left font-semibold text-[11px] text-slate-500">
                   {String(index + 1).padStart(2, "0")}
                 </td>
-                <td className="px-3 py-1.5 text-left text-[12px] font-medium text-slate-800">
+                <td className="px-3 py-1.5 text-left text-[12px] font-medium text-slate-800 truncate whitespace-nowrap overflow-hidden">
                   {row.name}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-[12px] font-semibold text-slate-900">
@@ -96,15 +104,23 @@ export default function ProductMixChannelReport({ data, branchLabel }: Props) {
 
         {/* Sales breakdown */}
         <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
-        <table className="w-full border-collapse text-xs text-slate-900">
+        <table className="w-full table-fixed border-collapse text-xs text-slate-900">
+          <colgroup>
+            <col style={{ width: "48px" }} />
+            <col style={{ width: "340px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "140px" }} />
+            <col style={{ width: "140px" }} />
+          </colgroup>
           <thead className="sticky top-0 z-10">
             <tr className="bg-[#1e3a5f] text-white">
-              <th className="px-4 py-2.5 text-left w-10">#</th>
-              <th className="px-4 py-2.5 text-left">MENU</th>
-              <th className="px-4 py-2.5 text-right">{periodLabel}</th>
-              <th className="px-4 py-2.5 text-right">WALKIN SALES</th>
-              <th className="px-4 py-2.5 text-right">GRAB SALES</th>
-              <th className="px-4 py-2.5 text-right">FOODPANDA SALES</th>
+              <th className="px-3 py-2 text-left">#</th>
+              <th className="px-3 py-2 text-left">MENU</th>
+              <th className="px-3 py-2 text-right">{periodLabel}</th>
+              <th className="px-3 py-2 text-right">WALKIN SALES</th>
+              <th className="px-3 py-2 text-right">GRAB SALES</th>
+              <th className="px-3 py-2 text-right">FOODPANDA SALES</th>
             </tr>
           </thead>
           <tbody>
@@ -116,7 +132,7 @@ export default function ProductMixChannelReport({ data, branchLabel }: Props) {
                 <td className="px-3 py-1.5 text-left font-semibold text-[11px] text-slate-500">
                   {String(index + 1).padStart(2, "0")}
                 </td>
-                <td className="px-3 py-1.5 text-left text-[12px] font-medium text-slate-800">
+                <td className="px-3 py-1.5 text-left text-[12px] font-medium text-slate-800 truncate whitespace-nowrap overflow-hidden">
                   {row.name}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-[12px] font-semibold text-slate-900">
