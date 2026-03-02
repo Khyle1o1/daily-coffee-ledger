@@ -18,6 +18,17 @@ export function formatMonthDisplay(monthKey: string): string {
 }
 
 /**
+ * Get the first and last day for a given month.
+ * @param year - four digit year (e.g. 2026)
+ * @param monthIndex - zero-based month index (0 = January)
+ */
+export function getMonthRange(year: number, monthIndex: number) {
+  const start = new Date(year, monthIndex, 1);
+  const end = new Date(year, monthIndex + 1, 0); // day 0 of next month = last day of current month
+  return { start, end };
+}
+
+/**
  * Get previous/next month key
  */
 export function adjustMonth(monthKey: string, delta: number): string {

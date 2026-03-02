@@ -80,3 +80,66 @@ export interface CreateUserPayload {
 export interface UpdateUserPayload {
   role?: UserRole;
 }
+
+// ============================================================================
+// GENERATED REPORT TYPES
+// ============================================================================
+
+export type ReportType =
+  | "SALES_MIX_OVERVIEW"
+  | "PRODUCT_MIX"
+  | "TOP_5_PRODUCTS"
+  | "RUNNING_SALES_MIX_CATEGORY"
+  | "CATEGORY_PERFORMANCE";
+
+export interface GeneratedReportRow {
+  id: string;
+  user_id: string;
+  title: string;
+  report_type: ReportType;
+  branch_id: string | null;
+  branch_name: string;
+  date_from: string;
+  date_to: string;
+  compare_from: string | null;
+  compare_to: string | null;
+  selected_categories: string[];
+  filters: Record<string, any>;
+  computed_data: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveGeneratedReportPayload {
+  title: string;
+  reportType: ReportType;
+  branchId: string | null;
+  branchName: string;
+  dateFrom: string;
+  dateTo: string;
+  compareFrom?: string | null;
+  compareTo?: string | null;
+  selectedCategories: string[];
+  filters: Record<string, any>;
+  computedData: Record<string, any>;
+}
+
+// ============================================================================
+// DAILY SUMMARY JSON (stored in reports_daily.summary_json)
+// ============================================================================
+
+export interface DailySummaryJSON {
+  summaryTotalsByCat: Record<string, number>;
+  summaryQuantitiesByCat: Record<string, number>;
+  grandTotal: number;
+  grandQuantity: number;
+  percentByCat: Record<string, number>;
+  totalRows: number;
+  mappedRows: number;
+  unmappedRows: number;
+  skippedRows: number;
+  rowDetails: any[];
+  unmappedSummary: any[];
+  filename: string;
+  uploadedAt: number;
+}

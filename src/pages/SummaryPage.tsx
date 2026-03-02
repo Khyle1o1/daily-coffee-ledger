@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Calendar, MapPin, PlusCircle } from "lucide-react";
 
@@ -33,8 +33,11 @@ import type {
   DailyReport,
   MappingEntry,
   RawRow,
+  Category,
 } from "@/utils/types";
-import { BRANCHES, CATEGORIES, type Category } from "@/utils/types";
+import { BRANCHES, CATEGORIES } from "@/utils/types";
+import { formatMonthDisplay, getMonthRange } from "@/utils/aggregateMonthly";
+import type { DateRange } from "react-day-picker";
 
 import {
   getBranches,
@@ -44,16 +47,8 @@ import {
 } from "@/services/reportsService";
 import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
 import type { Branch } from "@/lib/supabase-types";
-import { exportCategoryRankingPdf, type RankedCategory } from "@/utils/exportCategoryRankingPdf";
-
-interface DateRange {
-  from: Date | undefined;
-  to: Date | undefined;
-}
 
 type Step = 1 | 2 | 3;
-type SortOrder = "desc" | "asc";
-type CategoryScope = "all" | "selected";
 
 export default function SummaryPage() {
   const { toast } = useToast();
@@ -65,14 +60,12 @@ export default function SummaryPage() {
 
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const [previousDateRange, setPreviousDateRange] = useState<DateRange | null>(null);
 
   // Filters for the main summary view
   const [filterDateRange, setFilterDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [filterBranch, setFilterBranch] = useState<BranchId | "all">("all");
-  const [categoryScope, setCategoryScope] = useState<CategoryScope>("all");
-  const [selectedCategories, setSelectedCategories] = useState<Category[]>([...CATEGORIES]);
-  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
-  const [isExporting, setIsExporting] = useState(false);
 
   // Mapping table (kept internal, no manual upload in UI)
   const [mappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
@@ -90,6 +83,8 @@ export default function SummaryPage() {
   // Preview modal state
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewReport, setPreviewReport] = useState<DailyReport | null>(null);
+
+  const filteredTotalsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -379,33 +374,87 @@ export default function SummaryPage() {
     };
   }, [filteredReports]);
 
-  const rankedCategories: RankedCategory[] = useMemo(() => {
-    if (!combinedSummaryForFilters) return [];
+  const allBranchesBreakdown = useMemo(() => {
+    if (!filteredReports.length || filterBranch !== "all") return null;
 
-    const totalSales = combinedSummaryForFilters.grandTotal || 0;
+    const byBranch = new Map<BranchId, {
+      branchId: BranchId;
+      branchName: string;
+      totals: Record<Category, number>;
+      quantities: Record<Category, number>;
+      grandTotal: number;
+      grandQuantity: number;
+    }>();
 
-    const baseCategories =
-      categoryScope === "all"
-        ? CATEGORIES
-        : CATEGORIES.filter((c) => selectedCategories.includes(c));
+    filteredReports.forEach((report) => {
+      const existing = byBranch.get(report.branch);
+      const branchName =
+        BRANCHES.find((b) => b.id === report.branch)?.label ?? report.branch;
 
-    const rows = baseCategories.map((cat) => {
-      const total = combinedSummaryForFilters.totals[cat] || 0;
-      const percentOfTotal = totalSales > 0 ? (total / totalSales) * 100 : 0;
-      return { category: cat, total, percentOfTotal };
+      if (!existing) {
+        const totalsInit = {} as Record<Category, number>;
+        const quantitiesInit = {} as Record<Category, number>;
+        CATEGORIES.forEach((cat) => {
+          totalsInit[cat] = report.summaryTotalsByCat[cat] || 0;
+          quantitiesInit[cat] = report.summaryQuantitiesByCat[cat] || 0;
+        });
+        byBranch.set(report.branch, {
+          branchId: report.branch,
+          branchName,
+          totals: totalsInit,
+          quantities: quantitiesInit,
+          grandTotal: report.grandTotal,
+          grandQuantity: report.grandQuantity,
+        });
+      } else {
+        CATEGORIES.forEach((cat) => {
+          existing.totals[cat] =
+            (existing.totals[cat] || 0) +
+            (report.summaryTotalsByCat[cat] || 0);
+          existing.quantities[cat] =
+            (existing.quantities[cat] || 0) +
+            (report.summaryQuantitiesByCat[cat] || 0);
+        });
+        existing.grandTotal += report.grandTotal;
+        existing.grandQuantity += report.grandQuantity;
+      }
     });
 
-    rows.sort((a, b) =>
-      sortOrder === "desc" ? b.total - a.total : a.total - b.total,
+    return Array.from(byBranch.values()).sort((a, b) =>
+      a.branchName.localeCompare(b.branchName),
     );
+  }, [filteredReports, filterBranch]);
 
-    return rows.map((row, index) => ({
-      rank: index + 1,
-      category: row.category,
-      total: row.total,
-      percentOfTotal: row.percentOfTotal,
-    }));
-  }, [combinedSummaryForFilters, categoryScope, selectedCategories, sortOrder]);
+  const handleMonthSelect = useCallback(
+    (monthKey: string) => {
+      // Toggle off if the same month is clicked again
+      if (selectedMonthKey === monthKey) {
+        setSelectedMonthKey(null);
+        setFilterDateRange(previousDateRange || { from: undefined, to: undefined });
+        setPreviousDateRange(null);
+        return;
+      }
+
+      // Preserve the previous range only once so we can restore it
+      if (!previousDateRange) {
+        setPreviousDateRange(filterDateRange);
+      }
+
+      const [yearStr, monthStr] = monthKey.split("-");
+      const year = Number(yearStr);
+      const monthIndex = Number(monthStr) - 1; // 0-based
+      const { start, end } = getMonthRange(year, monthIndex);
+
+      setSelectedMonthKey(monthKey);
+      setFilterDateRange({ from: start, to: end });
+
+      // Scroll to the filtered totals card for instant feedback
+      if (filteredTotalsRef.current) {
+        filteredTotalsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    [selectedMonthKey, previousDateRange, filterDateRange],
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -450,6 +499,21 @@ export default function SummaryPage() {
                 </PopoverContent>
               </Popover>
 
+              {selectedMonthKey && (
+                <div className="flex items-center gap-2 text-xs bg-primary-foreground/10 text-primary-foreground px-3 py-1.5 rounded-full">
+                  <span className="font-semibold tracking-wide">
+                    Month selected: {formatMonthDisplay(selectedMonthKey)}
+                  </span>
+                  <button
+                    type="button"
+                    className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary-foreground/20 hover:bg-primary-foreground/30"
+                    onClick={() => handleMonthSelect(selectedMonthKey)}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
               {/* Branch Filter */}
               <Select
                 value={filterBranch}
@@ -478,189 +542,22 @@ export default function SummaryPage() {
                   onClick={handleOpenAddModal}
                 >
                   <PlusCircle className="h-5 w-5" />
-                  ADD REPORT
+                  ADD DATA
                 </Button>
               </div>
             </div>
 
-            {/* Category Ranking Bar */}
-            <div className="mt-1 flex flex-wrap items-center gap-3 bg-primary/20 border border-primary/30 rounded-2xl px-4 py-3">
-              <span className="text-xs font-semibold tracking-[0.16em] uppercase text-primary-foreground/80">
-                Category Ranking
-              </span>
-
-              {/* Sort by (future-safe) */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-primary-foreground/80">Sort by</span>
-                <div className="px-3 py-1.5 rounded-full bg-primary-foreground/10 text-primary-foreground text-[11px] font-semibold">
-                  Category Total Sales
-                </div>
-              </div>
-
-              {/* Order */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-primary-foreground/80">Order</span>
-                <div className="inline-flex rounded-full bg-primary-foreground/10 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setSortOrder("desc")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-full text-[11px] font-semibold",
-                      sortOrder === "desc"
-                        ? "bg-primary-foreground text-primary"
-                        : "text-primary-foreground/80",
-                    )}
-                  >
-                    Highest → Lowest
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortOrder("asc")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-full text-[11px] font-semibold",
-                      sortOrder === "asc"
-                        ? "bg-primary-foreground text-primary"
-                        : "text-primary-foreground/80",
-                    )}
-                  >
-                    Lowest → Highest
-                  </button>
-                </div>
-              </div>
-
-              {/* Scope */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-primary-foreground/80">Scope</span>
-                <div className="inline-flex rounded-full bg-primary-foreground/10 p-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCategoryScope("all");
-                      setSelectedCategories([...CATEGORIES]);
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 rounded-full text-[11px] font-semibold",
-                      categoryScope === "all"
-                        ? "bg-primary-foreground text-primary"
-                        : "text-primary-foreground/80",
-                    )}
-                  >
-                    All Categories
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryScope("selected")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-full text-[11px] font-semibold",
-                      categoryScope === "selected"
-                        ? "bg-primary-foreground text-primary"
-                        : "text-primary-foreground/80",
-                    )}
-                  >
-                    Selected Categories
-                  </button>
-                </div>
-              </div>
-
-              {/* Category Multi-select */}
-              <div className="flex-1 min-w-[220px]">
-                <div className="flex flex-wrap items-center gap-1 mt-1">
-                  {CATEGORIES.map((cat) => {
-                    const isActive = selectedCategories.includes(cat);
-                    const disabled = categoryScope === "all";
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => {
-                          if (!isActive) {
-                            setSelectedCategories((prev) => [...prev, cat]);
-                          } else {
-                            setSelectedCategories((prev) =>
-                              prev.filter((c) => c !== cat),
-                            );
-                          }
-                        }}
-                        className={cn(
-                          "text-[11px] px-3 py-1.5 rounded-full font-semibold transition-colors",
-                          disabled && "opacity-40 cursor-not-allowed",
-                          !disabled &&
-                            (isActive
-                              ? "bg-primary-foreground text-primary shadow-sm"
-                              : "bg-primary-foreground/5 text-primary-foreground/90 hover:bg-primary-foreground/15"),
-                        )}
-                      >
-                        {cat}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Download PDF */}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!rankedCategories.length || isExporting || !combinedSummaryForFilters}
-                onClick={async () => {
-                  if (!combinedSummaryForFilters || !rankedCategories.length) return;
-                  setIsExporting(true);
-                  try {
-                    const totalSales = combinedSummaryForFilters.grandTotal || 0;
-                    const branchLabel =
-                      filterBranch === "all"
-                        ? "All branches"
-                        : BRANCHES.find((b) => b.id === filterBranch)?.label || "Branch";
-
-                    const dateRangeLabel = filterDateRange.from
-                      ? filterDateRange.to &&
-                        filterDateRange.from.getTime() !== filterDateRange.to.getTime()
-                        ? `${format(filterDateRange.from, "MMM dd, yyyy")} — ${format(
-                            filterDateRange.to,
-                            "MMM dd, yyyy",
-                          )}`
-                        : format(filterDateRange.from, "MMM dd, yyyy")
-                      : "All dates";
-
-                    await exportCategoryRankingPdf({
-                      rankedCategories,
-                      branchLabel,
-                      dateRangeLabel,
-                      totalSales,
-                    });
-                  } finally {
-                    setIsExporting(false);
-                  }
-                }}
-                className="ml-auto rounded-full border-white/70 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20"
-              >
-                {isExporting ? "Generating..." : "Download PDF"}
-              </Button>
-            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="max-w-[1600px] mx-auto px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
-          {/* Left: List of uploaded reports */}
-          <aside>
-            <DailyHistoryList
-              reports={filteredReports}
-              activeReportId={activeReportId}
-              onSelect={setActiveReportId}
-              viewMode="daily"
-              selectedMonth=""
-              onMonthSelect={() => {}}
-            />
-          </aside>
-
-          {/* Right: Aggregated + Active Report Preview */}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-6">
+          {/* Left: Aggregated + Active Report Preview */}
           <main className="min-w-0 space-y-6">
             {/* Aggregated summary for filters */}
-            <div className="bg-card rounded-3xl shadow-xl p-6">
+            <div ref={filteredTotalsRef} className="bg-card rounded-3xl shadow-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
@@ -685,64 +582,12 @@ export default function SummaryPage() {
                   grandTotal={combinedSummaryForFilters.grandTotal}
                   grandQuantity={combinedSummaryForFilters.grandQuantity}
                   percents={combinedSummaryForFilters.percents as any}
-                  branchLabel={filterBranch === "all" ? "All Branches" : (BRANCHES.find((b) => b.id === filterBranch)?.label || "Branch")}
+                branchLabel={filterBranch === "all" ? "All Branches" : (BRANCHES.find((b) => b.id === filterBranch)?.label || "Branch")}
+                branchBreakdown={allBranchesBreakdown ?? undefined}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No reports match the current filters yet.
-                </p>
-              )}
-            </div>
-
-            {/* Top Categories (Ranked) */}
-            <div className="bg-card rounded-3xl shadow-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
-                    Top Categories (Ranked)
-                  </p>
-                  <h2 className="text-xl font-bold text-card-foreground">
-                    Category ranking by sales
-                  </h2>
-                </div>
-              </div>
-
-              {rankedCategories.length ? (
-                <div className="overflow-x-auto rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-[#2B67B2] text-white">
-                        <th className="px-4 py-3 text-left w-[70px]">Rank</th>
-                        <th className="px-4 py-3 text-left">Category</th>
-                        <th className="px-4 py-3 text-right w-[160px]">Total Sales</th>
-                        <th className="px-4 py-3 text-right w-[120px]">% of Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rankedCategories.map((row) => (
-                        <tr key={row.category} className="border-t border-[#E2E8F0] even:bg-[#F7F9FC]">
-                          <td className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500">
-                            {row.rank}
-                          </td>
-                          <td className="px-4 py-2.5 text-card-foreground text-sm font-medium">
-                            {row.category}
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900">
-                            ₱{formatNumber(row.total)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-xs font-semibold text-[#2B67B2]">
-                            {combinedSummaryForFilters?.grandTotal
-                              ? `${((row.total / combinedSummaryForFilters.grandTotal) * 100).toFixed(1)}%`
-                              : "0.0%"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No category data available for the current filters.
                 </p>
               )}
             </div>
@@ -805,6 +650,18 @@ export default function SummaryPage() {
               </div>
             ) : null}
           </main>
+
+          {/* Right: Daily / Monthly history (slightly narrower) */}
+          <aside className="lg:max-w-[260px]">
+            <DailyHistoryList
+              reports={filteredReports}
+              activeReportId={activeReportId}
+              onSelect={setActiveReportId}
+              viewMode="daily"
+              selectedMonth={selectedMonthKey ?? ""}
+              onMonthSelect={handleMonthSelect}
+            />
+          </aside>
         </div>
       </div>
 

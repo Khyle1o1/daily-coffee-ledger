@@ -4,6 +4,15 @@ import { BRANCHES } from "@/utils/types";
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
+interface BranchBreakdownRow {
+  branchId: string;
+  branchName: string;
+  totals: Record<Category, number>;
+  quantities: Record<Category, number>;
+  grandTotal: number;
+  grandQuantity: number;
+}
+
 interface SingleBranchProps {
   mode: "single";
   totals: Record<Category, number>;
@@ -12,6 +21,13 @@ interface SingleBranchProps {
   grandQuantity: number;
   percents: Record<Category, number>;
   branchLabel: string;
+  /**
+   * Optional per-branch breakdown used when the parent row is
+   * the \"All Branches\" combined view. When present and the
+   * parent row is expanded, each child row will display its
+   * own branchName instead of repeating \"All Branches\".
+   */
+  branchBreakdown?: BranchBreakdownRow[];
 }
 
 interface MultiBranchProps {
@@ -63,7 +79,15 @@ export default function SummaryTable(props: Props) {
 
   if (props.mode === "single") {
     // Single branch mode - show only totals by default
-    const { branchLabel, totals, quantities, grandTotal, grandQuantity, percents } = props;
+    const {
+      branchLabel,
+      totals,
+      quantities,
+      grandTotal,
+      grandQuantity,
+      percents,
+      branchBreakdown,
+    } = props;
     
     const isExpanded = expandedBranches.has(branchLabel);
     
@@ -74,13 +98,38 @@ export default function SummaryTable(props: Props) {
       branchLabel 
     });
     
-    // Quantities row - only show if expanded
+    // Expanded breakdown:
+    // - If we have a branchBreakdown (All Branches view), show one row per branch,
+    //   and allow clicking each child branch row to reveal its quantities.
+    // - Otherwise, fall back to the original single quantities row behaviour.
     if (isExpanded) {
-      rows.push({ 
-        cells: quantitiesRow(branchLabel, quantities, grandQuantity), 
-        className: "quantities-row",
-        isQuantityRow: true 
-      });
+      if (branchBreakdown && branchBreakdown.length > 0 && branchLabel === "All Branches") {
+        branchBreakdown.forEach((child) => {
+          const childExpanded = expandedBranches.has(child.branchName);
+
+          // Child totals row for this branch
+          rows.push({
+            cells: totalsRow(child.branchName, child.totals, child.grandTotal, true),
+            className: "totals-row cursor-pointer hover:bg-primary/5",
+            branchLabel: child.branchName,
+          });
+
+          // Child quantities row, only when that branch is expanded
+          if (childExpanded) {
+            rows.push({
+              cells: quantitiesRow(child.branchName, child.quantities, child.grandQuantity),
+              className: "quantities-row",
+              isQuantityRow: true,
+            });
+          }
+        });
+      } else {
+        rows.push({
+          cells: quantitiesRow(branchLabel, quantities, grandQuantity),
+          className: "quantities-row",
+          isQuantityRow: true,
+        });
+      }
     }
     
     // Percentage row - lighter, more subdued
@@ -167,16 +216,16 @@ export default function SummaryTable(props: Props) {
 
   return (
     <div className="overflow-x-auto rounded-2xl shadow-lg border border-[#E2E8F0] bg-white">
-      <table className="w-full border-collapse min-w-[1000px] bg-white">
+      <table className="w-full border-collapse min-w-[680px] text-[11px] bg-white">
         <thead className="sticky top-0 z-10">
           <tr>
             {allCols.map(col => (
               <th
                 key={col}
                 className={`spreadsheet-header ${
-                  col === "BRANCH" ? "min-w-[120px]" : 
-                  col === "TOTAL" ? "min-w-[100px]" : 
-                  "min-w-[80px]"
+                  col === "BRANCH" ? "min-w-[110px]" :
+                  col === "TOTAL" ? "min-w-[90px]" :
+                  "min-w-[70px]"
                 }`}
               >
                 {col}
@@ -200,7 +249,7 @@ export default function SummaryTable(props: Props) {
                 {displayCells.map((cell, ci) => (
                   <td
                     key={ci}
-                    className={`spreadsheet-cell py-3 ${
+                className={`spreadsheet-cell ${
                       ci === 0 ? "font-semibold text-left sticky left-0 bg-inherit z-5" : 
                       ci === displayCells.length - 1 ? "font-bold border-l-2 border-l-primary text-center" : 
                       "text-center"

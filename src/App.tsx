@@ -10,6 +10,7 @@ import LoginPage from "./pages/LoginPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AppShell from "./layout/AppShell";
 import SummaryPage from "./pages/SummaryPage";
+import ReportsPage from "./pages/ReportsPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import NotFound from "./pages/NotFound";
 
@@ -44,6 +45,7 @@ const App = () => (
             >
               <Route index element={<Navigate to="/app/summary" replace />} />
               <Route path="summary" element={<SummaryPage />} />
+              <Route path="reports" element={<ReportsPage />} />
               <Route path="users" element={<UserManagementPage />} />
             </Route>
 

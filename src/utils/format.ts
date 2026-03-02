@@ -3,5 +3,5 @@ export function formatNumber(n: number): string {
 }
 
 export function formatPercent(n: number): string {
-  return `${n}%`;
+  return `${Number.isFinite(n) ? n.toFixed(2) : "0.00"}%`;
 }
