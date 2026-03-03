@@ -82,6 +82,45 @@ export interface UpdateUserPayload {
 }
 
 // ============================================================================
+// DIRECTORY LINK TYPES
+// ============================================================================
+
+export interface DirectoryLink {
+  id: string;
+  name: string;
+  url: string;
+  description: string | null;
+  category: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDirectoryLinkPayload {
+  name: string;
+  url: string;
+  description?: string | null;
+  category?: string | null;
+  is_active?: boolean;
+}
+
+export interface UpdateDirectoryLinkPayload {
+  name?: string;
+  url?: string;
+  description?: string | null;
+  category?: string | null;
+  is_active?: boolean;
+}
+
+export interface ListDirectoryLinksParams {
+  q?: string;
+  category?: string;
+  active?: boolean;
+  sort?: 'updatedAt' | 'createdAt' | 'name';
+  order?: 'asc' | 'desc';
+}
+
+// ============================================================================
 // GENERATED REPORT TYPES
 // ============================================================================
 

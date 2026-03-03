@@ -12,6 +12,39 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      directory_links: {
+        Row: {
+          id: string
+          name: string
+          url: string
+          description: string | null
+          category: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          url: string
+          description?: string | null
+          category?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          url?: string
+          description?: string | null
+          category?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       branches: {
         Row: {
           id: string

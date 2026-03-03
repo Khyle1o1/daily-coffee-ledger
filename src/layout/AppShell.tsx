@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Coffee, Calendar, LogOut, User, Shield, PanelLeftOpen, PanelLeftClose, BarChart3 } from 'lucide-react';
+import { Coffee, Calendar, LogOut, User, Shield, PanelLeftOpen, PanelLeftClose, BarChart3, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/auth/useAuth';
@@ -75,6 +75,22 @@ function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
             <span>User Management</span>
           </NavLink>
         )}
+
+        {isAdmin && (
+          <NavLink
+            to="/app/directory"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
+                isActive
+                  ? "bg-white text-[#0e2d49] shadow-lg shadow-black/40"
+                  : "text-primary-foreground/80 hover:bg-white/10"
+              }`
+            }
+          >
+            <Link2 className="h-5 w-5" />
+            <span>Directory</span>
+          </NavLink>
+        )}
       </nav>
     </aside>
   );
@@ -100,6 +116,7 @@ export default function AppShell() {
     if (location.pathname.includes('/summary')) return 'Summary';
     if (location.pathname.includes('/reports')) return 'Reports';
     if (location.pathname.includes('/users')) return 'User Management';
+    if (location.pathname.includes('/directory')) return 'Directory';
     return 'Dashboard';
   };
 

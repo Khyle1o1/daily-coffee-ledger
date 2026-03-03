@@ -31,7 +31,8 @@ interface CachedProfile {
   timestamp: number;
 }
 
-const PROFILE_CACHE_KEY = 'auth_profile_cache';
+// Bump version to instantly evict any stale cached data
+const PROFILE_CACHE_KEY = 'auth_profile_cache_v2';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -131,42 +132,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     try {
       console.log('[AuthProvider] 📡 Fetching profile from database...');
-      
-      // Load profile with timeout
-      const profileTimeout = new Promise<null>((_, reject) => {
-        setTimeout(() => reject(new Error('Profile load timeout after 5 seconds')), 5000);
-      });
-      
-      const userProfile = await Promise.race([
+
+      const [profileResult, adminResult] = await Promise.allSettled([
         getCurrentUserProfile(),
-        profileTimeout
-      ]).catch((err) => {
-        console.error('[AuthProvider] ❌ Failed to get profile:', err);
-        return null;
-      });
-      
-      // Load admin status with separate timeout
-      const adminTimeout = new Promise<false>((_, reject) => {
-        setTimeout(() => reject(new Error('Admin check timeout after 5 seconds')), 5000);
-      });
-      
-      const adminStatus = await Promise.race([
         isCurrentUserAdmin(),
-        adminTimeout
-      ]).catch((err) => {
-        console.error('[AuthProvider] ❌ Failed to check admin status:', err);
-        return false;
-      });
-      
+      ]);
+
+      let userProfile: UserProfile | null = null;
+      if (profileResult.status === 'fulfilled') {
+        userProfile = profileResult.value;
+      } else {
+        console.error('[AuthProvider] ❌ Failed to get profile:', profileResult.reason);
+      }
+
+      let adminStatus = false;
+      if (adminResult.status === 'fulfilled') {
+        adminStatus = adminResult.value;
+      } else {
+        console.error('[AuthProvider] ❌ Failed to check admin status:', adminResult.reason);
+      }
+
       console.log('[AuthProvider] ✅ Profile loaded:', {
         hasProfile: !!userProfile,
         isAdmin: adminStatus,
         profile: userProfile
       });
-      
+
       setProfile(userProfile);
       setIsAdmin(adminStatus);
-      setCachedProfile(currentUser.id, userProfile, adminStatus);
+      // Only cache when we got a real profile back; a null profile with
+      // isAdmin=false likely means the DB call failed — don't cache that.
+      if (userProfile !== null) {
+        setCachedProfile(currentUser.id, userProfile, adminStatus);
+      }
       lastLoadedUserId.current = currentUser.id;
     } catch (error) {
       console.error('[AuthProvider] 💥 EXCEPTION loading profile:', error);
@@ -194,7 +192,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
-        await loadProfile(initialSession?.user ?? null);
+        // Fire-and-forget profile load so Auth UI is not blocked
+        void loadProfile(initialSession?.user ?? null);
       } catch (error) {
         console.error('[AuthProvider] ❌ Error getting session:', error);
       } finally {
@@ -215,14 +214,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
           userEmail: currentSession?.user?.email
         });
         
-        // Only reload profile for actual auth changes, not initial session
+        // Only reload profile for actual auth changes, not initial session.
+        // Force a fresh DB fetch on SIGNED_IN so a stale cache never hides
+        // the correct role after the user logs in.
         const shouldReloadProfile = event !== 'INITIAL_SESSION';
+        const forceRefresh = event === 'SIGNED_IN';
         
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
         if (shouldReloadProfile) {
-          await loadProfile(currentSession?.user ?? null);
+          // Fire-and-forget so auth UI is never blocked on DB latency
+          void loadProfile(currentSession?.user ?? null, forceRefresh);
         }
         
         setLoading(false);
