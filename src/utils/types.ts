@@ -36,6 +36,8 @@ export interface RawRow {
   unitPrice: number;
   // Optional: original payment type / channel indicator from the CSV
   paymentType?: string;
+  // Optional: normalized transaction date for reporting
+  transactionDate?: Date;
 }
 
 export interface ProcessedRow extends RawRow {

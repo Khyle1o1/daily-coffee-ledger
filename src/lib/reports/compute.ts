@@ -1,5 +1,6 @@
 import type { DailyReport, Category, ProcessedRow } from "@/utils/types";
 import { CATEGORIES } from "@/utils/types";
+import { filterRowsByDateRange } from "./filterRowsByDateRange";
 import type { Top5ByChannel } from "./computeTop5ByChannel";
 import { computeTop5ByChannelFromRows } from "./computeTop5ByChannel";
 
@@ -76,16 +77,6 @@ export interface ComputedCategoryPerformance {
 // Internal helpers
 // ============================================================================
 
-function filterReportsByDateRange(
-  reports: DailyReport[],
-  dateFrom: string,
-  dateTo: string
-): DailyReport[] {
-  return reports.filter(
-    (r) => r.date >= dateFrom && r.date <= dateTo
-  );
-}
-
 function filterReportsByBranch(
   reports: DailyReport[],
   branchId: string | "all"
@@ -102,17 +93,47 @@ function getActiveCats(filters: ReportFilters): Category[] {
 
 function getRows(reports: DailyReport[], filters: ReportFilters): ProcessedRow[] {
   const activeCats = getActiveCats(filters);
-  const filtered = filterReportsByBranch(
-    filterReportsByDateRange(reports, filters.dateFrom, filters.dateTo),
-    filters.branchId
+  const byBranch = filterReportsByBranch(reports, filters.branchId);
+
+  const start = new Date(filters.dateFrom);
+  const end = new Date(filters.dateTo);
+
+  const allRows: ProcessedRow[] = byBranch.flatMap((r) =>
+    r.rowDetails.filter((row) => row.transactionDate instanceof Date),
   );
-  return filtered.flatMap((r) =>
-    r.rowDetails.filter(
-      (row) =>
-        row.status === "MAPPED" &&
-        row.mappedCat !== null &&
-        activeCats.includes(row.mappedCat as Category)
-    )
+
+  if (allRows.length === 0) {
+    console.warn("[DateDebug] No rows have a valid transactionDate for filters", {
+      filters,
+    });
+  } else {
+    const dates = allRows
+      .map((r) => r.transactionDate as Date)
+      .filter((d) => !Number.isNaN(d.getTime()));
+    if (dates.length) {
+      const sorted = dates.sort((a, b) => a.getTime() - b.getTime());
+      console.log("[DateDebug] Dataset span before range filter", {
+        min: sorted[0].toISOString(),
+        max: sorted[sorted.length - 1].toISOString(),
+        count: dates.length,
+      });
+    }
+  }
+
+  const inRange = filterRowsByDateRange(allRows, start, end);
+
+  if (inRange.length === 0 && allRows.length > 0) {
+    console.warn("[DateDebug] 0 rows matched selected range", {
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+    });
+  }
+
+  return inRange.filter(
+    (row) =>
+      row.status === "MAPPED" &&
+      row.mappedCat !== null &&
+      activeCats.includes(row.mappedCat as Category),
   );
 }
 

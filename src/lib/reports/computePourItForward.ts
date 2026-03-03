@@ -3,6 +3,7 @@ import { BRANCHES } from "@/utils/types";
 import type { ReportFilters } from "./compute";
 import { getChannelFromPaymentType } from "./channel";
 import { isCupItem } from "./cups";
+import { filterRowsByDateRange } from "./filterRowsByDateRange";
 
 export type PourRow = {
   branchId: BranchId;
@@ -55,11 +56,19 @@ export function computePourItForward(
     return entry;
   };
 
+  const start = new Date(dateFrom);
+  const end = new Date(dateTo);
+
   for (const report of reports) {
-    if (report.date < dateFrom || report.date > dateTo) continue;
     if (branchId !== "all" && report.branch !== branchId) continue;
 
-    for (const row of report.rowDetails) {
+    const rowsInRange = filterRowsByDateRange(
+      report.rowDetails.filter((row) => row.transactionDate instanceof Date) as any,
+      start,
+      end,
+    );
+
+    for (const row of rowsInRange) {
       if (row.status !== "MAPPED") continue;
       const name = row.mappedItemName ?? row.rawItemName;
       if (!name || !isCupItem(name)) continue;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { format } from "date-fns";
+import { differenceInCalendarDays, format } from "date-fns";
 import { Calendar, MapPin, PlusCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,12 @@ import type {
   Category,
 } from "@/utils/types";
 import { BRANCHES, CATEGORIES } from "@/utils/types";
+import {
+  detectDateRangeFromFilename,
+  detectDateRangeFromRows,
+} from "@/lib/reports/detectDateRange";
+import { findTransactionDateKey } from "@/lib/csv/findTransactionDateKey";
+import { parseTransactionDate } from "@/lib/csv/parseTransactionDate";
 import { formatMonthDisplay, getMonthRange } from "@/utils/aggregateMonthly";
 import type { DateRange } from "react-day-picker";
 
@@ -48,8 +54,6 @@ import {
 } from "@/services/reportsService";
 import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
 import type { Branch } from "@/lib/supabase-types";
-
-type Step = 1 | 2 | 3;
 
 export default function SummaryPage() {
   const { toast } = useToast();
@@ -73,13 +77,16 @@ export default function SummaryPage() {
 
   // ADD REPORT modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [currentStep, setCurrentStep] = useState<Step>(1);
   const [modalBranch, setModalBranch] = useState<BranchId | "">("");
-  const [modalDateRange, setModalDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [detectedDateRange, setDetectedDateRange] = useState<DateRange>({
+    from: undefined,
+    to: undefined,
+  });
   const [modalFile, setModalFile] = useState<File | null>(null);
   const [modalCsvHeaders, setModalCsvHeaders] = useState<string[]>([]);
   const [modalCsvData, setModalCsvData] = useState<Record<string, string>[]>([]);
   const [modalAutoMapping, setModalAutoMapping] = useState<Partial<Record<keyof ColumnMapping, string>>>({});
+  const [dateDetectionError, setDateDetectionError] = useState<string | null>(null);
 
   // Preview modal state
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -122,13 +129,13 @@ export default function SummaryPage() {
   }, [toast]);
 
   const resetAddModal = () => {
-    setCurrentStep(1);
     setModalBranch("");
-    setModalDateRange({ from: undefined, to: undefined });
+    setDetectedDateRange({ from: undefined, to: undefined });
     setModalFile(null);
     setModalCsvHeaders([]);
     setModalCsvData([]);
     setModalAutoMapping({});
+    setDateDetectionError(null);
   };
 
   const handleOpenAddModal = () => {
@@ -160,6 +167,8 @@ export default function SummaryPage() {
         setModalFile(file);
         setModalCsvHeaders(headers);
         setModalCsvData(data);
+        setDateDetectionError(null);
+        setDetectedDateRange({ from: undefined, to: undefined });
 
         const detected = autoDetectColumns(headers);
         setModalAutoMapping(detected);
@@ -173,6 +182,43 @@ export default function SummaryPage() {
             title: "CSV format not recognized",
             description: "Required columns could not be detected automatically.",
           });
+        }
+
+        // Date range detection: filename first, then rows
+        const fromFilename = detectDateRangeFromFilename(file.name);
+        const fromRows = !fromFilename ? detectDateRangeFromRows(data) : null;
+        const range: DetectedDateRange | null = fromFilename || fromRows;
+
+        if (!range) {
+          setDateDetectionError(
+            "Could not detect date range from file. Please upload a valid DOT Coffee transactions CSV.",
+          );
+          setDetectedDateRange({ from: undefined, to: undefined });
+        } else {
+          if (range.start.getTime() > range.end.getTime()) {
+            setDateDetectionError(
+              "Detected date range is invalid (start is after end). Please check the file.",
+            );
+            setDetectedDateRange({ from: undefined, to: undefined });
+          } else {
+            const days = differenceInCalendarDays(range.end, range.start) + 1;
+            if (days > 90) {
+              const proceed = window.confirm(
+                "This file covers more than 90 days. Continue?",
+              );
+              if (!proceed) {
+                setDateDetectionError(
+                  "Upload cancelled because the file covers more than 90 days.",
+                );
+                setDetectedDateRange({ from: undefined, to: undefined });
+                setModalFile(null);
+                return;
+              }
+            }
+
+            setDetectedDateRange({ from: range.start, to: range.end });
+            setDateDetectionError(null);
+          }
         }
       } catch (error) {
         console.error("Failed to parse CSV file:", error);
@@ -188,18 +234,14 @@ export default function SummaryPage() {
     [toast],
   );
 
-  const canGoNextFromStep = (step: Step) => {
-    if (step === 1) return !!modalBranch;
-    if (step === 2) return !!modalDateRange.from;
-    if (step === 3) return !!modalFile;
-    return false;
-  };
+  const canGenerate =
+    !!modalBranch && !!modalFile && !!detectedDateRange.from && !dateDetectionError;
 
   const buildReportForPreview = useCallback((): DailyReport | null => {
-    if (!modalDateRange.from || !modalCsvData.length || !modalBranch || !modalFile) return null;
+    if (!detectedDateRange.from || !modalCsvData.length || !modalBranch || !modalFile) return null;
 
-    const endDate = modalDateRange.to || modalDateRange.from;
-    const dateStr = format(modalDateRange.from, "yyyy-MM-dd");
+    const endDate = detectedDateRange.to || detectedDateRange.from;
+    const dateStr = format(detectedDateRange.from, "yyyy-MM-dd");
     const dateEndStr = format(endDate, "yyyy-MM-dd");
 
     const mapping: ColumnMapping = {
@@ -223,14 +265,48 @@ export default function SummaryPage() {
       return null;
     }
 
-    const rawRows: RawRow[] = modalCsvData.map((row) => ({
-      rawCategory: row[mapping.rawCategory] || "",
-      rawItemName: row[mapping.rawItemName] || "",
-      option: mapping.option ? row[mapping.option] || "" : "",
-      quantity: parseFloat(row[mapping.quantity]) || 0,
-      unitPrice: parseFloat(row[mapping.unitPrice]) || 0,
-      paymentType: mapping.paymentType ? row[mapping.paymentType] || "" : undefined,
-    }));
+    const dateKey = findTransactionDateKey(modalCsvHeaders);
+
+    const debugDates: Date[] = [];
+
+    const rawRows: RawRow[] = [];
+    for (const r of modalCsvData) {
+      const d = dateKey ? parseTransactionDate(r[dateKey]) : null;
+      if (!d) continue;
+      debugDates.push(d);
+      rawRows.push({
+        rawCategory: r[mapping.rawCategory] || "",
+        rawItemName: r[mapping.rawItemName] || "",
+        option: mapping.option ? r[mapping.option] || "" : "",
+        quantity: parseFloat(r[mapping.quantity]) || 0,
+        unitPrice: parseFloat(r[mapping.unitPrice]) || 0,
+        paymentType: mapping.paymentType ? r[mapping.paymentType] || "" : undefined,
+        transactionDate: d,
+      });
+    }
+
+    if (debugDates.length === 0) {
+      console.warn("[DateDebug] No valid transaction dates parsed", {
+        dateKeyUsed: dateKey,
+        sampleRaw: modalCsvData.slice(0, 5),
+      });
+      toast({
+        variant: "destructive",
+        title: "Could not read dates from CSV",
+        description:
+          "0 valid dates were detected. Please check that the date column uses a supported format.",
+      });
+      return null;
+    }
+
+    const sortedDebug = [...debugDates].sort((a, b) => a.getTime() - b.getTime());
+    console.log("[DateDebug] Parsed transaction dates summary", {
+      dateKeyUsed: dateKey,
+      first5: sortedDebug.slice(0, 5).map((d) => d.toISOString()),
+      min: sortedDebug[0].toISOString(),
+      max: sortedDebug[sortedDebug.length - 1].toISOString(),
+      validDateCount: sortedDebug.length,
+    });
 
     const processed = rawRows.map((r) => mapRow(r, mappingTable));
     const { totals, quantities, grandTotal, grandQuantity, percents } = aggregateByCategory(processed);
@@ -259,7 +335,7 @@ export default function SummaryPage() {
     void normalizeText(dateEndStr);
 
     return report;
-  }, [modalDateRange, modalCsvData, modalBranch, modalFile, modalAutoMapping, mappingTable, toast]);
+  }, [detectedDateRange, modalCsvData, modalBranch, modalFile, modalAutoMapping, mappingTable, toast]);
 
   const handleSubmitReport = () => {
     const report = buildReportForPreview();
@@ -271,13 +347,13 @@ export default function SummaryPage() {
   };
 
   const handleConfirmAndSave = async () => {
-    if (!previewReport || !modalDateRange.from) return;
+    if (!previewReport || !detectedDateRange.from) return;
 
     try {
       setIsSaving(true);
 
-      const endDate = modalDateRange.to || modalDateRange.from;
-      const dateStr = format(modalDateRange.from, "yyyy-MM-dd");
+      const endDate = detectedDateRange.to || detectedDateRange.from;
+      const dateStr = format(detectedDateRange.from, "yyyy-MM-dd");
       const dateEndStr = format(endDate, "yyyy-MM-dd");
 
       const branchUuid = getBranchId(branches, previewReport.branch);
@@ -746,122 +822,72 @@ export default function SummaryPage() {
             <DialogTitle className="text-2xl font-bold tracking-tight">Add new report</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-7">
-            {/* Step indicator */}
-            <div className="flex items-center justify-between text-[11px] font-semibold tracking-[0.16em] uppercase">
-              <div className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    "inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px]",
-                    currentStep === 1
-                      ? "bg-white text-primary border-white shadow-sm"
-                      : "border-white/30 text-primary-foreground/70",
-                  )}
-                >
-                  1
-                </span>
-                <span className={cn("transition-colors", currentStep === 1 ? "text-white" : "text-primary-foreground/70")}>
-                  Select branch
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    "inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px]",
-                    currentStep === 2
-                      ? "bg-white text-primary border-white shadow-sm"
-                      : "border-white/30 text-primary-foreground/70",
-                  )}
-                >
-                  2
-                </span>
-                <span className={cn("transition-colors", currentStep === 2 ? "text-white" : "text-primary-foreground/70")}>
-                  Select date range
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    "inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px]",
-                    currentStep === 3
-                      ? "bg-white text-primary border-white shadow-sm"
-                      : "border-white/30 text-primary-foreground/70",
-                  )}
-                >
-                  3
-                </span>
-                <span className={cn("transition-colors", currentStep === 3 ? "text-white" : "text-primary-foreground/70")}>
-                  Upload CSV
-                </span>
-              </div>
+          <div className="space-y-6">
+            {/* Select Branch */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-primary-foreground/90">Select branch</p>
+              <Select
+                value={modalBranch}
+                onValueChange={(value) => setModalBranch(value as BranchId)}
+              >
+                <SelectTrigger className="w-full rounded-full px-5 py-2.5 h-auto bg-primary-foreground text-primary border-none shadow-inner">
+                  <SelectValue placeholder="Choose a branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BRANCHES.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Step content */}
-            {currentStep === 1 && (
-              <div className="space-y-3 pb-1">
-                <p className="text-sm font-medium text-primary-foreground/90">Select branch</p>
-                <Select
-                  value={modalBranch}
-                  onValueChange={(value) => setModalBranch(value as BranchId)}
-                >
-                  <SelectTrigger className="w-full rounded-full px-5 py-2.5 h-auto bg-primary-foreground text-primary border-none shadow-inner">
-                    <SelectValue placeholder="Choose a branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BRANCHES.map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        {branch.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {currentStep === 2 && (
-              <div className="space-y-3 pb-1">
-                <p className="text-sm font-medium text-primary-foreground/90">Select date range</p>
-                <div className="rounded-2xl bg-primary/40 p-3 border border-white/10">
-                  <CalendarUI
-                    mode="range"
-                    selected={modalDateRange}
-                    onSelect={(range) => setModalDateRange(range || { from: undefined, to: undefined })}
-                    className="rounded-xl bg-primary-foreground text-primary shadow-sm"
-                    numberOfMonths={2}
-                  />
-                </div>
-              </div>
-            )}
-
-            {currentStep === 3 && (
-              <div className="space-y-3 pb-1">
-                <p className="text-sm font-medium text-primary-foreground/90">Upload transactions CSV</p>
-                <label className="flex items-center justify-between px-5 py-3 rounded-full border border-dashed border-white/40 cursor-pointer bg-primary-foreground text-primary hover:bg-primary-foreground/95 transition-colors shadow-sm">
-                  <div className="flex flex-col text-left">
-                    <span className="text-sm font-medium truncate max-w-[260px]">
-                      {modalFile ? modalFile.name : "Choose CSV file"}
-                    </span>
-                    <span className="text-xs text-primary/80">
-                      Only .csv files are supported
-                    </span>
-                  </div>
-                  <span className="text-xs font-semibold text-primary uppercase tracking-[0.16em]">
-                    Browse
+            {/* Upload CSV */}
+            <div className="space-y-3 pb-1">
+              <p className="text-sm font-medium text-primary-foreground/90">Upload transactions CSV</p>
+              <label className="flex items-center justify-between px-5 py-3 rounded-full border border-dashed border-white/40 cursor-pointer bg-primary-foreground text-primary hover:bg-primary-foreground/95 transition-colors shadow-sm">
+                <div className="flex flex-col text-left">
+                  <span className="text-sm font-medium truncate max-w-[260px]">
+                    {modalFile ? modalFile.name : "Choose CSV file"}
                   </span>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    className="hidden"
-                    onChange={handleModalFileChange}
-                  />
-                </label>
-                {modalCsvHeaders.length > 0 && (
-                  <p className="text-xs text-primary-foreground/80">
-                    Detected {modalCsvHeaders.length} columns from the uploaded file.
-                  </p>
-                )}
-              </div>
-            )}
+                  <span className="text-xs text-primary/80">
+                    Only .csv files are supported
+                  </span>
+                </div>
+                <span className="text-xs font-semibold text-primary uppercase tracking-[0.16em]">
+                  Browse
+                </span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleModalFileChange}
+                />
+              </label>
+              {modalCsvHeaders.length > 0 && (
+                <p className="text-xs text-primary-foreground/80">
+                  Detected {modalCsvHeaders.length} columns from the uploaded file.
+                </p>
+              )}
+              {detectedDateRange.from && !dateDetectionError && (
+                <p className="text-xs text-primary-foreground/80">
+                  Detected date range:{" "}
+                  {detectedDateRange.to &&
+                  detectedDateRange.from.getTime() !== detectedDateRange.to.getTime()
+                    ? `${format(detectedDateRange.from, "MMM dd, yyyy")} — ${format(
+                        detectedDateRange.to,
+                        "MMM dd, yyyy",
+                      )}`
+                    : format(detectedDateRange.from, "MMM dd, yyyy")}
+                </p>
+              )}
+              {dateDetectionError && (
+                <p className="text-xs text-red-200">
+                  {dateDetectionError}
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter className="mt-7 gap-2">
@@ -873,38 +899,13 @@ export default function SummaryPage() {
             >
               Cancel
             </Button>
-            {currentStep > 1 && (
-              <Button
-                variant="ghost"
-                onClick={() => setCurrentStep((prev) => (prev - 1) as Step)}
-                disabled={isSaving}
-                className="rounded-full text-primary-foreground hover:bg-white/10"
-              >
-                Back
-              </Button>
-            )}
-            {currentStep < 3 && (
-              <Button
-                disabled={!canGoNextFromStep(currentStep) || isSaving}
-                onClick={() => {
-                  if (canGoNextFromStep(currentStep)) {
-                    setCurrentStep((prev) => (prev + 1) as Step);
-                  }
-                }}
-                className="rounded-full bg-white text-primary font-semibold hover:bg-blue-50 shadow-md"
-              >
-                Next
-              </Button>
-            )}
-            {currentStep === 3 && (
-              <Button
-                onClick={handleSubmitReport}
-                disabled={!canGoNextFromStep(3) || isSaving}
-                className="rounded-full bg-white text-primary font-semibold hover:bg-blue-50 shadow-md"
-              >
-                Submit Report
-              </Button>
-            )}
+            <Button
+              onClick={handleSubmitReport}
+              disabled={!canGenerate || isSaving}
+              className="rounded-full bg-white text-primary font-semibold hover:bg-blue-50 shadow-md"
+            >
+              Generate Report
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -986,15 +987,15 @@ export default function SummaryPage() {
             {previewReport && (
               <p className="text-sm text-muted-foreground mt-1">
                 {BRANCHES.find((b) => b.id === previewReport.branch)?.label} •{" "}
-                {modalDateRange.from &&
-                modalDateRange.to &&
-                modalDateRange.from.getTime() !== modalDateRange.to.getTime()
-                  ? `${format(modalDateRange.from, "MMM dd, yyyy")} — ${format(
-                      modalDateRange.to,
+                {detectedDateRange.from &&
+                detectedDateRange.to &&
+                detectedDateRange.from.getTime() !== detectedDateRange.to.getTime()
+                  ? `${format(detectedDateRange.from, "MMM dd, yyyy")} — ${format(
+                      detectedDateRange.to,
                       "MMM dd, yyyy",
                     )}`
-                  : modalDateRange.from
-                    ? format(modalDateRange.from, "MMM dd, yyyy")
+                  : detectedDateRange.from
+                    ? format(detectedDateRange.from, "MMM dd, yyyy")
                     : previewReport.date}
               </p>
             )}
@@ -1017,15 +1018,15 @@ export default function SummaryPage() {
                     Date range
                   </p>
                   <p className="text-base font-semibold">
-                    {modalDateRange.from &&
-                    modalDateRange.to &&
-                    modalDateRange.from.getTime() !== modalDateRange.to.getTime()
-                      ? `${format(modalDateRange.from, "MMM dd, yyyy")} — ${format(
-                          modalDateRange.to,
+                    {detectedDateRange.from &&
+                    detectedDateRange.to &&
+                    detectedDateRange.from.getTime() !== detectedDateRange.to.getTime()
+                      ? `${format(detectedDateRange.from, "MMM dd, yyyy")} — ${format(
+                          detectedDateRange.to,
                           "MMM dd, yyyy",
                         )}`
-                      : modalDateRange.from
-                        ? format(modalDateRange.from, "MMM dd, yyyy")
+                      : detectedDateRange.from
+                        ? format(detectedDateRange.from, "MMM dd, yyyy")
                         : previewReport.date}
                   </p>
                 </div>

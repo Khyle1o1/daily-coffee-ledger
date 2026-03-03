@@ -103,13 +103,21 @@ export default function DailyHistoryList({
                             ₱{formatNumber(report.grandTotal)}
                           </span>
                           {onDelete && (
-                            <button
-                              type="button"
+                            <span
+                              role="button"
+                              tabIndex={0}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onDelete(report.id);
                               }}
-                              className={`p-0.5 rounded-full border text-[10px] ${
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  onDelete(report.id);
+                                }
+                              }}
+                              className={`p-0.5 rounded-full border text-[10px] cursor-pointer ${
                                 isActive
                                   ? "border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10"
                                   : "border-slate-300 text-slate-400 hover:bg-slate-100"
@@ -117,7 +125,7 @@ export default function DailyHistoryList({
                               title="Delete data"
                             >
                               <Trash2 className="h-3 w-3" />
-                            </button>
+                            </span>
                           )}
                         </div>
                       </div>
