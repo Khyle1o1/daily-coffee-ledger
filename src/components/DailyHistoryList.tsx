@@ -1,7 +1,7 @@
 import type { DailyReport, BranchId, ViewMode } from "@/utils/types";
 import { BRANCHES } from "@/utils/types";
 import { formatNumber } from "@/utils/format";
-import { Calendar, MapPin, CalendarDays } from "lucide-react";
+import { Calendar, MapPin, CalendarDays, Trash2 } from "lucide-react";
 import { getAvailableMonths } from "@/utils/aggregateMonthly";
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   viewMode: ViewMode;
   selectedMonth?: string | null;
   onMonthSelect?: (monthKey: string) => void;
+  onDelete?: (reportId: string) => void;
 }
 
 // Group reports by date
@@ -31,7 +32,8 @@ export default function DailyHistoryList({
   onSelect, 
   viewMode, 
   selectedMonth, 
-  onMonthSelect 
+  onMonthSelect,
+  onDelete,
 }: Props) {
   if (reports.length === 0) {
     return (
@@ -96,9 +98,28 @@ export default function DailyHistoryList({
                             {branchLabel}
                           </span>
                         </div>
-                        <span className={`text-xs font-bold ${isActive ? 'text-primary-foreground' : 'text-primary'}`}>
-                          ₱{formatNumber(report.grandTotal)}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-xs font-bold ${isActive ? 'text-primary-foreground' : 'text-primary'}`}>
+                            ₱{formatNumber(report.grandTotal)}
+                          </span>
+                          {onDelete && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(report.id);
+                              }}
+                              className={`p-0.5 rounded-full border text-[10px] ${
+                                isActive
+                                  ? "border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10"
+                                  : "border-slate-300 text-slate-400 hover:bg-slate-100"
+                              }`}
+                              title="Delete data"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       
                       {/* Category chips */}

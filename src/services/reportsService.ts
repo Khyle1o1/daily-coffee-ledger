@@ -3,6 +3,7 @@
 
 import { supabase, handleSupabaseError } from '@/lib/supabaseClient';
 import type { BranchId } from '@/utils/types';
+import { BRANCHES } from '@/utils/types';
 import type {
   Branch,
   DailyReportRow,
@@ -63,6 +64,34 @@ export async function getBranchByName(name: BranchId): Promise<Branch | null> {
 }
 
 /**
+ * Ensure a branch exists for the given name (BranchId).
+ * If it does not exist yet, it will be created.
+ */
+export async function ensureBranchExists(name: BranchId): Promise<Branch> {
+  const existing = await getBranchByName(name);
+  if (existing) return existing;
+
+  try {
+    const label = BRANCHES.find((b) => b.name === name)?.label ?? name;
+
+    const { data, error } = await supabase
+      .from("branches")
+      .insert({ name, label })
+      .select("*")
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create branch "${name}": ${error.message}`);
+    }
+
+    return data as Branch;
+  } catch (error) {
+    console.error("ensureBranchExists error:", error);
+    throw new Error(handleSupabaseError(error));
+  }
+}
+
+/**
  * Seed branches if the table is empty
  * This runs automatically on app load
  */
@@ -83,8 +112,9 @@ export async function seedBranchesIfEmpty(): Promise<void> {
       return;
     }
 
-    // Seed the branches
+    // Seed the branches (must match branches.name CHECK constraint)
     const branches = [
+      { name: 'greenbelt', label: 'Greenbelt' },
       { name: 'podium', label: 'Podium' },
       { name: 'mind_museum', label: 'The Mind Museum' },
       { name: 'trinoma', label: 'Trinoma' },

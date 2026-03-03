@@ -44,6 +44,7 @@ import {
   listAllDailyReports,
   saveDailyReport,
   seedBranchesIfEmpty,
+  deleteDailyReport,
 } from "@/services/reportsService";
 import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
 import type { Branch } from "@/lib/supabase-types";
@@ -83,6 +84,11 @@ export default function SummaryPage() {
   // Preview modal state
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewReport, setPreviewReport] = useState<DailyReport | null>(null);
+
+  // Delete confirmation state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [reportPendingDelete, setReportPendingDelete] = useState<DailyReport | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredTotalsRef = useRef<HTMLDivElement | null>(null);
 
@@ -276,7 +282,14 @@ export default function SummaryPage() {
 
       const branchUuid = getBranchId(branches, previewReport.branch);
       if (!branchUuid) {
-        throw new Error(`Branch not found: ${previewReport.branch}`);
+        toast({
+          variant: "destructive",
+          title: "Branch not configured in Supabase",
+          description:
+            `The branch "${previewReport.branch}" does not exist in the Supabase "branches" table. ` +
+            `Please add it there (name="${previewReport.branch}") or run the latest database migration, then try again.`,
+        });
+        return;
       }
 
       const summaryJson = dailyReportToJSON(previewReport);
@@ -322,6 +335,50 @@ export default function SummaryPage() {
       setIsSaving(false);
     }
   };
+
+  const handleRequestDeleteReport = useCallback(
+    (reportId: string) => {
+      const target = dailyReports.find((r) => r.id === reportId);
+      if (!target) return;
+      setReportPendingDelete(target);
+      setIsDeleteModalOpen(true);
+    },
+    [dailyReports],
+  );
+
+  const handleConfirmDeleteReport = useCallback(async () => {
+    if (!reportPendingDelete) return;
+    try {
+      setIsDeleting(true);
+      await deleteDailyReport(reportPendingDelete.id);
+
+      setDailyReports((prev) =>
+        prev.filter((r) => r.id !== reportPendingDelete.id),
+      );
+
+      if (activeReportId === reportPendingDelete.id) {
+        setActiveReportId(null);
+      }
+
+      setReportPendingDelete(null);
+      setIsDeleteModalOpen(false);
+
+      toast({
+        title: "Data deleted",
+        description: "The selected dataset has been removed.",
+      });
+    } catch (error) {
+      console.error("Failed to delete report:", error);
+      toast({
+        variant: "destructive",
+        title: "Failed to delete data",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [reportPendingDelete, activeReportId, toast]);
 
   const filteredReports = useMemo(() => {
     if (!dailyReports.length) return [];
@@ -598,38 +655,52 @@ export default function SummaryPage() {
             {activeReport ? (
               <div className="bg-card rounded-3xl shadow-xl p-8">
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-card-foreground mb-2">
-                    Report preview — {activeReport.date}
-                  </h2>
-                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-3">
-                    <span className="flex items-center gap-1.5">
-                      <MapPin className="h-4 w-4 text-primary" />
-                      <span className="font-semibold text-primary">
-                        {BRANCHES.find((b) => b.id === activeReport.branch)?.label}
-                      </span>
-                    </span>
-                    <span>
-                      File:{" "}
-                      <span className="font-medium text-card-foreground">
-                        {activeReport.filename}
-                      </span>
-                    </span>
-                    <span>
-                      Rows:{" "}
-                      <span className="font-semibold text-card-foreground">
-                        {activeReport.totalRows}
-                      </span>
-                    </span>
-                    <span className="text-emerald-600 font-medium">
-                      ✓ Mapped: {activeReport.mappedRows}
-                    </span>
-                    <span className="text-amber-600 font-medium">
-                      ⚠ Unmapped: {activeReport.unmappedRows}
-                    </span>
-                    <span>Skipped: {activeReport.skippedRows}</span>
-                    <span className="font-bold text-primary text-lg">
-                      Total: ₱{formatNumber(activeReport.grandTotal)}
-                    </span>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-card-foreground mb-2">
+                        Report preview — {activeReport.date}
+                      </h2>
+                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-3">
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4 text-primary" />
+                          <span className="font-semibold text-primary">
+                            {BRANCHES.find((b) => b.id === activeReport.branch)?.label}
+                          </span>
+                        </span>
+                        <span>
+                          File:{" "}
+                          <span className="font-medium text-card-foreground">
+                            {activeReport.filename}
+                          </span>
+                        </span>
+                        <span>
+                          Rows:{" "}
+                          <span className="font-semibold text-card-foreground">
+                            {activeReport.totalRows}
+                          </span>
+                        </span>
+                        <span className="text-emerald-600 font-medium">
+                          ✓ Mapped: {activeReport.mappedRows}
+                        </span>
+                        <span className="text-amber-600 font-medium">
+                          ⚠ Unmapped: {activeReport.unmappedRows}
+                        </span>
+                        <span>Skipped: {activeReport.skippedRows}</span>
+                        <span className="font-bold text-primary text-lg">
+                          Total: ₱{formatNumber(activeReport.grandTotal)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRequestDeleteReport(activeReport.id)}
+                        className="rounded-full border-red-200 text-red-600 hover:bg-red-50"
+                      >
+                        Delete data
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -662,6 +733,7 @@ export default function SummaryPage() {
               viewMode="daily"
               selectedMonth={selectedMonthKey ?? ""}
               onMonthSelect={handleMonthSelect}
+              onDelete={handleRequestDeleteReport}
             />
           </aside>
         </div>
@@ -833,6 +905,73 @@ export default function SummaryPage() {
                 Submit Report
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete data confirmation */}
+      <Dialog
+        open={isDeleteModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsDeleteModalOpen(false);
+            setReportPendingDelete(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-3xl bg-primary text-primary-foreground border border-white/15 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold">
+              Delete this data?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-3 space-y-3 text-sm">
+            <p className="text-primary-foreground/80">
+              This will permanently remove the uploaded dataset and recomputed results for:
+            </p>
+            {reportPendingDelete && (
+              <div className="rounded-2xl bg-primary-foreground/10 px-4 py-3 space-y-1.5">
+                <p className="text-xs font-semibold tracking-[0.16em] uppercase text-primary-foreground/70">
+                  Summary
+                </p>
+                <p className="text-sm">
+                  <span className="font-semibold">Branch:</span>{" "}
+                  {BRANCHES.find((b) => b.id === reportPendingDelete.branch)?.label ??
+                    reportPendingDelete.branch}
+                </p>
+                <p className="text-sm">
+                  <span className="font-semibold">Date:</span>{" "}
+                  {reportPendingDelete.date}
+                </p>
+                <p className="text-sm">
+                  <span className="font-semibold">File:</span>{" "}
+                  <span className="break-all opacity-90">
+                    {reportPendingDelete.filename}
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="mt-5 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteModalOpen(false);
+                setReportPendingDelete(null);
+              }}
+              disabled={isDeleting}
+              className="rounded-full border-white/70 text-primary-foreground bg-transparent hover:bg-white/10 px-6"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteReport}
+              disabled={isDeleting}
+              className="rounded-full px-6 font-semibold"
+            >
+              {isDeleting ? "Deleting…" : "Delete data"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

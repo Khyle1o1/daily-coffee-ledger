@@ -6,6 +6,8 @@ export const CATEGORIES = [
 export type Category = typeof CATEGORIES[number];
 
 export const BRANCHES = [
+  { id: "greenbelt", label: "Greenbelt" },
+  { id: "greenhills", label: "Greenhills" },
   { id: "podium", label: "Podium" },
   { id: "mind_museum", label: "The Mind Museum" },
   { id: "trinoma", label: "Trinoma" },
