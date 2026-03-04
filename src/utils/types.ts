@@ -14,6 +14,7 @@ export const BRANCHES = [
   { id: "uptown", label: "Uptown" },
   { id: "wgc", label: "WGC" },
   { id: "wcc", label: "WCC" },
+   { id: "events", label: "Events" },
 ] as const;
 
 export type BranchId = typeof BRANCHES[number]["id"];
