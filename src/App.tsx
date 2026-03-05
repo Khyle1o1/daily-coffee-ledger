@@ -14,6 +14,7 @@ import ReportsPage from "./pages/ReportsPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import DirectoryPage from "./pages/DirectoryPage";
 import DirectoryGoPage from "./pages/DirectoryGoPage";
+import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="users" element={<UserManagementPage />} />
               <Route path="directory" element={<DirectoryPage />} />
               <Route path="directory/go/:id" element={<DirectoryGoPage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
 
             {/* Catch-all Route */}

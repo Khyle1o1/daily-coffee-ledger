@@ -180,7 +180,7 @@ export default function LoginPage() {
                     placeholder="your@email.com"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    className="pl-10 rounded-xl h-11"
+                    className="pl-10 rounded-xl h-11 bg-white text-slate-900 placeholder:text-slate-400 border-slate-200"
                     disabled={loading}
                     required
                   />
@@ -246,7 +246,7 @@ export default function LoginPage() {
                       placeholder="your@email.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 rounded-xl h-11"
+                      className="pl-10 rounded-xl h-11 bg-white text-slate-900 placeholder:text-slate-400 border-slate-200"
                       disabled={loading}
                       required
                     />
@@ -265,7 +265,7 @@ export default function LoginPage() {
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 rounded-xl h-11"
+                      className="pl-10 rounded-xl h-11 bg-white text-slate-900 placeholder:text-slate-400 border-slate-200"
                       disabled={loading}
                       required
                     />

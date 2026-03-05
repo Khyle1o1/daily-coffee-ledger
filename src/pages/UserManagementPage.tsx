@@ -265,7 +265,9 @@ export default function UserManagementPage() {
                         {userProfile.role}
                       </Badge>
                       {currentUser?.id === userProfile.user_id && (
-                        <Badge variant="outline">You</Badge>
+                        <Badge variant="outline" className="text-blue-500">
+                          You
+                        </Badge>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -324,54 +326,60 @@ export default function UserManagementPage() {
 
       {/* Create User Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="rounded-3xl bg-primary text-primary-foreground border-none shadow-2xl">
           <DialogHeader>
-            <DialogTitle>Create New User</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-2xl font-semibold">Create New User</DialogTitle>
+            <DialogDescription className="text-primary-foreground/80">
               Create a new user account. They will be able to sign in immediately.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateUser}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-primary-foreground font-medium">
+                  Email
+                </Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="user@example.com"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  className="rounded-xl"
+                  className="rounded-xl bg-primary/20 border-primary/40 text-primary-foreground placeholder:text-primary-foreground/70"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-primary-foreground font-medium">
+                  Password
+                </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
+                    placeholder="At least 6 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="rounded-xl pr-10"
+                    className="rounded-xl pr-10 bg-primary/20 border-primary/40 text-primary-foreground placeholder:text-primary-foreground/70"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-foreground/70 hover:text-primary-foreground"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
+                <p className="text-xs text-primary-foreground/80">Minimum 6 characters</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="role" className="text-primary-foreground font-medium">
+                  Role
+                </Label>
                 <Select value={newRole} onValueChange={(value) => setNewRole(value as UserRole)}>
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue />
+                  <SelectTrigger className="rounded-xl bg-primary/20 border-primary/40 text-primary-foreground">
+                    <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="user">User</SelectItem>
@@ -385,12 +393,16 @@ export default function UserManagementPage() {
                 type="button"
                 variant="outline"
                 onClick={() => setShowCreateDialog(false)}
-                className="rounded-xl"
+                className="rounded-xl border-primary-foreground/40 text-primary-foreground hover:bg-primary/20"
                 disabled={creating}
               >
                 Cancel
               </Button>
-              <Button type="submit" className="rounded-xl" disabled={creating}>
+              <Button
+                type="submit"
+                className="rounded-xl bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                disabled={creating}
+              >
                 {creating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -407,36 +419,38 @@ export default function UserManagementPage() {
 
       {/* Reset Password Dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="rounded-3xl bg-primary text-primary-foreground border-none shadow-2xl">
           <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-2xl font-semibold">Reset Password</DialogTitle>
+            <DialogDescription className="text-primary-foreground/80">
               Set a new password for {selectedUser?.email}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleResetPassword}>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
+                <Label htmlFor="new-password" className="text-primary-foreground font-medium">
+                  New Password
+                </Label>
                 <div className="relative">
                   <Input
                     id="new-password"
                     type={showResetPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
+                    placeholder="At least 6 characters"
                     value={resetPassword}
                     onChange={(e) => setResetPassword(e.target.value)}
-                    className="rounded-xl pr-10"
+                    className="rounded-xl pr-10 bg-primary/20 border-primary/40 text-primary-foreground placeholder:text-primary-foreground/70"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-foreground/70 hover:text-primary-foreground"
                   >
                     {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
+                <p className="text-xs text-primary-foreground/80">Minimum 6 characters</p>
               </div>
             </div>
             <DialogFooter>
@@ -448,12 +462,16 @@ export default function UserManagementPage() {
                   setSelectedUser(null);
                   setResetPassword('');
                 }}
-                className="rounded-xl"
+                className="rounded-xl border-primary-foreground/40 text-primary-foreground hover:bg-primary/20"
                 disabled={resetting}
               >
                 Cancel
               </Button>
-              <Button type="submit" className="rounded-xl" disabled={resetting}>
+              <Button
+                type="submit"
+                className="rounded-xl bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                disabled={resetting}
+              >
                 {resetting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
