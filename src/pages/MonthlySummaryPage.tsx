@@ -81,12 +81,15 @@ export default function MonthlySummaryPage() {
     try {
       const { data } = await parseCsvFile(file);
       const entries: MappingEntry[] = data
-        .filter(r => r.CAT && r.UTAK)
+        .filter(r => r["Mapped Name"] && r["Category"] && r["Item"] !== undefined)
         .map(r => ({
-          CAT: r.CAT?.trim() || "",
-          ITEM_NAME: r.ITEM_NAME?.trim() || r.CAT?.trim() || "",
-          UTAK: r.UTAK?.trim() || "",
-          utakNorm: normalizeText(r.UTAK),
+          mappedName: (r["Mapped Name"]?.trim() || "") as MappingEntry["mappedName"],
+          category:   r["Category"]?.trim() || "",
+          item:       r["Item"]?.trim() || "",
+          option:     r["Option"]?.trim() || "",
+          catNorm:    normalizeText(r["Category"]),
+          itemNorm:   normalizeText(r["Item"]),
+          optionNorm: normalizeText(r["Option"]),
         }));
       if (entries.length > 0) setMappingTable(entries);
     } catch {

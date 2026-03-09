@@ -11,7 +11,9 @@ import { useNavigate } from 'react-router-dom';
 import type { Branch } from '@/types/branch';
 import { BranchesTable } from '@/components/settings/BranchesTable';
 import { BranchModal } from '@/components/settings/BranchModal';
+import { MappingManagementSection } from '@/components/settings/MappingManagementSection';
 import { listBranches, createBranch, updateBranch } from '@/lib/api/branches';
+import { useManualMappings } from '@/hooks/useManualMappings';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -27,6 +29,8 @@ export default function SettingsPage() {
 
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+
+  const { manualEntries, refetch: refetchManual } = useManualMappings();
 
   const loadBranches = useCallback(async () => {
     try {
@@ -186,6 +190,15 @@ export default function SettingsPage() {
             onAdd={openAddBranch}
           />
         </section>
+
+        {/* Divider */}
+        <div className="border-t border-border" />
+
+        {/* Mapping Management section */}
+        <MappingManagementSection
+          manualEntries={manualEntries}
+          onMappingsChanged={refetchManual}
+        />
       </Card>
 
       <BranchModal

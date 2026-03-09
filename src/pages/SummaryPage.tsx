@@ -24,6 +24,7 @@ import DailyHistoryList from "@/components/DailyHistoryList";
 import { parseCsvFile, autoDetectColumns } from "@/utils/parseCsv";
 import { normalizeText } from "@/utils/normalize";
 import { mapRow } from "@/utils/mapRow";
+import { useManualMappings } from "@/hooks/useManualMappings";
 import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
@@ -74,6 +75,7 @@ export default function SummaryPage() {
 
   // Mapping table (kept internal, no manual upload in UI)
   const [mappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
+  const { manualEntries } = useManualMappings();
 
   // ADD REPORT modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -308,7 +310,8 @@ export default function SummaryPage() {
       validDateCount: sortedDebug.length,
     });
 
-    const processed = rawRows.map((r) => mapRow(r, mappingTable));
+    const effectiveMappingTable = [...manualEntries, ...mappingTable];
+    const processed = rawRows.map((r) => mapRow(r, effectiveMappingTable));
     const { totals, quantities, grandTotal, grandQuantity, percents } = aggregateByCategory(processed);
     const unmappedSummary = getUnmappedSummary(processed);
 

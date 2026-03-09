@@ -156,6 +156,58 @@ export interface Database {
         ]
       }
     }
+      manual_mappings: {
+        Row: {
+          id: string
+          source_category: string
+          source_item: string
+          source_option: string
+          mapped_category: string
+          mapped_item_name: string
+          priority: number
+          is_active: boolean
+          notes: string | null
+          source_cat_norm: string
+          source_item_norm: string
+          source_opt_norm: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          source_category?: string
+          source_item: string
+          source_option?: string
+          mapped_category: string
+          mapped_item_name: string
+          priority?: number
+          is_active?: boolean
+          notes?: string | null
+          source_cat_norm?: string
+          source_item_norm: string
+          source_opt_norm?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          source_category?: string
+          source_item?: string
+          source_option?: string
+          mapped_category?: string
+          mapped_item_name?: string
+          priority?: number
+          is_active?: boolean
+          notes?: string | null
+          source_cat_norm?: string
+          source_item_norm?: string
+          source_opt_norm?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
     Views: {
       [_ in never]: never
     }

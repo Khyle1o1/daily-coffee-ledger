@@ -29,6 +29,7 @@ import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
 import { computeMonthlyReport, getMonthKey } from "@/utils/aggregateMonthly";
 import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId, ViewMode } from "@/utils/types";
 import { CATEGORIES, BRANCHES } from "@/utils/types";
+import { useManualMappings } from "@/hooks/useManualMappings";
 
 // Supabase integration
 import { 
@@ -52,6 +53,9 @@ const Index = () => {
   const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
+  // Manual mapping overrides (from DB, always highest priority)
+  const { manualEntries } = useManualMappings();
+
   // Daily mode state
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [selectedBranch, setSelectedBranch] = useState<BranchId | "">("");
@@ -154,12 +158,15 @@ const Index = () => {
     try {
       const { data } = await parseCsvFile(file);
       const entries: MappingEntry[] = data
-        .filter(r => r.CAT && r.UTAK)
+        .filter(r => r["Mapped Name"] && r["Category"] && r["Item"] !== undefined)
         .map(r => ({
-          CAT: r.CAT?.trim() || "",
-          ITEM_NAME: r.ITEM_NAME?.trim() || r.CAT?.trim() || "",
-          UTAK: r.UTAK?.trim() || "",
-          utakNorm: normalizeText(r.UTAK),
+          mappedName: (r["Mapped Name"]?.trim() || "") as MappingEntry["mappedName"],
+          category:   r["Category"]?.trim() || "",
+          item:       r["Item"]?.trim() || "",
+          option:     r["Option"]?.trim() || "",
+          catNorm:    normalizeText(r["Category"]),
+          itemNorm:   normalizeText(r["Item"]),
+          optionNorm: normalizeText(r["Option"]),
         }));
       if (entries.length > 0) setMappingTable(entries);
     } catch {
@@ -194,7 +201,9 @@ const Index = () => {
       paymentType: mapping.paymentType ? row[mapping.paymentType] || "" : undefined,
     }));
 
-    const processed = rawRows.map(r => mapRow(r, mappingTable));
+    // Manual DB overrides take priority over user-uploaded / default mapping table
+    const effectiveMappingTable = [...manualEntries, ...mappingTable];
+    const processed = rawRows.map(r => mapRow(r, effectiveMappingTable));
     const { totals, quantities, grandTotal, grandQuantity, percents } = aggregateByCategory(processed);
     const unmappedSummary = getUnmappedSummary(processed);
 

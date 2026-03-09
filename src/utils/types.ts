@@ -1,6 +1,6 @@
 export const CATEGORIES = [
   "ICED", "HOT", "SNACKS", "ADD-ONS",
-  "COLD BREW", "CANNED ESPRESSO", "MERCH", "PROMO", "LOYALTY CARD", "PACKAGING"
+  "MERCH", "PROMO", "LOYALTY CARD", "PACKAGING"
 ] as const;
 
 export type Category = typeof CATEGORIES[number];
@@ -22,17 +22,36 @@ export type BranchId = typeof BRANCHES[number]["id"];
 export const EMPTY_ROWS_TOP = 7;
 export const EMPTY_ROWS_MIDDLE = 3;
 
+/**
+ * One row from VALIDATION DATA.xlsx.
+ *
+ * The validation file is the authoritative mapping source.
+ * Matching is done on Category + Item + Option (all three fields).
+ * The output is:
+ *   mappedCat      = mappedName
+ *   mappedItemName = item  (the raw item name, unchanged)
+ */
 export interface MappingEntry {
-  CAT: string;
-  ITEM_NAME: string;
-  /** Raw alias from the POS system (UTAK column in validation file) */
-  UTAK: string;
-  /** Optional secondary alias from the Vantage system */
-  VANTAGE?: string;
-  /** Normalized UTAK for fast lookup (computed at build time) */
-  utakNorm?: string;
-  /** Normalized ITEM_NAME for reverse lookup (computed at build time) */
-  itemNameNorm?: string;
+  /** "Mapped Name" column — the final reporting category */
+  mappedName: Category;
+  /** "Category" column — the source category from the transaction CSV */
+  category: string;
+  /** "Item" column — the source item name from the transaction CSV */
+  item: string;
+  /** "Option" column — the source option text from the transaction CSV */
+  option: string;
+  /** Pre-normalized category for fast lookup (computed at build time) */
+  catNorm: string;
+  /** Pre-normalized item for fast lookup (computed at build time) */
+  itemNorm: string;
+  /** Pre-normalized option for fast lookup (computed at build time) */
+  optionNorm: string;
+  /**
+   * Override for the output item name (mappedItemName in ProcessedRow).
+   * When set (manual mappings), this is returned instead of `item`.
+   * When absent (validation table), `item` is used as the output.
+   */
+  outputItem?: string;
 }
 
 export interface RawRow {
