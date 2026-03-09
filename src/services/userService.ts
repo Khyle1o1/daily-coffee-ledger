@@ -1,8 +1,9 @@
 // User Service - Admin User Management
 // Handles user creation, profile management, and role checks
 
-import { supabase, handleSupabaseError } from '@/lib/supabaseClient';
+import { supabase, handleSupabaseError, SUPABASE_ANON_KEY } from '@/lib/supabaseClient';
 import type { UserProfile, CreateUserPayload, UpdateUserPayload } from '@/lib/supabase-types';
+import { requireAdminUser } from '@/lib/api/authGuards';
 
 // ============================================================================
 // ROLE CHECKING
@@ -129,51 +130,85 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
  */
 export async function createUser(payload: CreateUserPayload): Promise<UserProfile> {
   try {
-    // Verify current user is admin
-    const isAdmin = await isCurrentUserAdmin();
-    if (!isAdmin) {
-      throw new Error('Only admins can create users');
+    // Quick client-side admin check (server will still verify)
+    await requireAdminUser();
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    // Ensure we have a fresh access token (helps when auto-refresh hasn't run yet)
+    const {
+      data: { session: refreshedSession },
+    } = await supabase.auth.refreshSession();
+
+    const accessToken = refreshedSession?.access_token ?? session?.access_token;
+    const tokenParts = accessToken ? accessToken.split('.').length : 0;
+
+    if (!accessToken || tokenParts !== 3) {
+      // If this happens while you're "signed in", the session in storage is corrupted or missing.
+      throw new Error('Authentication session is invalid. Please sign out and sign in again.');
     }
 
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    if (!currentUser) {
-      throw new Error('You must be authenticated');
-    }
-
-    // Create the auth user via Supabase Admin API
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: payload.email,
-      password: payload.password,
-      email_confirm: true, // Auto-confirm email
+    const { data, error } = await supabase.functions.invoke('admin-create-user', {
+      body: {
+        email: payload.email,
+        password: payload.password,
+        role: payload.role || 'user',
+      },
+      // Be explicit to avoid any edge cases where the invoke call doesn't attach auth
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
     });
 
-    if (authError) {
-      throw new Error(`Failed to create auth user: ${authError.message}`);
+    if (error) {
+      // supabase-js wraps function errors; try to extract the function's JSON error message
+      const anyErr = error as unknown as { status?: number; message?: string; context?: unknown };
+      const ctx = anyErr.context as any;
+
+      const status: number | undefined =
+        anyErr.status ??
+        (typeof ctx?.status === 'number' ? ctx.status : undefined) ??
+        (typeof ctx?.statusCode === 'number' ? ctx.statusCode : undefined);
+
+      let serverMessage: string | undefined;
+      // supabase-js v2 typically provides a Response in `context`, but `instanceof Response`
+      // can fail across realms/bundles; use duck-typing instead.
+      if (ctx && typeof ctx === 'object') {
+        try {
+          if (typeof ctx.clone === 'function' && typeof ctx.json === 'function') {
+            const json = (await ctx.clone().json()) as { error?: string; message?: string };
+            serverMessage = json?.error ?? json?.message;
+          } else if (typeof ctx.json === 'function') {
+            const json = (await ctx.json()) as { error?: string; message?: string };
+            serverMessage = json?.error ?? json?.message;
+          } else if (typeof ctx.body === 'string') {
+            const parsed = JSON.parse(ctx.body) as { error?: string; message?: string };
+            serverMessage = parsed?.error ?? parsed?.message;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      const message = serverMessage
+        ? serverMessage
+        : status === 401
+          ? 'You must be signed in to create users'
+          : status === 403
+            ? 'Only admins can create users'
+            : anyErr.message || 'Failed to create user';
+      throw new Error(message);
     }
 
-    if (!authData.user) {
-      throw new Error('Failed to create auth user: No user returned');
+    const body = data as { profile?: UserProfile; error?: string } | null;
+    if (!body?.profile) {
+      throw new Error(body?.error || 'Failed to create user: missing profile data from server');
     }
 
-    // Create the user profile
-    const { data: profileData, error: profileError } = await supabase
-      .from('user_profiles')
-      .insert({
-        user_id: authData.user.id,
-        email: payload.email,
-        role: payload.role || 'user',
-        created_by: currentUser.id,
-      })
-      .select()
-      .single();
-
-    if (profileError) {
-      // Try to clean up the auth user if profile creation fails
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      throw new Error(`Failed to create user profile: ${profileError.message}`);
-    }
-
-    return profileData as UserProfile;
+    return body.profile;
   } catch (error) {
     console.error('createUser error:', error);
     throw new Error(handleSupabaseError(error));
@@ -186,10 +221,7 @@ export async function createUser(payload: CreateUserPayload): Promise<UserProfil
 export async function listAllUsers(): Promise<UserProfile[]> {
   try {
     // Verify current user is admin
-    const isAdmin = await isCurrentUserAdmin();
-    if (!isAdmin) {
-      throw new Error('Only admins can list users');
-    }
+    await requireAdminUser();
 
     const { data, error } = await supabase
       .from('user_profiles')
@@ -213,10 +245,7 @@ export async function listAllUsers(): Promise<UserProfile[]> {
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   try {
     // Verify current user is admin
-    const isAdmin = await isCurrentUserAdmin();
-    if (!isAdmin) {
-      throw new Error('Only admins can view user profiles');
-    }
+    await requireAdminUser();
 
     const { data, error } = await supabase
       .from('user_profiles')
@@ -247,10 +276,7 @@ export async function updateUserProfile(
 ): Promise<UserProfile> {
   try {
     // Verify current user is admin
-    const isAdmin = await isCurrentUserAdmin();
-    if (!isAdmin) {
-      throw new Error('Only admins can update user profiles');
-    }
+    await requireAdminUser();
 
     const { data, error } = await supabase
       .from('user_profiles')
@@ -277,14 +303,10 @@ export async function updateUserProfile(
 export async function deleteUser(userId: string): Promise<void> {
   try {
     // Verify current user is admin
-    const isAdmin = await isCurrentUserAdmin();
-    if (!isAdmin) {
-      throw new Error('Only admins can delete users');
-    }
+    const { userId: currentUserId } = await requireAdminUser();
 
     // Check if trying to delete themselves
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    if (currentUser?.id === userId) {
+    if (currentUserId === userId) {
       throw new Error('You cannot delete your own account');
     }
 
@@ -309,10 +331,7 @@ export async function resetUserPassword(
 ): Promise<void> {
   try {
     // Verify current user is admin
-    const isAdmin = await isCurrentUserAdmin();
-    if (!isAdmin) {
-      throw new Error('Only admins can reset passwords');
-    }
+    await requireAdminUser();
 
     const { error } = await supabase.auth.admin.updateUserById(userId, {
       password: newPassword,

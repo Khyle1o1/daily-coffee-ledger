@@ -1,7 +1,7 @@
 import { supabase, handleSupabaseError } from '@/lib/supabaseClient';
-import { isCurrentUserAdmin } from '@/services/userService';
 import type { Database } from '@/lib/supabase.types';
 import type { Branch } from '@/types/branch';
+import { requireAdminUser, requireAuthUser } from '@/lib/api/authGuards';
 
 type BranchRow = Database['public']['Tables']['branches']['Row'] & {
   code?: string | null;
@@ -40,15 +40,8 @@ export async function listBranches(
   try {
     const { q, active } = params;
 
-    // Require authenticated user (any role). RLS will enforce per-row rules.
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      throw new Error('You must be signed in to view branches');
-    }
+    // Require authenticated user (any role).
+    await requireAuthUser();
 
     let query: any = supabase
       .from('branches')
@@ -86,10 +79,7 @@ export async function listBranches(
 
 export async function createBranch(payload: SaveBranchPayload): Promise<Branch> {
   try {
-    const isAdmin = await isCurrentUserAdmin();
-    if (!isAdmin) {
-      throw new Error('Only admins can create branches');
-    }
+    await requireAdminUser();
 
     const code = payload.code.trim().toUpperCase();
     const name = payload.name.trim();
@@ -152,10 +142,7 @@ export async function updateBranch(
   payload: SaveBranchPayload,
 ): Promise<Branch> {
   try {
-    const isAdmin = await isCurrentUserAdmin();
-    if (!isAdmin) {
-      throw new Error('Only admins can update branches');
-    }
+    await requireAdminUser();
 
     const code = payload.code.trim().toUpperCase();
     const name = payload.name.trim();

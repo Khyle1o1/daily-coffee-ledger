@@ -84,7 +84,9 @@ const RAW_MAPPING: Omit<MappingEntry, "utakNorm">[] = [
   { CAT: "PROMO", ITEM_NAME: "GC 100", UTAK: "GC 100" },
   { CAT: "PROMO", ITEM_NAME: "GC 50", UTAK: "GC 50" },
   { CAT: "PROMO", ITEM_NAME: "GC 200", UTAK: "GC 200" },
+  { CAT: "PROMO", ITEM_NAME: "GC 300", UTAK: "GC 300" },
   { CAT: "PROMO", ITEM_NAME: "GC 500", UTAK: "GC 500" },
+  { CAT: "PROMO", ITEM_NAME: "GC 1000", UTAK: "GC 1000" },
   { CAT: "PROMO", ITEM_NAME: "Gift Certificate", UTAK: "Gift Certificate" },
 
   // LOYALTY CARD

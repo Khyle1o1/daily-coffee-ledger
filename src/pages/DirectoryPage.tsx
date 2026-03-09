@@ -31,6 +31,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/auth/useAuth';
+import { useNavigate } from 'react-router-dom';
 import {
   listDirectoryLinks,
   createDirectoryLink,
@@ -45,11 +46,12 @@ import { format } from 'date-fns';
 
 export default function DirectoryPage() {
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const { isAdmin, loading } = useAuth();
 
   const [links, setLinks] = useState<DirectoryLink[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [linksLoading, setLinksLoading] = useState(true);
   const [categories, setCategories] = useState<string[]>([]);
 
   // Filters
@@ -68,7 +70,7 @@ export default function DirectoryPage() {
 
   const loadLinks = useCallback(async () => {
     try {
-      setLoading(true);
+      setLinksLoading(true);
       const result = await listDirectoryLinks({
         q: search || undefined,
         category: categoryFilter || undefined,
@@ -86,7 +88,7 @@ export default function DirectoryPage() {
         description: error instanceof Error ? error.message : 'An error occurred',
       });
     } finally {
-      setLoading(false);
+      setLinksLoading(false);
     }
   }, [search, categoryFilter, activeOnly, toast]);
 
@@ -94,6 +96,17 @@ export default function DirectoryPage() {
     const cats = await getDirectoryCategories();
     setCategories(cats);
   }, []);
+
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      toast({
+        variant: 'destructive',
+        title: 'Access denied',
+        description: 'You must be an administrator to access Directory.',
+      });
+      navigate('/app/summary', { replace: true });
+    }
+  }, [loading, isAdmin, navigate, toast]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -171,16 +184,8 @@ export default function DirectoryPage() {
     setShowDeleteModal(true);
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-8 py-16 text-center">
-        <div className="bg-card rounded-3xl shadow-xl p-16">
-          <Shield className="h-20 w-20 text-destructive mx-auto mb-6" />
-          <h2 className="text-2xl font-bold text-card-foreground mb-2">Access Denied</h2>
-          <p className="text-muted-foreground">You must be an administrator to access this page.</p>
-        </div>
-      </div>
-    );
+  if (loading || !isAdmin) {
+    return null;
   }
 
   return (
@@ -254,7 +259,7 @@ export default function DirectoryPage() {
         </div>
 
         {/* Table / List */}
-        {loading ? (
+        {linksLoading ? (
           <div className="text-center py-16">
             <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
             <p className="text-muted-foreground">Loading links…</p>

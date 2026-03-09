@@ -69,6 +69,14 @@ function isColdBrew(rawItemNorm: string, rawCatNorm: string): boolean {
   return rawItemNorm.includes("cold brew") || rawCatNorm.includes("cold brew") || rawCatNorm.includes("coldbrew");
 }
 
+function isGiftCertificate(rawItemNorm: string): boolean {
+  // normalizeText() already lowercases/collapses whitespace, so "GC   300" -> "gc 300"
+  if (!rawItemNorm) return false;
+  if (rawItemNorm === "gift certificate") return true;
+  // Matches "gc 50", "gc 100", "gc 300", "gc 1000", etc.
+  return /^gc\s*\d+\b/.test(rawItemNorm);
+}
+
 function isSkipped(row: RawRow): boolean {
   const name = row.rawItemName.trim();
   if (!name || name === "-") return true;
@@ -133,6 +141,17 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
       rowSales,
       mappedCat: "LOYALTY CARD",
       mappedItemName: "Gift Card Sleeves",
+      status: "MAPPED",
+    };
+  }
+
+  // OVERRIDE: All Gift Certificates / "GC <amount>" should be PROMO (even if source category says MERCH)
+  if (isGiftCertificate(rawItemNorm)) {
+    return {
+      ...row,
+      rowSales,
+      mappedCat: "PROMO",
+      mappedItemName: row.rawItemName,
       status: "MAPPED",
     };
   }

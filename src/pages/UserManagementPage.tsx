@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Users, Plus, Trash2, Shield, User as UserIcon, Loader2, Eye, EyeOff, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,9 +22,10 @@ import { format } from 'date-fns';
 
 export default function UserManagementPage() {
   const { toast } = useToast();
-  const { isAdmin, user: currentUser } = useAuth();
+  const navigate = useNavigate();
+  const { isAdmin, user: currentUser, loading } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -41,6 +43,17 @@ export default function UserManagementPage() {
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
+    if (!loading && !isAdmin) {
+      toast({
+        variant: 'destructive',
+        title: 'Access denied',
+        description: 'You must be an administrator to access User Management.',
+      });
+      navigate('/app/summary', { replace: true });
+    }
+  }, [loading, isAdmin, navigate, toast]);
+
+  useEffect(() => {
     if (isAdmin) {
       loadUsers();
     }
@@ -48,7 +61,7 @@ export default function UserManagementPage() {
 
   const loadUsers = async () => {
     try {
-      setLoading(true);
+      setLoadingUsers(true);
       const data = await listAllUsers();
       setUsers(data);
     } catch (error) {
@@ -59,7 +72,7 @@ export default function UserManagementPage() {
         description: error instanceof Error ? error.message : 'An error occurred',
       });
     } finally {
-      setLoading(false);
+      setLoadingUsers(false);
     }
   };
 
@@ -192,16 +205,8 @@ export default function UserManagementPage() {
     }
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-8 py-16 text-center">
-        <div className="bg-card rounded-3xl shadow-xl p-16">
-          <Shield className="h-20 w-20 text-destructive mx-auto mb-6" />
-          <h2 className="text-2xl font-bold text-card-foreground mb-2">Access Denied</h2>
-          <p className="text-muted-foreground">You must be an administrator to access this page.</p>
-        </div>
-      </div>
-    );
+  if (loading || !isAdmin) {
+    return null;
   }
 
   return (
@@ -228,7 +233,7 @@ export default function UserManagementPage() {
         </div>
 
         {/* User List */}
-        {loading ? (
+        {loadingUsers ? (
           <div className="text-center py-16">
             <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
             <p className="text-muted-foreground">Loading users...</p>

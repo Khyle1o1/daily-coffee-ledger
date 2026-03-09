@@ -20,6 +20,10 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Expose Supabase URL for building Edge Function URLs
+export const SUPABASE_URL = supabaseUrl;
+export const SUPABASE_ANON_KEY = supabaseAnonKey;
+
 // Helper function to handle Supabase errors
 export function handleSupabaseError(error: unknown): string {
   if (error instanceof Error) {

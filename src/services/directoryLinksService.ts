@@ -1,5 +1,5 @@
 import { supabase, handleSupabaseError } from '@/lib/supabaseClient';
-import { isCurrentUserAdmin } from '@/services/userService';
+import { requireAdminUser } from '@/lib/api/authGuards';
 import type {
   DirectoryLink,
   CreateDirectoryLinkPayload,
@@ -113,10 +113,7 @@ export async function createDirectoryLink(
   payload: CreateDirectoryLinkPayload
 ): Promise<DirectoryLink> {
   try {
-    const admin = await isCurrentUserAdmin();
-    if (!admin) {
-      throw new Error('Only admins can create directory links');
-    }
+    await requireAdminUser();
 
     if (!payload.name?.trim()) {
       throw new Error('Name is required');
@@ -162,10 +159,7 @@ export async function updateDirectoryLink(
   payload: UpdateDirectoryLinkPayload
 ): Promise<DirectoryLink> {
   try {
-    const admin = await isCurrentUserAdmin();
-    if (!admin) {
-      throw new Error('Only admins can update directory links');
-    }
+    await requireAdminUser();
 
     const updates: Record<string, unknown> = {};
 
@@ -221,10 +215,7 @@ export async function updateDirectoryLink(
 
 export async function deleteDirectoryLink(id: string): Promise<void> {
   try {
-    const admin = await isCurrentUserAdmin();
-    if (!admin) {
-      throw new Error('Only admins can delete directory links');
-    }
+    await requireAdminUser();
 
     const { error } = await supabase
       .from('directory_links')

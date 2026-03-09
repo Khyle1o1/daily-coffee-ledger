@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Settings as SettingsIcon, Search, Shield } from 'lucide-react';
+import { Settings as SettingsIcon, Search } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/auth/useAuth';
+import { useNavigate } from 'react-router-dom';
 import type { Branch } from '@/types/branch';
 import { BranchesTable } from '@/components/settings/BranchesTable';
 import { BranchModal } from '@/components/settings/BranchModal';
@@ -14,11 +15,12 @@ import { listBranches, createBranch, updateBranch } from '@/lib/api/branches';
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const { isAdmin, loading } = useAuth();
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [branchesLoading, setBranchesLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [activeOnly, setActiveOnly] = useState(true);
@@ -28,7 +30,7 @@ export default function SettingsPage() {
 
   const loadBranches = useCallback(async () => {
     try {
-      setLoading(true);
+      setBranchesLoading(true);
       const result = await listBranches({
         q: search || undefined,
         active: activeOnly ? true : undefined,
@@ -43,9 +45,20 @@ export default function SettingsPage() {
         description: error instanceof Error ? error.message : 'An error occurred',
       });
     } finally {
-      setLoading(false);
+      setBranchesLoading(false);
     }
   }, [search, activeOnly, toast]);
+
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      toast({
+        variant: 'destructive',
+        title: 'Access denied',
+        description: 'You must be an administrator to access Settings.',
+      });
+      navigate('/app/summary', { replace: true });
+    }
+  }, [loading, isAdmin, navigate, toast]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -97,18 +110,8 @@ export default function SettingsPage() {
     setShowBranchModal(true);
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-8 py-16 text-center">
-        <div className="bg-card rounded-3xl shadow-xl p-16">
-          <Shield className="h-20 w-20 text-destructive mx-auto mb-6" />
-          <h2 className="text-2xl font-bold text-card-foreground mb-2">Access Denied</h2>
-          <p className="text-muted-foreground">
-            You must be an administrator to access this page.
-          </p>
-        </div>
-      </div>
-    );
+  if (loading || !isAdmin) {
+    return null;
   }
 
   return (
@@ -177,7 +180,7 @@ export default function SettingsPage() {
 
           <BranchesTable
             branches={branches}
-            loading={loading}
+            loading={branchesLoading}
             total={total}
             onEdit={openEditBranch}
             onAdd={openAddBranch}
