@@ -6,7 +6,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   HOT: "#F97316",
   SNACKS: "#8B5CF6",
   "ADD-ONS": "#F59E0B",
-  CANNED: "#10B981",
+  "CANNED ESPRESSO": "#10B981",
   "COLD BREW": "#06B6D4",
   MERCH: "#EC4899",
   PROMO: "#84CC16",

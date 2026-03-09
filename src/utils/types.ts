@@ -1,6 +1,6 @@
 export const CATEGORIES = [
-  "ICED", "HOT", "SNACKS", "ADD-ONS", "CANNED",
-  "COLD BREW", "MERCH", "PROMO", "LOYALTY CARD", "PACKAGING"
+  "ICED", "HOT", "SNACKS", "ADD-ONS",
+  "COLD BREW", "CANNED ESPRESSO", "MERCH", "PROMO", "LOYALTY CARD", "PACKAGING"
 ] as const;
 
 export type Category = typeof CATEGORIES[number];
@@ -25,8 +25,14 @@ export const EMPTY_ROWS_MIDDLE = 3;
 export interface MappingEntry {
   CAT: string;
   ITEM_NAME: string;
+  /** Raw alias from the POS system (UTAK column in validation file) */
   UTAK: string;
+  /** Optional secondary alias from the Vantage system */
+  VANTAGE?: string;
+  /** Normalized UTAK for fast lookup (computed at build time) */
   utakNorm?: string;
+  /** Normalized ITEM_NAME for reverse lookup (computed at build time) */
+  itemNameNorm?: string;
 }
 
 export interface RawRow {
