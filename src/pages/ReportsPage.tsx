@@ -4,6 +4,7 @@ import {
   BarChart3,
   Calendar,
   ChevronDown,
+  Clock,
   Download,
   FileText,
   Loader2,
@@ -29,12 +30,18 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import ReportCanvas, { type ReportCanvasData } from "@/components/reports/ReportCanvas";
 import { exportReportPdf } from "@/utils/exportReportPdf";
+import { exportReportExcel } from "@/utils/exportReportExcel";
 
 import type { ReportType, GeneratedReportRow } from "@/lib/supabase-types";
 import type { BranchId, Category, DailyReport } from "@/utils/types";
@@ -145,7 +152,8 @@ export default function ReportsPage() {
   const [canvasData, setCanvasData] = useState<ReportCanvasData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -462,6 +470,21 @@ export default function ReportsPage() {
     }
   }, [canvasData, filterBranch, dateRange]);
 
+  // ── Excel export ──────────────────────────────────────────────────────────
+  const handleExportExcel = useCallback(() => {
+    if (!canvasData) return;
+    setIsExportingExcel(true);
+    try {
+      const branchSlug = filterBranch === "all" ? "all-branches" : filterBranch;
+      const fromStr = dateRange.from ? format(dateRange.from, "yyyy-MM-dd") : "all";
+      const toStr = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : fromStr;
+      const filename = `DOTCoffee_${canvasData.reportType}_${branchSlug}_${fromStr}_${toStr}.xlsx`;
+      exportReportExcel(canvasData, filename);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  }, [canvasData, filterBranch, dateRange]);
+
   // ── Reset filters ─────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     setReportType("SALES_MIX_OVERVIEW");
@@ -503,17 +526,21 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Mobile filters toggle */}
-          <div className="flex items-center gap-2 lg:hidden">
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full border-primary-foreground/60 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20"
-              onClick={() => setShowFiltersMobile((prev) => !prev)}
-            >
-              Filters
-            </Button>
-          </div>
+          {/* History button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="relative rounded-full border-primary-foreground/60 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20 flex items-center gap-2"
+            onClick={() => setIsHistoryOpen(true)}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            History
+            {history.length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary-foreground text-primary text-[10px] font-bold">
+                {history.length}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -819,146 +846,163 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6 overflow-hidden">
-            {/* ── Left panel (history only; filters moved to top) ────────── */}
-            <div
-              className={cn(
-                "flex flex-col gap-4 h-full",
-                "lg:block",
-                showFiltersMobile ? "block" : "hidden lg:block",
-              )}
-            >
-              {/* Report History */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-                <h2 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-3">
-                  History
-                </h2>
-                {history.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-4">
-                    No generated reports yet.
+          {/* ── Canvas area (full width) ──────────────────────────────── */}
+          <div className="flex flex-col gap-4">
+            {/* Export bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                {canvasData ? (
+                  <p className="text-sm text-slate-600">
+                    <span className="font-semibold text-[#1e3a5f]">
+                      {REPORT_TYPE_OPTIONS.find(
+                        (o) => o.value === canvasData.reportType
+                      )?.label}
+                    </span>
+                    {" · "}
+                    {canvasData.branchLabel}
+                    {" · "}
+                    {canvasData.dateRangeLabel}
                   </p>
                 ) : (
-                  <div className="space-y-2">
-                    {history.map((row) => (
-                      <div
-                        key={row.id}
-                        className="rounded-xl border border-slate-100 bg-slate-50 p-3 hover:border-[#1e3a5f]/30 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-800 truncate leading-tight">
-                              {row.title}
-                            </p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              {format(new Date(row.created_at), "MMM dd, yyyy HH:mm")}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteHistory(row.id)}
-                            className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <div className="flex gap-1.5 mt-2">
-                          <button
-                            type="button"
-                            onClick={() => handleLoadHistory(row)}
-                            className="text-[10px] px-2.5 py-1 rounded-full bg-[#1e3a5f] text-white font-semibold hover:bg-[#0e2d49] transition-colors flex items-center gap-1"
-                          >
-                            <FileText className="h-2.5 w-2.5" />
-                            View
-                          </button>
-                          <span className="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-500 font-medium">
-                            {row.report_type.replace(/_/g, " ")}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-sm text-slate-400">
+                    Select filters and click Generate to preview a report.
+                  </p>
                 )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={!canvasData || isExporting}
+                  onClick={handleExportPdf}
+                  className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting…
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download PDF
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!canvasData || isExportingExcel}
+                  onClick={handleExportExcel}
+                  className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-50"
+                >
+                  {isExportingExcel ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting…
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4 mr-1" />
+                      Excel
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
 
-            {/* ── Right: Canvas area ──────────────────────────────────────── */}
-            <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
-              {/* Export bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div>
-                  {canvasData ? (
-                    <p className="text-sm text-slate-600">
-                      <span className="font-semibold text-[#1e3a5f]">
-                        {REPORT_TYPE_OPTIONS.find(
-                          (o) => o.value === canvasData.reportType
-                        )?.label}
-                      </span>
-                      {" · "}
-                      {canvasData.branchLabel}
-                      {" · "}
-                      {canvasData.dateRangeLabel}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-slate-400">
-                      Select filters and click Generate to preview a report.
-                    </p>
-                  )}
+            {/* Paper canvas */}
+            <div className="overflow-auto">
+              {canvasData ? (
+                <div className="overflow-x-auto">
+                  <ReportCanvas ref={canvasRef} data={canvasData} />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!canvasData || isExporting}
-                    onClick={handleExportPdf}
-                    className="rounded-xl border-[#1e3a5f]/30 text-[#1e3a5f] hover:bg-[#1e3a5f]/5 font-semibold"
-                  >
-                    {isExporting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Exporting…
-                      </>
-                    ) : (
-                      <>
-                        <Download className="h-4 w-4 mr-2" />
-                        Download PDF
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled
-                    className="rounded-xl border-slate-200 text-slate-400 font-semibold"
-                    title="Excel export coming soon"
-                  >
-                    <ChevronDown className="h-4 w-4 mr-1" />
-                    Excel
-                  </Button>
+              ) : (
+                <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center min-h-[400px] text-slate-400">
+                  <BarChart3 className="h-16 w-16 mb-4 text-slate-200" />
+                  <p className="text-lg font-semibold text-slate-300">
+                    No report generated yet
+                  </p>
+                  <p className="text-sm text-slate-300 mt-1">
+                    Select filters above and click Generate.
+                  </p>
                 </div>
-              </div>
-
-              {/* Paper canvas */}
-              <div className="flex-1 min-h-0 overflow-auto">
-                {canvasData ? (
-                  <div className="overflow-x-auto">
-                    <ReportCanvas ref={canvasRef} data={canvasData} />
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center min-h-[400px] text-slate-400">
-                    <BarChart3 className="h-16 w-16 mb-4 text-slate-200" />
-                    <p className="text-lg font-semibold text-slate-300">
-                      No report generated yet
-                    </p>
-                    <p className="text-sm text-slate-300 mt-1">
-                      Choose filters on the left and click Generate Report.
-                    </p>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* ── History drawer ────────────────────────────────────────────────── */}
+      <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-[420px] p-0 flex flex-col bg-background"
+        >
+          <SheetHeader className="px-5 pt-5 pb-4 border-b border-border/60 shrink-0">
+            <SheetTitle className="flex items-center gap-2 text-base font-bold">
+              <Clock className="h-4 w-4 text-primary" />
+              Report History
+              {history.length > 0 && (
+                <span className="ml-auto text-xs font-semibold text-muted-foreground">
+                  {history.length} report{history.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                <FileText className="h-10 w-10 mb-3 text-slate-200" />
+                <p className="text-sm font-medium text-slate-500">No generated reports yet</p>
+                <p className="text-xs text-slate-400 mt-1">Generate a report to see it here</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {history.map((row) => (
+                  <div
+                    key={row.id}
+                    className="rounded-xl border border-slate-100 bg-slate-50 p-3 hover:border-[#1e3a5f]/30 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-800 truncate leading-tight">
+                          {row.title}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {format(new Date(row.created_at), "MMM dd, yyyy HH:mm")}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteHistory(row.id)}
+                        className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex gap-1.5 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleLoadHistory(row);
+                          setIsHistoryOpen(false);
+                        }}
+                        className="text-[10px] px-2.5 py-1 rounded-full bg-[#1e3a5f] text-white font-semibold hover:bg-[#0e2d49] transition-colors flex items-center gap-1"
+                      >
+                        <FileText className="h-2.5 w-2.5" />
+                        View
+                      </button>
+                      <span className="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-500 font-medium">
+                        {row.report_type.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

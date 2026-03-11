@@ -18,6 +18,24 @@ export type PourRow = {
   grandTotal: number;
 };
 
+/** Per-day cup counts for a single-branch detail view */
+export type PourDailyRow = {
+  date: string;
+  foodpandaQty: number;
+  grabQty: number;
+  walkinQty: number;
+  grandTotal: number;
+};
+
+/** Per-item cup counts for a single-branch detail view */
+export type PourItemRow = {
+  itemName: string;
+  foodpandaQty: number;
+  grabQty: number;
+  walkinQty: number;
+  grandTotal: number;
+};
+
 export type PourReportData = {
   title: string;
   rows: PourRow[];
@@ -27,6 +45,10 @@ export type PourReportData = {
     walkinQty: number;
     grandTotal: number;
   };
+  /** Populated only when a single branch is selected */
+  dailyBreakdown?: PourDailyRow[];
+  /** Populated only when a single branch is selected */
+  itemBreakdown?: PourItemRow[];
 };
 
 export function computePourItForward(
@@ -38,6 +60,7 @@ export function computePourItForward(
   const { dateFrom, dateTo, branchId } = filters;
 
   const resolveBranchLabel = getBranchLabel ?? defaultGetBranchLabel;
+  const isSingleBranch = branchId !== "all";
 
   const perBranch = new Map<
     BranchId,
@@ -57,6 +80,20 @@ export function computePourItForward(
       perBranch.set(id, entry);
     }
     return entry;
+  };
+
+  // Detail accumulators — only used for single-branch view
+  const perDay = new Map<string, { foodpandaQty: number; grabQty: number; walkinQty: number }>();
+  const perItem = new Map<string, { foodpandaQty: number; grabQty: number; walkinQty: number }>();
+
+  const ensureDay = (date: string) => {
+    if (!perDay.has(date)) perDay.set(date, { foodpandaQty: 0, grabQty: 0, walkinQty: 0 });
+    return perDay.get(date)!;
+  };
+
+  const ensureItem = (name: string) => {
+    if (!perItem.has(name)) perItem.set(name, { foodpandaQty: 0, grabQty: 0, walkinQty: 0 });
+    return perItem.get(name)!;
   };
 
   const start = new Date(dateFrom);
@@ -89,6 +126,24 @@ export function computePourItForward(
       } else {
         branchEntry.walkinQty += qty;
       }
+
+      // Per-day and per-item detail (single branch only)
+      if (isSingleBranch && row.transactionDate instanceof Date) {
+        const dateStr = row.transactionDate.toISOString().slice(0, 10);
+        const dayEntry = ensureDay(dateStr);
+        const itemEntry = ensureItem(name);
+
+        if (channel === "FOODPANDA") {
+          dayEntry.foodpandaQty += qty;
+          itemEntry.foodpandaQty += qty;
+        } else if (channel === "GRAB") {
+          dayEntry.grabQty += qty;
+          itemEntry.grabQty += qty;
+        } else {
+          dayEntry.walkinQty += qty;
+          itemEntry.walkinQty += qty;
+        }
+      }
     }
   }
 
@@ -110,10 +165,33 @@ export function computePourItForward(
     { foodpandaQty: 0, grabQty: 0, walkinQty: 0, grandTotal: 0 }
   );
 
+  // Build detail arrays (single branch only)
+  let dailyBreakdown: PourDailyRow[] | undefined;
+  let itemBreakdown: PourItemRow[] | undefined;
+
+  if (isSingleBranch) {
+    dailyBreakdown = Array.from(perDay.entries())
+      .map(([date, v]) => ({
+        date,
+        ...v,
+        grandTotal: v.foodpandaQty + v.grabQty + v.walkinQty,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    itemBreakdown = Array.from(perItem.entries())
+      .map(([itemName, v]) => ({
+        itemName,
+        ...v,
+        grandTotal: v.foodpandaQty + v.grabQty + v.walkinQty,
+      }))
+      .sort((a, b) => b.grandTotal - a.grandTotal);
+  }
+
   return {
     title,
     rows,
     totals,
+    dailyBreakdown,
+    itemBreakdown,
   };
 }
-

@@ -1,11 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { differenceInCalendarDays, format } from "date-fns";
-import { Calendar, MapPin, PlusCircle } from "lucide-react";
+import {
+  Building2,
+  Calendar,
+  Clock,
+  Flame,
+  MapPin,
+  PlusCircle,
+  ShoppingBag,
+  Snowflake,
+  TrendingUp,
+  Upload,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
@@ -556,6 +573,17 @@ export default function SummaryPage() {
     );
   }, [filteredReports, filterBranch]);
 
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  const kpiData = useMemo(() => ({
+    totalSales: combinedSummaryForFilters?.grandTotal ?? 0,
+    reportCount: filteredReports.length,
+    icedSales: (combinedSummaryForFilters?.totals["ICED"] ?? 0) as number,
+    hotSales: (combinedSummaryForFilters?.totals["HOT"] ?? 0) as number,
+    snacksSales: (combinedSummaryForFilters?.totals["SNACKS"] ?? 0) as number,
+    uniqueBranches: new Set(filteredReports.map((r) => r.branch)).size,
+  }), [combinedSummaryForFilters, filteredReports]);
+
   const handleMonthSelect = useCallback(
     (monthKey: string) => {
       // Toggle off if the same month is clicked again
@@ -587,227 +615,297 @@ export default function SummaryPage() {
     [selectedMonthKey, previousDateRange, filterDateRange],
   );
 
+  // KPI card definitions (reactive to current filters)
+  const kpiCards = [
+    { label: "Total Sales",  value: `₱${formatNumber(kpiData.totalSales)}`,   icon: TrendingUp,   color: "text-primary",      bg: "bg-primary/10"   },
+    { label: "Reports",      value: kpiData.reportCount.toString(),            icon: Upload,       color: "text-emerald-600",  bg: "bg-emerald-50"   },
+    { label: "Iced",         value: `₱${formatNumber(kpiData.icedSales)}`,    icon: Snowflake,    color: "text-sky-500",      bg: "bg-sky-50"       },
+    { label: "Hot",          value: `₱${formatNumber(kpiData.hotSales)}`,     icon: Flame,        color: "text-orange-500",   bg: "bg-orange-50"    },
+    { label: "Snacks",       value: `₱${formatNumber(kpiData.snacksSales)}`,  icon: ShoppingBag,  color: "text-violet-600",   bg: "bg-violet-50"    },
+    { label: "Branches",     value: kpiData.uniqueBranches.toString(),         icon: Building2,    color: "text-teal-600",     bg: "bg-teal-50"      },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Top Controls + Primary Action */}
+      {/* ── Top bar ───────────────────────────────────────────────────────── */}
       <div className="bg-primary shadow-md">
         <div className="max-w-[1600px] mx-auto px-8 py-5">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Date Range Filter */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all",
-                      !filterDateRange.from && "text-primary-foreground/70",
-                    )}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {filterDateRange.from ? (
-                      filterDateRange.to ? (
-                        <>
-                          {format(filterDateRange.from, "MMM dd, yyyy")} —{" "}
-                          {format(filterDateRange.to, "MMM dd, yyyy")}
-                        </>
-                      ) : (
-                        format(filterDateRange.from, "MMM dd, yyyy")
-                      )
-                    ) : (
-                      "Filter by date range"
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarUI
-                    mode="range"
-                    selected={filterDateRange}
-                    onSelect={(range) => setFilterDateRange(range || { from: undefined, to: undefined })}
-                    className="p-3 pointer-events-auto rounded-2xl"
-                    numberOfMonths={2}
-                  />
-                </PopoverContent>
-              </Popover>
-
-              {selectedMonthKey && (
-                <div className="flex items-center gap-2 text-xs bg-primary-foreground/10 text-primary-foreground px-3 py-1.5 rounded-full">
-                  <span className="font-semibold tracking-wide">
-                    Month selected: {formatMonthDisplay(selectedMonthKey)}
-                  </span>
-                  <button
-                    type="button"
-                    className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary-foreground/20 hover:bg-primary-foreground/30"
-                    onClick={() => handleMonthSelect(selectedMonthKey)}
-                  >
-                    ×
-                  </button>
-                </div>
-              )}
-
-              {/* Branch Filter */}
-              <Select
-                value={filterBranch}
-                onValueChange={(value) => setFilterBranch(value as BranchId | "all")}
-                disabled={isLoadingBranches}
-              >
-                <SelectTrigger className="w-[220px] px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all">
-                  <MapPin className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="All branches" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All branches</SelectItem>
-                  {branchOptions.map((branch) => (
-                    <SelectItem key={branch.slug} value={branch.slug}>
-                      {branch.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Spacer */}
-              <div className="ml-auto flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Date Range Filter */}
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
-                  size="lg"
-                  className="rounded-full px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2"
-                  onClick={handleOpenAddModal}
+                  variant="outline"
+                  className={cn(
+                    "px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all",
+                    !filterDateRange.from && "text-primary-foreground/70",
+                  )}
                 >
-                  <PlusCircle className="h-5 w-5" />
-                  ADD DATA
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {filterDateRange.from ? (
+                    filterDateRange.to ? (
+                      <>
+                        {format(filterDateRange.from, "MMM dd, yyyy")} —{" "}
+                        {format(filterDateRange.to, "MMM dd, yyyy")}
+                      </>
+                    ) : (
+                      format(filterDateRange.from, "MMM dd, yyyy")
+                    )
+                  ) : (
+                    "Filter by date range"
+                  )}
                 </Button>
-              </div>
-            </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarUI
+                  mode="range"
+                  selected={filterDateRange}
+                  onSelect={(range) =>
+                    setFilterDateRange(range || { from: undefined, to: undefined })
+                  }
+                  className="p-3 pointer-events-auto rounded-2xl"
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
 
+            {selectedMonthKey && (
+              <div className="flex items-center gap-2 text-xs bg-primary-foreground/10 text-primary-foreground px-3 py-1.5 rounded-full">
+                <span className="font-semibold tracking-wide">
+                  Month: {formatMonthDisplay(selectedMonthKey)}
+                </span>
+                <button
+                  type="button"
+                  className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary-foreground/20 hover:bg-primary-foreground/30"
+                  onClick={() => handleMonthSelect(selectedMonthKey)}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {/* Branch Filter */}
+            <Select
+              value={filterBranch}
+              onValueChange={(value) => setFilterBranch(value as BranchId | "all")}
+              disabled={isLoadingBranches}
+            >
+              <SelectTrigger className="w-[220px] px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all">
+                <MapPin className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="All branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All branches</SelectItem>
+                {branchOptions.map((branch) => (
+                  <SelectItem key={branch.slug} value={branch.slug}>
+                    {branch.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Right-side actions */}
+            <div className="ml-auto flex items-center gap-3">
+              {/* History button */}
+              <Button
+                variant="outline"
+                className="relative rounded-full px-5 py-2.5 h-auto bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all flex items-center gap-2"
+                onClick={() => setIsHistoryOpen(true)}
+              >
+                <Clock className="h-4 w-4" />
+                History
+                {dailyReports.length > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary-foreground text-primary text-[10px] font-bold">
+                    {dailyReports.length}
+                  </span>
+                )}
+              </Button>
+
+              {/* Add Data */}
+              <Button
+                size="lg"
+                className="rounded-full px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2"
+                onClick={handleOpenAddModal}
+              >
+                <PlusCircle className="h-5 w-5" />
+                ADD DATA
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-[1600px] mx-auto px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-6">
-          {/* Left: Aggregated + Active Report Preview */}
-          <main className="min-w-0 space-y-6">
-            {/* Aggregated summary for filters */}
-            <div ref={filteredTotalsRef} className="bg-card rounded-3xl shadow-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
-                    Summary
-                  </p>
-                  <h2 className="text-xl font-bold text-card-foreground">
-                    Filtered totals
-                  </h2>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Total sales</p>
-                  <p className="text-2xl font-bold text-primary">
-                    ₱{formatNumber(combinedSummaryForFilters?.grandTotal || 0)}
-                  </p>
-                </div>
-              </div>
-              {combinedSummaryForFilters && filteredReports.length > 0 ? (
-                <SummaryTable
-                  mode="single"
-                  totals={combinedSummaryForFilters.totals as any}
-                  quantities={combinedSummaryForFilters.quantities as any}
-                  grandTotal={combinedSummaryForFilters.grandTotal}
-                  grandQuantity={combinedSummaryForFilters.grandQuantity}
-                  percents={combinedSummaryForFilters.percents as any}
-                branchLabel={filterBranch === "all" ? "All Branches" : getBranchLabel(filterBranch)}
-                branchBreakdown={allBranchesBreakdown ?? undefined}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No reports match the current filters yet.
-                </p>
-              )}
-            </div>
+      {/* ── Main content ──────────────────────────────────────────────────── */}
+      <div className="max-w-[1600px] mx-auto px-8 py-6">
 
-            {/* Active report detail */}
-            {activeReport ? (
-              <div className="bg-card rounded-3xl shadow-xl p-8">
-                <div className="mb-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-2xl font-bold text-card-foreground mb-2">
-                        Report preview — {activeReport.date}
-                      </h2>
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-3">
-                        <span className="flex items-center gap-1.5">
-                          <MapPin className="h-4 w-4 text-primary" />
-                          <span className="font-semibold text-primary">
-                            {getBranchLabel(activeReport.branch)}
-                          </span>
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+          {kpiCards.map((card) => (
+            <div
+              key={card.label}
+              className="bg-card rounded-2xl shadow-sm border border-border/40 p-4"
+            >
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className={`rounded-xl p-1.5 ${card.bg}`}>
+                  <card.icon className={`h-3.5 w-3.5 ${card.color}`} />
+                </div>
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  {card.label}
+                </span>
+              </div>
+              <p className={`text-base font-bold leading-none ${card.color}`}>
+                {card.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Summary + active report */}
+        <div className="space-y-6">
+          {/* Filtered totals */}
+          <div ref={filteredTotalsRef} className="bg-card rounded-3xl shadow-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
+                  Summary
+                </p>
+                <h2 className="text-xl font-bold text-card-foreground">
+                  Filtered totals
+                </h2>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Total sales</p>
+                <p className="text-2xl font-bold text-primary">
+                  ₱{formatNumber(combinedSummaryForFilters?.grandTotal || 0)}
+                </p>
+              </div>
+            </div>
+            {combinedSummaryForFilters && filteredReports.length > 0 ? (
+              <SummaryTable
+                mode="single"
+                totals={combinedSummaryForFilters.totals as any}
+                quantities={combinedSummaryForFilters.quantities as any}
+                grandTotal={combinedSummaryForFilters.grandTotal}
+                grandQuantity={combinedSummaryForFilters.grandQuantity}
+                percents={combinedSummaryForFilters.percents as any}
+                branchLabel={
+                  filterBranch === "all"
+                    ? "All Branches"
+                    : getBranchLabel(filterBranch)
+                }
+                branchBreakdown={allBranchesBreakdown ?? undefined}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No reports match the current filters yet.
+              </p>
+            )}
+          </div>
+
+          {/* Active report detail */}
+          {activeReport && (
+            <div className="bg-card rounded-3xl shadow-xl p-8">
+              <div className="mb-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-card-foreground mb-2">
+                      Report preview — {activeReport.date}
+                    </h2>
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-3">
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span className="font-semibold text-primary">
+                          {getBranchLabel(activeReport.branch)}
                         </span>
-                        <span>
-                          File:{" "}
-                          <span className="font-medium text-card-foreground">
-                            {activeReport.filename}
-                          </span>
+                      </span>
+                      <span>
+                        File:{" "}
+                        <span className="font-medium text-card-foreground">
+                          {activeReport.filename}
                         </span>
-                        <span>
-                          Rows:{" "}
-                          <span className="font-semibold text-card-foreground">
-                            {activeReport.totalRows}
-                          </span>
+                      </span>
+                      <span>
+                        Rows:{" "}
+                        <span className="font-semibold text-card-foreground">
+                          {activeReport.totalRows}
                         </span>
-                        <span className="text-emerald-600 font-medium">
-                          ✓ Mapped: {activeReport.mappedRows}
-                        </span>
-                        <span className="text-amber-600 font-medium">
-                          ⚠ Unmapped: {activeReport.unmappedRows}
-                        </span>
-                        <span>Skipped: {activeReport.skippedRows}</span>
-                        <span className="font-bold text-primary text-lg">
-                          Total: ₱{formatNumber(activeReport.grandTotal)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRequestDeleteReport(activeReport.id)}
-                        className="rounded-full border-red-200 text-red-600 hover:bg-red-50"
-                      >
-                        Delete data
-                      </Button>
+                      </span>
+                      <span className="text-emerald-600 font-medium">
+                        ✓ Mapped: {activeReport.mappedRows}
+                      </span>
+                      <span className="text-amber-600 font-medium">
+                        ⚠ Unmapped: {activeReport.unmappedRows}
+                      </span>
+                      <span>Skipped: {activeReport.skippedRows}</span>
+                      <span className="font-bold text-primary text-lg">
+                        Total: ₱{formatNumber(activeReport.grandTotal)}
+                      </span>
                     </div>
                   </div>
-                </div>
-
-                <div className="space-y-6">
-                  <SummaryTable
-                    mode="single"
-                    totals={activeReport.summaryTotalsByCat}
-                    quantities={activeReport.summaryQuantitiesByCat}
-                    grandTotal={activeReport.grandTotal}
-                    grandQuantity={activeReport.grandQuantity}
-                    percents={activeReport.percentByCat}
-                    branchLabel={getBranchLabel(activeReport.branch)}
-                  />
-
-                  <DetailsTable rows={activeReport.rowDetails} />
-                  <UnmappedList items={activeReport.unmappedSummary} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRequestDeleteReport(activeReport.id)}
+                    className="rounded-full border-red-200 text-red-600 hover:bg-red-50 shrink-0"
+                  >
+                    Delete data
+                  </Button>
                 </div>
               </div>
-            ) : null}
-          </main>
+              <div className="space-y-6">
+                <SummaryTable
+                  mode="single"
+                  totals={activeReport.summaryTotalsByCat}
+                  quantities={activeReport.summaryQuantitiesByCat}
+                  grandTotal={activeReport.grandTotal}
+                  grandQuantity={activeReport.grandQuantity}
+                  percents={activeReport.percentByCat}
+                  branchLabel={getBranchLabel(activeReport.branch)}
+                />
+                <DetailsTable rows={activeReport.rowDetails} />
+                <UnmappedList items={activeReport.unmappedSummary} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-          {/* Right: Daily / Monthly history (slightly narrower) */}
-          <aside className="lg:max-w-[260px]">
+      {/* ── History drawer ────────────────────────────────────────────────── */}
+      <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-[420px] p-0 flex flex-col bg-background"
+        >
+          <SheetHeader className="px-5 pt-5 pb-4 border-b border-border/60 shrink-0">
+            <SheetTitle className="flex items-center gap-2 text-base font-bold">
+              <Clock className="h-4 w-4 text-primary" />
+              Daily History
+              {dailyReports.length > 0 && (
+                <span className="ml-auto text-xs font-semibold text-muted-foreground">
+                  {dailyReports.length} report{dailyReports.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-4 py-4">
             <DailyHistoryList
               reports={filteredReports}
               activeReportId={activeReportId}
-              onSelect={setActiveReportId}
+              onSelect={(id) => {
+                setActiveReportId(id);
+                setIsHistoryOpen(false);
+              }}
               viewMode="daily"
               selectedMonth={selectedMonthKey ?? ""}
-              onMonthSelect={handleMonthSelect}
+              onMonthSelect={(key) => {
+                handleMonthSelect(key);
+                setIsHistoryOpen(false);
+              }}
               onDelete={handleRequestDeleteReport}
             />
-          </aside>
-        </div>
-      </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ADD REPORT Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={(open) => (open ? handleOpenAddModal() : handleCloseAddModal())}>
