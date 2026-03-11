@@ -16,21 +16,18 @@ import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
 import { computeMonthlyReport } from "@/utils/aggregateMonthly";
 import { formatNumber } from "@/utils/format";
 import type { DailyReport, MappingEntry, BranchId } from "@/utils/types";
-import { BRANCHES } from "@/utils/types";
+import { useLiveBranches } from "@/hooks/useLiveBranches";
 
 import { 
-  getBranches, 
   seedBranchesIfEmpty, 
   listAllDailyReports 
 } from "@/services/reportsService";
 import { dailyReportsFromRows } from "@/services/reportConverter";
-import type { Branch } from "@/lib/supabase-types";
 
 export default function MonthlySummaryPage() {
   const { toast } = useToast();
-  
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
+  const { branchOptions, getBranchLabel } = useLiveBranches();
+
   const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [mappingTable, setMappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
@@ -44,21 +41,12 @@ export default function MonthlySummaryPage() {
   useEffect(() => {
     const initializeData = async () => {
       try {
-        setIsLoadingBranches(true);
-        
-        await seedBranchesIfEmpty();
-        const fetchedBranches = await getBranches();
-        setBranches(fetchedBranches);
-        
+        void seedBranchesIfEmpty();
+
         setIsLoadingReports(true);
         const reportRows = await listAllDailyReports();
         const reports = dailyReportsFromRows(reportRows);
         setDailyReports(reports);
-        
-        toast({
-          title: "Connected to Supabase",
-          description: `Loaded ${fetchedBranches.length} branches and ${reports.length} reports`,
-        });
       } catch (error) {
         console.error('Failed to initialize data:', error);
         toast({
@@ -67,7 +55,6 @@ export default function MonthlySummaryPage() {
           description: error instanceof Error ? error.message : "Failed to connect to Supabase",
         });
       } finally {
-        setIsLoadingBranches(false);
         setIsLoadingReports(false);
       }
     };
@@ -99,8 +86,8 @@ export default function MonthlySummaryPage() {
   }, []);
 
   const monthlyReport = useMemo(() => {
-    return computeMonthlyReport(dailyReports, selectedMonth, monthlyBranchFilter);
-  }, [dailyReports, selectedMonth, monthlyBranchFilter]);
+    return computeMonthlyReport(dailyReports, selectedMonth, monthlyBranchFilter, getBranchLabel);
+  }, [dailyReports, selectedMonth, monthlyBranchFilter, getBranchLabel]);
 
   const handleMonthSelect = useCallback((monthKey: string) => {
     setSelectedMonth(monthKey);
@@ -126,8 +113,8 @@ export default function MonthlySummaryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Branches</SelectItem>
-                {BRANCHES.map(branch => (
-                  <SelectItem key={branch.id} value={branch.id}>
+                {branchOptions.map(branch => (
+                  <SelectItem key={branch.slug} value={branch.slug}>
                     {branch.label}
                   </SelectItem>
                 ))}
@@ -173,9 +160,9 @@ export default function MonthlySummaryPage() {
                       <span className="flex items-center gap-1.5">
                         <MapPin className="h-4 w-4 text-primary" />
                         <span className="font-semibold text-primary">
-                          {monthlyBranchFilter === "all" 
-                            ? "All Branches" 
-                            : BRANCHES.find(b => b.id === monthlyBranchFilter)?.label}
+                          {monthlyBranchFilter === "all"
+                            ? "All Branches"
+                            : getBranchLabel(monthlyBranchFilter)}
                         </span>
                       </span>
                       <span>Files: <span className="font-medium text-card-foreground">{monthlyReport.totalFiles}</span></span>

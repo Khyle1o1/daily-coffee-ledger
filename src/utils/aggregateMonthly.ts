@@ -1,5 +1,10 @@
 import { CATEGORIES, BRANCHES, type Category, type DailyReport, type MonthlyReport, type BranchId, type UnmappedSummary } from "./types";
 
+// Default label resolver using the legacy hardcoded constant (kept for fallback).
+function defaultGetBranchLabel(slug: string): string {
+  return BRANCHES.find((b) => b.id === slug)?.label ?? slug;
+}
+
 /**
  * Extract month key from a date string (YYYY-MM-DD) → (YYYY-MM)
  */
@@ -63,8 +68,10 @@ export function groupReportsByMonth(reports: DailyReport[]): Record<string, Dail
 export function computeMonthlyReport(
   reports: DailyReport[],
   monthKey: string,
-  branchFilter: BranchId | "all" = "all"
+  branchFilter: BranchId | "all" = "all",
+  getBranchLabel?: (slug: string) => string,
 ): MonthlyReport | null {
+  const resolveBranchLabel = getBranchLabel ?? defaultGetBranchLabel;
   // Filter reports for this month
   const monthReports = reports.filter(r => getMonthKey(r.date) === monthKey);
   
@@ -114,7 +121,7 @@ export function computeMonthlyReport(
     .sort((a, b) => b.totalSales - a.totalSales);
 
   // Build branch breakdown (per-branch totals)
-  const branchBreakdown = computeBranchBreakdown(filteredReports);
+  const branchBreakdown = computeBranchBreakdown(filteredReports, resolveBranchLabel);
 
   // Build daily breakdown (per-day totals within the month)
   const dailyBreakdown = computeDailyBreakdown(filteredReports);
@@ -139,7 +146,10 @@ export function computeMonthlyReport(
 /**
  * Compute per-branch breakdown for monthly summary
  */
-function computeBranchBreakdown(reports: DailyReport[]) {
+function computeBranchBreakdown(
+  reports: DailyReport[],
+  getBranchLabel: (slug: string) => string = defaultGetBranchLabel,
+) {
   // Group by branch
   const branchMap = new Map<BranchId, DailyReport[]>();
   reports.forEach(report => {
@@ -150,7 +160,7 @@ function computeBranchBreakdown(reports: DailyReport[]) {
   });
 
   const breakdown = Array.from(branchMap.entries()).map(([branchId, branchReports]) => {
-    const branchLabel = BRANCHES.find(b => b.id === branchId)?.label || branchId;
+    const branchLabel = getBranchLabel(branchId);
 
     const totals: Record<Category, number> = {} as any;
     const quantities: Record<Category, number> = {} as any;

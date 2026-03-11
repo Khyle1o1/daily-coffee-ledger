@@ -3,7 +3,7 @@
 
 export interface Branch {
   id: string;
-  name: 'podium' | 'mind_museum' | 'trinoma' | 'uptown' | 'wgc' | 'wcc';
+  name: string;
   label: string;
   created_at: string;
   updated_at: string;

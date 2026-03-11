@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { CATEGORIES, BRANCHES, type Category, type MonthlyReport } from "@/utils/types";
+import { CATEGORIES, type Category, type MonthlyReport } from "@/utils/types";
 import { formatNumber } from "@/utils/format";
+import { useLiveBranches } from "@/hooks/useLiveBranches";
 
 interface DailyBreakdownTableProps {
   monthlyReport: MonthlyReport;
 }
 
 export default function DailyBreakdownTable({ monthlyReport }: DailyBreakdownTableProps) {
+  const { getBranchLabel } = useLiveBranches();
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
   const toggleDay = (date: string) => {
@@ -108,7 +110,7 @@ export default function DailyBreakdownTable({ monthlyReport }: DailyBreakdownTab
                             <div className="flex flex-wrap gap-2 mb-3">
                               <span className="text-xs font-semibold text-muted-foreground">Branches:</span>
                               {day.branches.map(branchId => {
-                                const branchLabel = BRANCHES.find(b => b.id === branchId)?.label || branchId;
+                                const branchLabel = getBranchLabel(branchId);
                                 return (
                                   <span
                                     key={branchId}

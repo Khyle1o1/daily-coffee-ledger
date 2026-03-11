@@ -1,8 +1,8 @@
 import { CATEGORIES, type Category, type DailyReport } from "@/utils/types";
 import { formatNumber, formatPercent } from "@/utils/format";
-import { BRANCHES } from "@/utils/types";
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { useLiveBranches } from "@/hooks/useLiveBranches";
 
 interface BranchBreakdownRow {
   branchId: string;
@@ -40,6 +40,7 @@ type Props = SingleBranchProps | MultiBranchProps;
 export default function SummaryTable(props: Props) {
   const cats = [...CATEGORIES];
   const allCols = ["BRANCH" as const, ...cats, "TOTAL" as const];
+  const { getBranchLabel } = useLiveBranches();
   
   // Track which branches have their quantity details expanded
   const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
@@ -146,7 +147,7 @@ export default function SummaryTable(props: Props) {
     
     // For each branch, add totals row and conditionally quantities row
     sortedReports.forEach((report) => {
-      const branchLabel = BRANCHES.find(b => b.id === report.branch)?.label || report.branch;
+      const branchLabel = getBranchLabel(report.branch);
       const isExpanded = expandedBranches.has(branchLabel);
       
       // Totals row (clickable)

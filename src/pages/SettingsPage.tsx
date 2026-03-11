@@ -14,11 +14,13 @@ import { BranchModal } from '@/components/settings/BranchModal';
 import { MappingManagementSection } from '@/components/settings/MappingManagementSection';
 import { listBranches, createBranch, updateBranch } from '@/lib/api/branches';
 import { useManualMappings } from '@/hooks/useManualMappings';
+import { useInvalidateBranches } from '@/hooks/useLiveBranches';
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isAdmin, loading } = useAuth();
+  const invalidateBranches = useInvalidateBranches();
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [total, setTotal] = useState(0);
@@ -92,6 +94,8 @@ export default function SettingsPage() {
       }
       setShowBranchModal(false);
       setEditingBranch(null);
+      // Refresh both the Settings list and the shared cache used by all pages.
+      invalidateBranches();
       await loadBranches();
     } catch (error) {
       console.error('Failed to save branch:', error);

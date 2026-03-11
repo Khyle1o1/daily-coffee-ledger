@@ -1,8 +1,8 @@
 import type { DailyReport, BranchId, ViewMode } from "@/utils/types";
-import { BRANCHES } from "@/utils/types";
 import { formatNumber } from "@/utils/format";
 import { Calendar, MapPin, CalendarDays, Trash2 } from "lucide-react";
 import { getAvailableMonths } from "@/utils/aggregateMonthly";
+import { useLiveBranches } from "@/hooks/useLiveBranches";
 
 interface Props {
   reports: DailyReport[];
@@ -35,6 +35,7 @@ export default function DailyHistoryList({
   onMonthSelect,
   onDelete,
 }: Props) {
+  const { getBranchLabel } = useLiveBranches();
   if (reports.length === 0) {
     return (
       <div className="bg-card rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center text-muted-foreground">
@@ -78,7 +79,7 @@ export default function DailyHistoryList({
               {/* Branch Items */}
               <div className="space-y-1.5 pl-1.5">
                 {dateReports.map(report => {
-                  const branchLabel = BRANCHES.find(b => b.id === report.branch)?.label || report.branch;
+                  const branchLabel = getBranchLabel(report.branch);
                   const isActive = activeReportId === report.id && viewMode === "daily";
                   
                   return (

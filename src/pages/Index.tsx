@@ -28,28 +28,26 @@ import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
 import { computeMonthlyReport, getMonthKey } from "@/utils/aggregateMonthly";
 import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId, ViewMode } from "@/utils/types";
-import { CATEGORIES, BRANCHES } from "@/utils/types";
+import { CATEGORIES } from "@/utils/types";
 import { useManualMappings } from "@/hooks/useManualMappings";
 
 // Supabase integration
 import { 
-  getBranches, 
   seedBranchesIfEmpty, 
   saveDailyReport, 
   listAllDailyReports 
 } from "@/services/reportsService";
-import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
-import type { Branch } from "@/lib/supabase-types";
+import { dailyReportToJSON, dailyReportsFromRows } from "@/services/reportConverter";
+import { useLiveBranches } from "@/hooks/useLiveBranches";
 
 const Index = () => {
   const { toast } = useToast();
+  const { branchOptions, isLoading: isLoadingBranches, getBranchLabel, getBranchUuid } = useLiveBranches();
   
   // Main view mode: Daily or Monthly
   const [mainViewMode, setMainViewMode] = useState<ViewMode>("daily");
   
   // Supabase state
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -82,30 +80,18 @@ const Index = () => {
   const activeReport = dailyReports.find(r => r.id === activeReportId) || null;
 
   // ============================================================================
-  // SUPABASE INTEGRATION: Load branches and reports on mount
+  // SUPABASE INTEGRATION: Load reports on mount
   // ============================================================================
   useEffect(() => {
     const initializeData = async () => {
       try {
-        setIsLoadingBranches(true);
-        
-        // Seed branches if needed
-        await seedBranchesIfEmpty();
-        
-        // Fetch branches
-        const fetchedBranches = await getBranches();
-        setBranches(fetchedBranches);
-        
+        void seedBranchesIfEmpty();
+
         // Load all existing reports from Supabase
         setIsLoadingReports(true);
         const reportRows = await listAllDailyReports();
         const reports = dailyReportsFromRows(reportRows);
         setDailyReports(reports);
-        
-        toast({
-          title: "Connected to Supabase",
-          description: `Loaded ${fetchedBranches.length} branches and ${reports.length} reports`,
-        });
       } catch (error) {
         console.error('Failed to initialize data:', error);
         toast({
@@ -114,7 +100,6 @@ const Index = () => {
           description: error instanceof Error ? error.message : "Failed to connect to Supabase",
         });
       } finally {
-        setIsLoadingBranches(false);
         setIsLoadingReports(false);
       }
     };
@@ -233,9 +218,9 @@ const Index = () => {
       setIsSaving(true);
       
       // Get branch UUID
-      const branchUuid = getBranchId(branches, selectedBranch);
+      const branchUuid = getBranchUuid(selectedBranch);
       if (!branchUuid) {
-        throw new Error(`Branch not found: ${selectedBranch}`);
+        throw new Error(`Branch not found or inactive: ${selectedBranch}`);
       }
 
       // Convert to JSON format and save to Supabase
@@ -395,8 +380,8 @@ const Index = () => {
   // Compute monthly report
   const monthlyReport = useMemo(() => {
     if (mainViewMode !== "monthly") return null;
-    return computeMonthlyReport(dailyReports, selectedMonth, monthlyBranchFilter);
-  }, [mainViewMode, dailyReports, selectedMonth, monthlyBranchFilter]);
+    return computeMonthlyReport(dailyReports, selectedMonth, monthlyBranchFilter, getBranchLabel);
+  }, [mainViewMode, dailyReports, selectedMonth, monthlyBranchFilter, getBranchLabel]);
 
   // Handle month selection from history
   const handleMonthSelect = useCallback((monthKey: string) => {
@@ -489,8 +474,8 @@ const Index = () => {
                     <SelectValue placeholder={isLoadingBranches ? "Loading..." : "Select branch"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {BRANCHES.map(branch => (
-                      <SelectItem key={branch.id} value={branch.id}>
+                    {branchOptions.map(branch => (
+                      <SelectItem key={branch.slug} value={branch.slug}>
                         {branch.label}
                       </SelectItem>
                     ))}
@@ -560,8 +545,8 @@ const Index = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Branches</SelectItem>
-                    {BRANCHES.map(branch => (
-                      <SelectItem key={branch.id} value={branch.id}>
+                    {branchOptions.map(branch => (
+                      <SelectItem key={branch.slug} value={branch.slug}>
                         {branch.label}
                       </SelectItem>
                     ))}
@@ -633,9 +618,9 @@ const Index = () => {
                     <span className="flex items-center gap-1.5">
                       <MapPin className="h-4 w-4 text-primary" />
                       <span className="font-semibold text-primary">
-                        {viewMode === "combined" 
-                          ? "All Branches" 
-                          : BRANCHES.find(b => b.id === displayReport.branch)?.label}
+                        {viewMode === "combined"
+                          ? "All Branches"
+                          : getBranchLabel(displayReport.branch)}
                       </span>
                     </span>
                     <span>File: <span className="font-medium text-card-foreground">{displayReport.filename}</span></span>
@@ -679,7 +664,7 @@ const Index = () => {
                       {dailyReports.filter(r => r.date === displayReport.date).map(report => (
                         <div key={report.id} className="flex items-center justify-between p-3 bg-card rounded-xl">
                           <span className="font-medium text-sm">
-                            {BRANCHES.find(b => b.id === report.branch)?.label}
+                            {getBranchLabel(report.branch)}
                           </span>
                           <span className="font-bold text-primary">
                             ₱{formatNumber(report.grandTotal)}
@@ -718,7 +703,7 @@ const Index = () => {
                         grandTotal={displayReport.grandTotal}
                         grandQuantity={displayReport.grandQuantity}
                         percents={displayReport.percentByCat}
-                        branchLabel={BRANCHES.find(b => b.id === displayReport.branch)?.label || displayReport.branch}
+                        branchLabel={getBranchLabel(displayReport.branch)}
                       />
                     )}
                   </TabsContent>
@@ -758,9 +743,9 @@ const Index = () => {
                         <span className="flex items-center gap-1.5">
                           <MapPin className="h-4 w-4 text-primary" />
                           <span className="font-semibold text-primary">
-                            {monthlyBranchFilter === "all" 
-                              ? "All Branches" 
-                              : BRANCHES.find(b => b.id === monthlyBranchFilter)?.label}
+                            {monthlyBranchFilter === "all"
+                              ? "All Branches"
+                              : getBranchLabel(monthlyBranchFilter)}
                           </span>
                         </span>
                         <span>Files: <span className="font-medium text-card-foreground">{monthlyReport.totalFiles}</span></span>

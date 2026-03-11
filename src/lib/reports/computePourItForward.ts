@@ -1,6 +1,10 @@
 import type { DailyReport, BranchId } from "@/utils/types";
 import { BRANCHES } from "@/utils/types";
 import type { ReportFilters } from "./compute";
+
+function defaultGetBranchLabel(slug: string): string {
+  return BRANCHES.find((b) => b.id === slug)?.label ?? slug;
+}
 import { getChannelFromPaymentType } from "./channel";
 import { isCupItem } from "./cups";
 import { filterRowsByDateRange } from "./filterRowsByDateRange";
@@ -28,13 +32,12 @@ export type PourReportData = {
 export function computePourItForward(
   reports: DailyReport[],
   filters: ReportFilters,
-  title: string
+  title: string,
+  getBranchLabel?: (slug: string) => string,
 ): PourReportData {
   const { dateFrom, dateTo, branchId } = filters;
 
-  const branchLabelMap = new Map<BranchId, string>(
-    BRANCHES.map((b) => [b.id, b.label])
-  );
+  const resolveBranchLabel = getBranchLabel ?? defaultGetBranchLabel;
 
   const perBranch = new Map<
     BranchId,
@@ -46,7 +49,7 @@ export function computePourItForward(
     if (!entry) {
       entry = {
         branchId: id,
-        branchName: branchLabelMap.get(id) ?? id,
+        branchName: resolveBranchLabel(id),
         foodpandaQty: 0,
         grabQty: 0,
         walkinQty: 0,

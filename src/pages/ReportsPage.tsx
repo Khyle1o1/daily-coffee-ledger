@@ -38,7 +38,7 @@ import { exportReportPdf } from "@/utils/exportReportPdf";
 
 import type { ReportType, GeneratedReportRow } from "@/lib/supabase-types";
 import type { BranchId, Category, DailyReport } from "@/utils/types";
-import { BRANCHES, CATEGORIES } from "@/utils/types";
+import { CATEGORIES } from "@/utils/types";
 
 import {
   listGeneratedReports,
@@ -46,12 +46,11 @@ import {
   deleteGeneratedReport,
 } from "@/services/generatedReportsService";
 import {
-  getBranches,
   listAllDailyReports,
   seedBranchesIfEmpty,
 } from "@/services/reportsService";
 import { dailyReportsFromRows } from "@/services/reportConverter";
-import type { Branch } from "@/lib/supabase-types";
+import { useLiveBranches } from "@/hooks/useLiveBranches";
 
 import {
   computeCategoryTotals,
@@ -117,9 +116,9 @@ interface DateRange {
 export default function ReportsPage() {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLDivElement>(null);
+  const { branchOptions, getBranchLabel, getBranchUuid } = useLiveBranches();
 
   // ── Data loading ──────────────────────────────────────────────────────────
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
   const [history, setHistory] = useState<GeneratedReportRow[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -153,13 +152,11 @@ export default function ReportsPage() {
     const init = async () => {
       try {
         setIsLoadingData(true);
-        await seedBranchesIfEmpty();
-        const [fetchedBranches, reportRows, historyRows] = await Promise.all([
-          getBranches(),
+        void seedBranchesIfEmpty();
+        const [reportRows, historyRows] = await Promise.all([
           listAllDailyReports(),
           listGeneratedReports(),
         ]);
-        setBranches(fetchedBranches);
         setDailyReports(dailyReportsFromRows(reportRows));
         setHistory(historyRows);
       } catch (err) {
@@ -180,8 +177,8 @@ export default function ReportsPage() {
   // ── Derived labels ────────────────────────────────────────────────────────
   const branchLabel = useMemo(() => {
     if (filterBranch === "all") return "All Branches";
-    return BRANCHES.find((b) => b.id === filterBranch)?.label ?? filterBranch;
-  }, [filterBranch]);
+    return getBranchLabel(filterBranch);
+  }, [filterBranch, getBranchLabel]);
 
   const dateRangeLabel = useMemo(() => {
     if (!dateRange.from) return "All dates";
@@ -355,6 +352,7 @@ export default function ReportsPage() {
           dailyReports,
           filters,
           title,
+          getBranchLabel,
         );
         canvas = {
           reportType,
@@ -372,11 +370,8 @@ export default function ReportsPage() {
       // Auto-save to DB
       const typeOption = REPORT_TYPE_OPTIONS.find((o) => o.value === reportType);
       const title = `${typeOption?.label ?? reportType} • ${branchLabel} • ${dateRangeLabel}`;
-      const branchEntry = branches.find(
-        (b) => b.name === filterBranch || filterBranch === "all"
-      );
       const branchId =
-        filterBranch === "all" ? null : (branchEntry?.id ?? null);
+        filterBranch === "all" ? null : (getBranchUuid(filterBranch) ?? null);
 
       const saved = await saveGeneratedReport({
         title,
@@ -422,7 +417,7 @@ export default function ReportsPage() {
     selectedCategories,
     runningCategory,
     channelCategory,
-    branches,
+    getBranchUuid,
     filterBranch,
     toast,
   ]);
@@ -581,8 +576,8 @@ export default function ReportsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Branches</SelectItem>
-                    {BRANCHES.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
+                    {branchOptions.map((b) => (
+                      <SelectItem key={b.slug} value={b.slug}>
                         {b.label}
                       </SelectItem>
                     ))}

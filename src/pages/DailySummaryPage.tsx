@@ -22,23 +22,21 @@ import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
 import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId } from "@/utils/types";
-import { CATEGORIES, BRANCHES } from "@/utils/types";
+import { CATEGORIES } from "@/utils/types";
 import { useManualMappings } from "@/hooks/useManualMappings";
 
 import { 
-  getBranches, 
   seedBranchesIfEmpty, 
   saveDailyReport, 
   listAllDailyReports 
 } from "@/services/reportsService";
-import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
-import type { Branch } from "@/lib/supabase-types";
+import { dailyReportToJSON, dailyReportsFromRows } from "@/services/reportConverter";
+import { useLiveBranches } from "@/hooks/useLiveBranches";
 
 export default function DailySummaryPage() {
   const { toast } = useToast();
-  
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
+  const { branchOptions, isLoading: isLoadingBranches, getBranchLabel, getBranchUuid } = useLiveBranches();
+
   const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -63,21 +61,12 @@ export default function DailySummaryPage() {
   useEffect(() => {
     const initializeData = async () => {
       try {
-        setIsLoadingBranches(true);
-        
-        await seedBranchesIfEmpty();
-        const fetchedBranches = await getBranches();
-        setBranches(fetchedBranches);
-        
+        void seedBranchesIfEmpty();
+
         setIsLoadingReports(true);
         const reportRows = await listAllDailyReports();
         const reports = dailyReportsFromRows(reportRows);
         setDailyReports(reports);
-        
-        toast({
-          title: "Connected to Supabase",
-          description: `Loaded ${fetchedBranches.length} branches and ${reports.length} reports`,
-        });
       } catch (error) {
         console.error('Failed to initialize data:', error);
         toast({
@@ -86,7 +75,6 @@ export default function DailySummaryPage() {
           description: error instanceof Error ? error.message : "Failed to connect to Supabase",
         });
       } finally {
-        setIsLoadingBranches(false);
         setIsLoadingReports(false);
       }
     };
@@ -195,9 +183,9 @@ export default function DailySummaryPage() {
     try {
       setIsSaving(true);
       
-      const branchUuid = getBranchId(branches, selectedBranch);
+      const branchUuid = getBranchUuid(selectedBranch);
       if (!branchUuid) {
-        throw new Error(`Branch not found: ${selectedBranch}`);
+        throw new Error(`Branch not found or inactive: ${selectedBranch}`);
       }
 
       const summaryJson = dailyReportToJSON(report);
@@ -406,8 +394,8 @@ export default function DailySummaryPage() {
                 <SelectValue placeholder={isLoadingBranches ? "Loading..." : "Select branch"} />
               </SelectTrigger>
               <SelectContent>
-                {BRANCHES.map(branch => (
-                  <SelectItem key={branch.id} value={branch.id}>
+                {branchOptions.map(branch => (
+                  <SelectItem key={branch.slug} value={branch.slug}>
                     {branch.label}
                   </SelectItem>
                 ))}
@@ -511,9 +499,9 @@ export default function DailySummaryPage() {
                     <span className="flex items-center gap-1.5">
                       <MapPin className="h-4 w-4 text-primary" />
                       <span className="font-semibold text-primary">
-                        {viewMode === "combined" 
-                          ? "All Branches" 
-                          : BRANCHES.find(b => b.id === displayReport.branch)?.label}
+                        {viewMode === "combined"
+                          ? "All Branches"
+                          : getBranchLabel(displayReport.branch)}
                       </span>
                     </span>
                     <span>File: <span className="font-medium text-card-foreground">{displayReport.filename}</span></span>
@@ -557,7 +545,7 @@ export default function DailySummaryPage() {
                       {dailyReports.filter(r => r.date === displayReport.date).map(report => (
                         <div key={report.id} className="flex items-center justify-between p-3 bg-card rounded-xl">
                           <span className="font-medium text-sm">
-                            {BRANCHES.find(b => b.id === report.branch)?.label}
+                            {getBranchLabel(report.branch)}
                           </span>
                           <span className="font-bold text-primary">
                             ₱{formatNumber(report.grandTotal)}
@@ -596,7 +584,7 @@ export default function DailySummaryPage() {
                         grandTotal={displayReport.grandTotal}
                         grandQuantity={displayReport.grandQuantity}
                         percents={displayReport.percentByCat}
-                        branchLabel={BRANCHES.find(b => b.id === displayReport.branch)?.label || displayReport.branch}
+                        branchLabel={getBranchLabel(displayReport.branch)}
                       />
                     )}
                   </TabsContent>

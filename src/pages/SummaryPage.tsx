@@ -36,7 +36,7 @@ import type {
   RawRow,
   Category,
 } from "@/utils/types";
-import { BRANCHES, CATEGORIES } from "@/utils/types";
+import { CATEGORIES } from "@/utils/types";
 import {
   detectDateRangeFromFilename,
   detectDateRangeFromRows,
@@ -47,20 +47,18 @@ import { formatMonthDisplay, getMonthRange } from "@/utils/aggregateMonthly";
 import type { DateRange } from "react-day-picker";
 
 import {
-  getBranches,
   listAllDailyReports,
   saveDailyReport,
   seedBranchesIfEmpty,
   deleteDailyReport,
 } from "@/services/reportsService";
-import { dailyReportToJSON, dailyReportsFromRows, getBranchId } from "@/services/reportConverter";
-import type { Branch } from "@/lib/supabase-types";
+import { dailyReportToJSON, dailyReportsFromRows } from "@/services/reportConverter";
+import { useLiveBranches } from "@/hooks/useLiveBranches";
 
 export default function SummaryPage() {
   const { toast } = useToast();
+  const { branchOptions, isLoading: isLoadingBranches, getBranchLabel, getBranchUuid } = useLiveBranches();
 
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -104,11 +102,8 @@ export default function SummaryPage() {
   useEffect(() => {
     const initializeData = async () => {
       try {
-        setIsLoadingBranches(true);
-
-        await seedBranchesIfEmpty();
-        const fetchedBranches = await getBranches();
-        setBranches(fetchedBranches);
+        // Seed default branches on first run (no-op if branches already exist).
+        void seedBranchesIfEmpty();
 
         setIsLoadingReports(true);
         const reportRows = await listAllDailyReports();
@@ -122,7 +117,6 @@ export default function SummaryPage() {
           description: error instanceof Error ? error.message : "Failed to connect to Supabase",
         });
       } finally {
-        setIsLoadingBranches(false);
         setIsLoadingReports(false);
       }
     };
@@ -359,14 +353,14 @@ export default function SummaryPage() {
       const dateStr = format(detectedDateRange.from, "yyyy-MM-dd");
       const dateEndStr = format(endDate, "yyyy-MM-dd");
 
-      const branchUuid = getBranchId(branches, previewReport.branch);
+      const branchUuid = getBranchUuid(previewReport.branch);
       if (!branchUuid) {
         toast({
           variant: "destructive",
-          title: "Branch not configured in Supabase",
+          title: "Branch not configured",
           description:
-            `The branch "${previewReport.branch}" does not exist in the Supabase "branches" table. ` +
-            `Please add it there (name="${previewReport.branch}") or run the latest database migration, then try again.`,
+            `The branch "${previewReport.branch}" does not exist or is inactive. ` +
+            `Please add it in Settings > Branch Management, then try again.`,
         });
         return;
       }
@@ -401,7 +395,7 @@ export default function SummaryPage() {
 
       toast({
         title: "Report successfully added.",
-        description: `Summary for ${BRANCHES.find((b) => b.id === savedReportWithId.branch)?.label ?? savedReportWithId.branch} on ${savedReportWithId.date} has been saved.`,
+        description: `Summary for ${getBranchLabel(savedReportWithId.branch)} on ${savedReportWithId.date} has been saved.`,
       });
     } catch (error) {
       console.error("Failed to save report:", error);
@@ -526,8 +520,7 @@ export default function SummaryPage() {
 
     filteredReports.forEach((report) => {
       const existing = byBranch.get(report.branch);
-      const branchName =
-        BRANCHES.find((b) => b.id === report.branch)?.label ?? report.branch;
+      const branchName = getBranchLabel(report.branch);
 
       if (!existing) {
         const totalsInit = {} as Record<Category, number>;
@@ -664,8 +657,8 @@ export default function SummaryPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All branches</SelectItem>
-                  {BRANCHES.map((branch) => (
-                    <SelectItem key={branch.id} value={branch.id}>
+                  {branchOptions.map((branch) => (
+                    <SelectItem key={branch.slug} value={branch.slug}>
                       {branch.label}
                     </SelectItem>
                   ))}
@@ -720,7 +713,7 @@ export default function SummaryPage() {
                   grandTotal={combinedSummaryForFilters.grandTotal}
                   grandQuantity={combinedSummaryForFilters.grandQuantity}
                   percents={combinedSummaryForFilters.percents as any}
-                branchLabel={filterBranch === "all" ? "All Branches" : (BRANCHES.find((b) => b.id === filterBranch)?.label || "Branch")}
+                branchLabel={filterBranch === "all" ? "All Branches" : getBranchLabel(filterBranch)}
                 branchBreakdown={allBranchesBreakdown ?? undefined}
                 />
               ) : (
@@ -743,7 +736,7 @@ export default function SummaryPage() {
                         <span className="flex items-center gap-1.5">
                           <MapPin className="h-4 w-4 text-primary" />
                           <span className="font-semibold text-primary">
-                            {BRANCHES.find((b) => b.id === activeReport.branch)?.label}
+                            {getBranchLabel(activeReport.branch)}
                           </span>
                         </span>
                         <span>
@@ -791,9 +784,7 @@ export default function SummaryPage() {
                     grandTotal={activeReport.grandTotal}
                     grandQuantity={activeReport.grandQuantity}
                     percents={activeReport.percentByCat}
-                    branchLabel={
-                      BRANCHES.find((b) => b.id === activeReport.branch)?.label || activeReport.branch
-                    }
+                    branchLabel={getBranchLabel(activeReport.branch)}
                   />
 
                   <DetailsTable rows={activeReport.rowDetails} />
@@ -837,8 +828,8 @@ export default function SummaryPage() {
                   <SelectValue placeholder="Choose a branch" />
                 </SelectTrigger>
                 <SelectContent>
-                  {BRANCHES.map((branch) => (
-                    <SelectItem key={branch.id} value={branch.id}>
+                  {branchOptions.map((branch) => (
+                    <SelectItem key={branch.slug} value={branch.slug}>
                       {branch.label}
                     </SelectItem>
                   ))}
@@ -940,8 +931,7 @@ export default function SummaryPage() {
                 </p>
                 <p className="text-sm">
                   <span className="font-semibold">Branch:</span>{" "}
-                  {BRANCHES.find((b) => b.id === reportPendingDelete.branch)?.label ??
-                    reportPendingDelete.branch}
+                  {getBranchLabel(reportPendingDelete.branch)}
                 </p>
                 <p className="text-sm">
                   <span className="font-semibold">Date:</span>{" "}
@@ -989,7 +979,7 @@ export default function SummaryPage() {
             </DialogTitle>
             {previewReport && (
               <p className="text-sm text-muted-foreground mt-1">
-                {BRANCHES.find((b) => b.id === previewReport.branch)?.label} •{" "}
+                {getBranchLabel(previewReport.branch)} •{" "}
                 {detectedDateRange.from &&
                 detectedDateRange.to &&
                 detectedDateRange.from.getTime() !== detectedDateRange.to.getTime()
@@ -1013,7 +1003,7 @@ export default function SummaryPage() {
                     Branch
                   </p>
                   <p className="text-base font-semibold">
-                    {BRANCHES.find((b) => b.id === previewReport.branch)?.label}
+                    {getBranchLabel(previewReport.branch)}
                   </p>
                 </div>
                 <div className="space-y-1">
@@ -1054,9 +1044,7 @@ export default function SummaryPage() {
                   grandTotal={previewReport.grandTotal}
                   grandQuantity={previewReport.grandQuantity}
                   percents={previewReport.percentByCat}
-                  branchLabel={
-                    BRANCHES.find((b) => b.id === previewReport.branch)?.label || previewReport.branch
-                  }
+                  branchLabel={getBranchLabel(previewReport.branch)}
                 />
               </div>
 

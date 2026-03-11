@@ -17,7 +17,7 @@ export const BRANCHES = [
    { id: "events", label: "Events" },
 ] as const;
 
-export type BranchId = typeof BRANCHES[number]["id"];
+export type BranchId = string;
 
 export const EMPTY_ROWS_TOP = 7;
 export const EMPTY_ROWS_MIDDLE = 3;
