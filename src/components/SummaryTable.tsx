@@ -100,11 +100,11 @@ export default function SummaryTable(props: Props) {
     });
     
     // Expanded breakdown:
-    // - If we have a branchBreakdown (All Branches view), show one row per branch,
+    // - If we have a branchBreakdown (combined view), show one row per branch,
     //   and allow clicking each child branch row to reveal its quantities.
     // - Otherwise, fall back to the original single quantities row behaviour.
     if (isExpanded) {
-      if (branchBreakdown && branchBreakdown.length > 0 && branchLabel === "All Branches") {
+      if (branchBreakdown && branchBreakdown.length > 0) {
         branchBreakdown.forEach((child) => {
           const childExpanded = expandedBranches.has(child.branchName);
 

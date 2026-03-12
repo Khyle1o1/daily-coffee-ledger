@@ -45,6 +45,8 @@ export type PourReportData = {
     walkinQty: number;
     grandTotal: number;
   };
+  /** Optional note: selected branches with no matching rows */
+  excludedBranches?: string[];
   /** Populated only when a single branch is selected */
   dailyBreakdown?: PourDailyRow[];
   /** Populated only when a single branch is selected */
@@ -60,7 +62,14 @@ export function computePourItForward(
   const { dateFrom, dateTo, branchId } = filters;
 
   const resolveBranchLabel = getBranchLabel ?? defaultGetBranchLabel;
-  const isSingleBranch = branchId !== "all";
+  const isSingleBranch = typeof branchId === "string" && branchId !== "all";
+
+  const selectedBranchIds: BranchId[] | null = Array.isArray(branchId)
+    ? (branchId as BranchId[])
+    : typeof branchId === "string" && branchId !== "all"
+      ? ([branchId as BranchId] as BranchId[])
+      : null;
+  const selectedBranchSet = selectedBranchIds ? new Set(selectedBranchIds) : null;
 
   const perBranch = new Map<
     BranchId,
@@ -100,7 +109,7 @@ export function computePourItForward(
   const end = new Date(dateTo);
 
   for (const report of reports) {
-    if (branchId !== "all" && report.branch !== branchId) continue;
+    if (selectedBranchSet && !selectedBranchSet.has(report.branch)) continue;
 
     const rowsInRange = filterRowsByDateRange(
       report.rowDetails.filter((row) => row.transactionDate instanceof Date) as any,
@@ -187,10 +196,18 @@ export function computePourItForward(
       .sort((a, b) => b.grandTotal - a.grandTotal);
   }
 
+  const excludedBranches =
+    selectedBranchIds && selectedBranchIds.length > 1
+      ? selectedBranchIds
+          .filter((id) => !perBranch.has(id))
+          .map((id) => resolveBranchLabel(id))
+      : undefined;
+
   return {
     title,
     rows,
     totals,
+    excludedBranches: excludedBranches && excludedBranches.length > 0 ? excludedBranches : undefined,
     dailyBreakdown,
     itemBreakdown,
   };

@@ -9,7 +9,7 @@ import { computeTop5ByChannelFromRows } from "./computeTop5ByChannel";
 // ============================================================================
 
 export interface ReportFilters {
-  branchId: string | "all";
+  branchId: string | "all" | string[];
   dateFrom: string;    // YYYY-MM-DD
   dateTo: string;      // YYYY-MM-DD
   compareFrom?: string | null;
@@ -79,9 +79,14 @@ export interface ComputedCategoryPerformance {
 
 function filterReportsByBranch(
   reports: DailyReport[],
-  branchId: string | "all"
+  branchId: string | "all" | string[]
 ): DailyReport[] {
   if (branchId === "all") return reports;
+  if (Array.isArray(branchId)) {
+    if (branchId.length === 0) return reports;
+    const set = new Set(branchId);
+    return reports.filter((r) => set.has(r.branch));
+  }
   return reports.filter((r) => r.branch === branchId);
 }
 

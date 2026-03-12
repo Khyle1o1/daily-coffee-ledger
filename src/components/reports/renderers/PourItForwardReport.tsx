@@ -47,7 +47,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 export default function PourItForwardReport({ data }: Props) {
-  const { title, rows, totals, dailyBreakdown, itemBreakdown } = data;
+  const { title, rows, totals, excludedBranches, dailyBreakdown, itemBreakdown } = data;
   const hasSingleBranch = !!(dailyBreakdown && itemBreakdown);
 
   return (
@@ -60,59 +60,78 @@ export default function PourItForwardReport({ data }: Props) {
         <h1 className="text-2xl font-extrabold text-[#1e3a5f] mt-1">{title}</h1>
       </div>
 
-      {/* ── Summary table (always shown) ────────────────────────────────── */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
-        <table className="w-full table-fixed border-collapse text-xs text-slate-900">
-          <colgroup>
-            <col style={{ width: COL_LABEL_W }} />
-            <col style={{ width: COL_NUM_W }} />
-            <col style={{ width: COL_NUM_W }} />
-            <col style={{ width: COL_NUM_W }} />
-            <col style={{ width: "160px" }} />
-          </colgroup>
-          <thead className="bg-[#1e3a5f] text-white">
-            <tr>
-              <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-wide">
-                Branch
-              </th>
-              <ChannelHead label="Foodpanda" />
-              <ChannelHead label="Grab" />
-              <ChannelHead label="Walk-in" />
-              <ChannelHead label="Grand Total" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.branchId} className="odd:bg-white even:bg-[#F7F9FC]">
-                <td className="px-4 py-2 text-left text-[12px] font-medium text-slate-800 truncate whitespace-nowrap overflow-hidden">
-                  {row.branchName}
-                </td>
-                <NumCell value={row.foodpandaQty} />
-                <NumCell value={row.grabQty} />
-                <NumCell value={row.walkinQty} />
-                <TotalCell value={row.grandTotal} />
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="bg-[#1e3a5f] text-white">
-              <td className="px-4 py-2 text-left text-[11px] font-bold">
-                Grand Total
-              </td>
-              {[totals.foodpandaQty, totals.grabQty, totals.walkinQty, totals.grandTotal].map(
-                (v, i) => (
-                  <td
-                    key={i}
-                    className="px-4 py-2 text-right text-[11px] font-bold tabular-nums"
-                  >
-                    {v.toLocaleString("en-PH")}
+      {/* ── Summary table / empty state ────────────────────────────────── */}
+      {rows.length === 0 ? (
+        <div className="mt-2 text-sm text-slate-400 text-center py-8 border border-dashed border-slate-200 rounded-2xl">
+          No transactions found for the selected branches in the chosen date range.
+        </div>
+      ) : (
+        <>
+          {excludedBranches && excludedBranches.length > 0 && (
+            <p className="text-xs text-slate-500 mb-2">
+              Some selected branches had no matching data and were excluded:{" "}
+              <span className="font-medium text-slate-700">
+                {excludedBranches.join(", ")}
+              </span>
+            </p>
+          )}
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
+            <table className="w-full table-fixed border-collapse text-xs text-slate-900">
+              <colgroup>
+                <col style={{ width: COL_LABEL_W }} />
+                <col style={{ width: COL_NUM_W }} />
+                <col style={{ width: COL_NUM_W }} />
+                <col style={{ width: COL_NUM_W }} />
+                <col style={{ width: "160px" }} />
+              </colgroup>
+              <thead className="bg-[#1e3a5f] text-white">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-wide">
+                    Branch
+                  </th>
+                  <ChannelHead label="Foodpanda" />
+                  <ChannelHead label="Grab" />
+                  <ChannelHead label="Walk-in" />
+                  <ChannelHead label="Grand Total" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.branchId} className="odd:bg-white even:bg-[#F7F9FC]">
+                    <td className="px-4 py-2 text-left text-[12px] font-medium text-slate-800 truncate whitespace-nowrap overflow-hidden">
+                      {row.branchName}
+                    </td>
+                    <NumCell value={row.foodpandaQty} />
+                    <NumCell value={row.grabQty} />
+                    <NumCell value={row.walkinQty} />
+                    <TotalCell value={row.grandTotal} />
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-[#1e3a5f] text-white">
+                  <td className="px-4 py-2 text-left text-[11px] font-bold">
+                    Grand Total
                   </td>
-                ),
-              )}
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                  {[
+                    totals.foodpandaQty,
+                    totals.grabQty,
+                    totals.walkinQty,
+                    totals.grandTotal,
+                  ].map((v, i) => (
+                    <td
+                      key={i}
+                      className="px-4 py-2 text-right text-[11px] font-bold tabular-nums"
+                    >
+                      {v.toLocaleString("en-PH")}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
 
       {/* ── Single-branch detail ─────────────────────────────────────────── */}
       {hasSingleBranch && (

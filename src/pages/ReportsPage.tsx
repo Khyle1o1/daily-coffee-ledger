@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -136,7 +137,7 @@ export default function ReportsPage() {
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const [reportType, setReportType] = useState<ReportType>("SALES_MIX_OVERVIEW");
-  const [filterBranch, setFilterBranch] = useState<BranchId | "all">("all");
+  const [filterBranches, setFilterBranches] = useState<BranchId[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({
     from: undefined,
     to: undefined,
@@ -187,10 +188,19 @@ export default function ReportsPage() {
   }, [toast]);
 
   // ── Derived labels ────────────────────────────────────────────────────────
-  const branchLabel = useMemo(() => {
-    if (filterBranch === "all") return "All Branches";
-    return getBranchLabel(filterBranch);
-  }, [filterBranch, getBranchLabel]);
+  const selectedBranchNamesLabel = useMemo(() => {
+    if (filterBranches.length === 0) return "All Branches";
+    const names = filterBranches
+      .map((b) => getBranchLabel(b))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+
+    if (names.length <= 3) return names.join(", ");
+    const shown = names.slice(0, 3).join(", ");
+    return `${shown} +${names.length - 3}`;
+  }, [filterBranches, getBranchLabel]);
+
+  const branchLabel = useMemo(() => selectedBranchNamesLabel, [selectedBranchNamesLabel]);
 
   const dateRangeLabel = useMemo(() => {
     if (!dateRange.from) return "All dates";
@@ -243,8 +253,15 @@ export default function ReportsPage() {
         ? format(compareDateRange.to, "yyyy-MM-dd")
         : compareFrom;
 
+    const branchFilter: ReportFilters["branchId"] =
+      filterBranches.length === 0
+        ? "all"
+        : filterBranches.length === 1
+          ? filterBranches[0]
+          : [...filterBranches];
+
     return {
-      branchId: filterBranch,
+      branchId: branchFilter,
       dateFrom: from,
       dateTo: to,
       compareFrom,
@@ -255,7 +272,7 @@ export default function ReportsPage() {
     dateRange,
     compareMode,
     compareDateRange,
-    filterBranch,
+    filterBranches,
     selectedCategories,
   ]);
 
@@ -383,7 +400,7 @@ export default function ReportsPage() {
       const typeOption = REPORT_TYPE_OPTIONS.find((o) => o.value === reportType);
       const title = `${typeOption?.label ?? reportType} • ${branchLabel} • ${dateRangeLabel}`;
       const branchId =
-        filterBranch === "all" ? null : (getBranchUuid(filterBranch) ?? null);
+        filterBranches.length === 1 ? (getBranchUuid(filterBranches[0]) ?? null) : null;
 
       const saved = await saveGeneratedReport({
         title,
@@ -396,7 +413,12 @@ export default function ReportsPage() {
         compareTo: filters.compareTo ?? null,
         selectedCategories: selectedCategories.map(String),
         filters: {
-          branchId: filterBranch,
+          branchId:
+            filterBranches.length === 0
+              ? "all"
+              : filterBranches.length === 1
+                ? filterBranches[0]
+                : [...filterBranches],
           dateFrom: filters.dateFrom,
           dateTo: filters.dateTo,
           compareFrom: filters.compareFrom,
@@ -449,7 +471,7 @@ export default function ReportsPage() {
     runningCategory,
     channelCategory,
     getBranchUuid,
-    filterBranch,
+    filterBranches,
     toast,
   ]);
 
@@ -483,7 +505,12 @@ export default function ReportsPage() {
     if (!canvasData) return;
     setIsExporting(true);
     try {
-      const branchSlug = filterBranch === "all" ? "all-branches" : filterBranch;
+      const branchSlug =
+        filterBranches.length === 0
+          ? "all-branches"
+          : filterBranches.length === 1
+            ? filterBranches[0]
+            : "multi-branches";
       const fromStr = dateRange.from ? format(dateRange.from, "yyyy-MM-dd") : "all";
       const toStr = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : fromStr;
       const filename = `DOTCoffee_${canvasData.reportType}_${branchSlug}_${fromStr}_${toStr}.pdf`;
@@ -499,14 +526,19 @@ export default function ReportsPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [canvasData, filterBranch, dateRange, branchLabel]);
+  }, [canvasData, filterBranches, dateRange, branchLabel]);
 
   // ── Excel export ──────────────────────────────────────────────────────────
   const handleExportExcel = useCallback(() => {
     if (!canvasData) return;
     setIsExportingExcel(true);
     try {
-      const branchSlug = filterBranch === "all" ? "all-branches" : filterBranch;
+      const branchSlug =
+        filterBranches.length === 0
+          ? "all-branches"
+          : filterBranches.length === 1
+            ? filterBranches[0]
+            : "multi-branches";
       const fromStr = dateRange.from ? format(dateRange.from, "yyyy-MM-dd") : "all";
       const toStr = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : fromStr;
       const filename = `DOTCoffee_${canvasData.reportType}_${branchSlug}_${fromStr}_${toStr}.xlsx`;
@@ -522,12 +554,12 @@ export default function ReportsPage() {
     } finally {
       setIsExportingExcel(false);
     }
-  }, [canvasData, filterBranch, dateRange, branchLabel]);
+  }, [canvasData, filterBranches, dateRange, branchLabel]);
 
   // ── Reset filters ─────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     setReportType("SALES_MIX_OVERVIEW");
-    setFilterBranch("all");
+    setFilterBranches([]);
     setDateRange({ from: undefined, to: undefined });
     setCompareMode(false);
     setCompareDateRange({ from: undefined, to: undefined });
@@ -632,23 +664,87 @@ export default function ReportsPage() {
                 <Label className="text-xs text-slate-500 uppercase tracking-wider">
                   Branch
                 </Label>
-                <Select
-                  value={filterBranch}
-                  onValueChange={(v) => setFilterBranch(v as BranchId | "all")}
-                >
-                  <SelectTrigger className="w-full rounded-xl text-sm border-slate-200">
-                    <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
-                    <SelectValue placeholder="All branches" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Branches</SelectItem>
-                    {branchOptions.map((b) => (
-                      <SelectItem key={b.slug} value={b.slug}>
-                        {b.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left text-sm rounded-xl border-slate-200 font-normal bg-white text-slate-900"
+                    >
+                      <MapPin className="h-3.5 w-3.5 mr-1.5 text-slate-400 shrink-0" />
+                      <span className={cn("truncate", filterBranches.length === 0 && "text-slate-400")}>
+                        {filterBranches.length === 0
+                          ? "All branches"
+                          : filterBranches.length === 1
+                            ? getBranchLabel(filterBranches[0])
+                            : `${filterBranches.length} branches`}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-3 rounded-2xl" align="start">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-sm font-semibold text-slate-900">Branches</p>
+                      {filterBranches.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={() => setFilterBranches([])}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 py-2 px-2 rounded-xl hover:bg-slate-50">
+                      <Checkbox
+                        checked={filterBranches.length === 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) setFilterBranches([]);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="flex-1 text-left text-sm text-slate-900"
+                        onClick={() => setFilterBranches([])}
+                      >
+                        All branches
+                      </button>
+                    </div>
+
+                    <div className="mt-2 max-h-[260px] overflow-auto pr-1">
+                      {branchOptions.map((b) => {
+                        const id = b.slug as BranchId;
+                        const isChecked = filterBranches.includes(id);
+                        return (
+                          <div
+                            key={b.slug}
+                            className="flex items-center gap-2 py-2 px-2 rounded-xl hover:bg-slate-50"
+                          >
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={(checked) => {
+                                setFilterBranches((prev) => {
+                                  if (checked) return prev.includes(id) ? prev : [...prev, id];
+                                  return prev.filter((x) => x !== id);
+                                });
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="flex-1 text-left text-sm text-slate-900"
+                              onClick={() => {
+                                setFilterBranches((prev) =>
+                                  prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+                                );
+                              }}
+                            >
+                              {b.label}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Date range */}
