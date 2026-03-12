@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -90,7 +91,7 @@ export default function SummaryPage() {
 
   // Filters for the main summary view
   const [filterDateRange, setFilterDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const [filterBranch, setFilterBranch] = useState<BranchId | "all">("all");
+  const [filterBranches, setFilterBranches] = useState<BranchId[]>([]);
 
   // Mapping table (kept internal, no manual upload in UI)
   const [mappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
@@ -501,7 +502,7 @@ export default function SummaryPage() {
     if (!dailyReports.length) return [];
 
     return dailyReports.filter((report) => {
-      if (filterBranch !== "all" && report.branch !== filterBranch) return false;
+      if (filterBranches.length > 0 && !filterBranches.includes(report.branch)) return false;
 
       if (filterDateRange.from) {
         const from = filterDateRange.from;
@@ -512,7 +513,7 @@ export default function SummaryPage() {
 
       return true;
     });
-  }, [dailyReports, filterBranch, filterDateRange]);
+  }, [dailyReports, filterBranches, filterDateRange]);
 
   const activeReport = useMemo(
     () => filteredReports.find((r) => r.id === activeReportId) || null,
@@ -551,7 +552,9 @@ export default function SummaryPage() {
   }, [filteredReports]);
 
   const allBranchesBreakdown = useMemo(() => {
-    if (!filteredReports.length || filterBranch !== "all") return null;
+    // Show breakdown only when filtering across multiple branches (or "all")
+    if (!filteredReports.length) return null;
+    if (filterBranches.length === 1) return null;
 
     const byBranch = new Map<BranchId, {
       branchId: BranchId;
@@ -598,7 +601,13 @@ export default function SummaryPage() {
     return Array.from(byBranch.values()).sort((a, b) =>
       a.branchName.localeCompare(b.branchName),
     );
-  }, [filteredReports, filterBranch]);
+  }, [filteredReports, filterBranches]);
+
+  const branchFilterLabel = useMemo(() => {
+    if (filterBranches.length === 0) return "All branches";
+    if (filterBranches.length === 1) return getBranchLabel(filterBranches[0]);
+    return `${filterBranches.length} branches`;
+  }, [filterBranches, getBranchLabel]);
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
@@ -712,24 +721,82 @@ export default function SummaryPage() {
             )}
 
             {/* Branch Filter */}
-            <Select
-              value={filterBranch}
-              onValueChange={(value) => setFilterBranch(value as BranchId | "all")}
-              disabled={isLoadingBranches}
-            >
-              <SelectTrigger className="w-[220px] px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all">
-                <MapPin className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="All branches" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All branches</SelectItem>
-                {branchOptions.map((branch) => (
-                  <SelectItem key={branch.slug} value={branch.slug}>
-                    {branch.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={isLoadingBranches}
+                  className="w-[220px] justify-start px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all"
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  <span className="truncate">{branchFilterLabel}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-3 rounded-2xl" align="start">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-sm font-semibold text-card-foreground">Branches</p>
+                  {filterBranches.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => setFilterBranches([])}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 py-2 px-2 rounded-xl hover:bg-muted/40">
+                  <Checkbox
+                    checked={filterBranches.length === 0}
+                    onCheckedChange={(checked) => {
+                      if (checked) setFilterBranches([]);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="flex-1 text-left text-sm text-card-foreground"
+                    onClick={() => setFilterBranches([])}
+                  >
+                    All branches
+                  </button>
+                </div>
+
+                <div className="mt-2 max-h-[260px] overflow-auto pr-1">
+                  {branchOptions.map((branch) => {
+                    const id = branch.slug as BranchId;
+                    const isChecked = filterBranches.includes(id);
+                    return (
+                      <div
+                        key={branch.slug}
+                        className="flex items-center gap-2 py-2 px-2 rounded-xl hover:bg-muted/40"
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            setFilterBranches((prev) => {
+                              if (checked) return prev.includes(id) ? prev : [...prev, id];
+                              return prev.filter((b) => b !== id);
+                            });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="flex-1 text-left text-sm text-card-foreground"
+                          onClick={() => {
+                            setFilterBranches((prev) =>
+                              prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id],
+                            );
+                          }}
+                        >
+                          {branch.label}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Right-side actions */}
             <div className="ml-auto flex items-center gap-3">
@@ -818,9 +885,11 @@ export default function SummaryPage() {
                 grandQuantity={combinedSummaryForFilters.grandQuantity}
                 percents={combinedSummaryForFilters.percents as any}
                 branchLabel={
-                  filterBranch === "all"
+                  filterBranches.length === 0
                     ? "All Branches"
-                    : getBranchLabel(filterBranch)
+                    : filterBranches.length === 1
+                      ? getBranchLabel(filterBranches[0])
+                      : `${filterBranches.length} Branches`
                 }
                 branchBreakdown={allBranchesBreakdown ?? undefined}
               />
