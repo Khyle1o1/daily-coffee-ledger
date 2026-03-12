@@ -172,7 +172,7 @@ export async function saveDailyReport(
           user_id: user.id,
         },
         {
-          onConflict: 'user_id,branch_id,report_date',
+          onConflict: 'branch_id,report_date',
         }
       )
       .select('*, branch:branches(*)')
@@ -336,7 +336,7 @@ export async function saveMonthlyReport(
           user_id: user.id,
         },
         {
-          onConflict: 'user_id,branch_id,month_key',
+          onConflict: 'branch_id,month_key',
         }
       )
       .select('*, branch:branches(*)')

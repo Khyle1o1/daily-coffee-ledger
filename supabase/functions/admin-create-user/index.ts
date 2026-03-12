@@ -12,19 +12,6 @@ const corsHeaders: Record<string, string> = {
 
 type UserRole = 'admin' | 'user';
 
-function decodeJwtPayload(token: string): { iss?: string; aud?: string | string[]; exp?: number } | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length < 2) return null;
-    const b64url = parts[1];
-    const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(b64url.length / 4) * 4, '=');
-    const json = atob(b64);
-    return JSON.parse(json) as { iss?: string; aud?: string | string[]; exp?: number };
-  } catch {
-    return null;
-  }
-}
-
 serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -37,6 +24,7 @@ serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  // These are automatically injected by Supabase for every deployed function.
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -50,56 +38,33 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    // Be defensive: in some environments duplicate headers may get concatenated with commas.
-    // Also ensure we strip "Bearer " case-insensitively and only use the first token-ish value.
-    const token = authHeader
-      .split(',')[0]
-      .replace(/^bearer\s+/i, '')
-      .trim();
+    // -----------------------------------------------------------------------
+    // 1. Validate the calling user's JWT using the RECOMMENDED Supabase pattern.
+    //    Create a user-scoped client (anon key + caller's Authorization header)
+    //    and call getUser() with no args — Supabase verifies the token internally.
+    //    Using adminClient.auth.getUser(token) is NOT the correct pattern and
+    //    is what causes "Invalid JWT" errors.
+    // -----------------------------------------------------------------------
+    const authorizationHeader = req.headers.get('Authorization') ?? '';
 
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: missing Bearer token' }), {
+    if (!authorizationHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: missing Authorization header' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Permanent diagnosis: "Invalid JWT" almost always means the function is validating
-    // a token issued by a DIFFERENT Supabase project (mismatched SUPABASE_URL/SERVICE_ROLE_KEY),
-    // or an expired token. Decode (without verifying) to detect those cases early.
-    const tokenParts = token.split('.').length;
-    const payload = decodeJwtPayload(token);
-    const host = (() => {
-      try {
-        return new URL(supabaseUrl).host;
-      } catch {
-        return '';
-      }
-    })();
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authorizationHeader } },
+      auth: { persistSession: false },
+    });
 
-    if (tokenParts !== 3) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: malformed JWT', tokenParts }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
 
-    if (payload?.exp && payload.exp * 1000 < Date.now()) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: access token expired' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (payload?.iss && host && !payload.iss.includes(host)) {
+    if (userError || !user) {
+      console.error('Failed to validate caller JWT:', userError);
       return new Response(
-        JSON.stringify({
-          error:
-            'Unauthorized: JWT issuer does not match this Supabase project. Redeploy the function with matching SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.',
-          expectedHost: host,
-          tokenIssuer: payload.iss,
-        }),
+        JSON.stringify({ error: userError?.message ?? 'Unauthorized: invalid or expired session' }),
         {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -107,35 +72,17 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Single admin client (service role) used both to validate the token
-    // and perform privileged operations. The service role key never leaves
-    // the Edge Function environment.
+    // -----------------------------------------------------------------------
+    // 2. Use the service-role admin client for all privileged operations.
+    // -----------------------------------------------------------------------
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
     });
 
-    // Validate the access token and get the calling user
-    const {
-      data: { user },
-      error: userError,
-    } = await adminClient.auth.getUser(token);
-
-    if (userError || !user) {
-      console.error('auth.getUser(token) error:', userError);
-      return new Response(
-        JSON.stringify({
-          error: userError?.message || 'Unauthorized: invalid or expired access token',
-          tokenParts,
-        }),
-        {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
-      );
-    }
-
-    // Verify caller is admin via user_profiles
-    const { data: profile, error: profileError } = await adminClient
+    // -----------------------------------------------------------------------
+    // 3. Confirm the calling user is an admin via user_profiles.
+    // -----------------------------------------------------------------------
+    const { data: callerProfile, error: profileError } = await adminClient
       .from('user_profiles')
       .select('role')
       .eq('user_id', user.id)
@@ -149,13 +96,16 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    if (!profile || profile.role !== 'admin') {
+    if (!callerProfile || callerProfile.role !== 'admin') {
       return new Response(JSON.stringify({ error: 'Forbidden: admin access required' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // -----------------------------------------------------------------------
+    // 4. Parse and validate the request body.
+    // -----------------------------------------------------------------------
     const body = (await req.json().catch(() => ({}))) as {
       email?: string;
       password?: string;
@@ -180,7 +130,9 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    // Create auth user using Admin API
+    // -----------------------------------------------------------------------
+    // 5. Create the auth user and profile row.
+    // -----------------------------------------------------------------------
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
       password,
@@ -199,13 +151,15 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (!authData.user) {
-      return new Response(JSON.stringify({ error: 'Failed to create auth user: No user returned' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'Failed to create auth user: No user returned' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
     }
 
-    // Create corresponding user_profiles row
     const { data: profileData, error: insertError } = await adminClient
       .from('user_profiles')
       .insert({
@@ -234,20 +188,23 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const responseProfile = {
-      id: profileData.id,
-      user_id: profileData.user_id,
-      email: profileData.email,
-      role: profileData.role as UserRole,
-      created_by: profileData.created_by,
-      created_at: profileData.created_at,
-      updated_at: profileData.updated_at,
-    };
-
-    return new Response(JSON.stringify({ profile: responseProfile }), {
-      status: 201,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        profile: {
+          id: profileData.id,
+          user_id: profileData.user_id,
+          email: profileData.email,
+          role: profileData.role as UserRole,
+          created_by: profileData.created_by,
+          created_at: profileData.created_at,
+          updated_at: profileData.updated_at,
+        },
+      }),
+      {
+        status: 201,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
   } catch (err) {
     console.error('Unhandled error in admin-create-user function:', err);
     return new Response(JSON.stringify({ error: 'Unexpected server error' }), {
@@ -256,4 +213,3 @@ serve(async (req: Request): Promise<Response> => {
     });
   }
 });
-

@@ -12,6 +12,7 @@ import AppShell from "./layout/AppShell";
 import SummaryPage from "./pages/SummaryPage";
 import ReportsPage from "./pages/ReportsPage";
 import UserManagementPage from "./pages/UserManagementPage";
+import ActivityLogsPage from "./pages/ActivityLogsPage";
 import DirectoryPage from "./pages/DirectoryPage";
 import DirectoryGoPage from "./pages/DirectoryGoPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="summary" element={<SummaryPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="users" element={<UserManagementPage />} />
+              <Route path="activity-logs" element={<ActivityLogsPage />} />
               <Route path="directory" element={<DirectoryPage />} />
               <Route path="directory/go/:id" element={<DirectoryGoPage />} />
               <Route path="settings" element={<SettingsPage />} />

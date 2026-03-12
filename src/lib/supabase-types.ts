@@ -59,7 +59,7 @@ export interface SaveMonthlyReportPayload {
 // USER PROFILE TYPES (ADMIN SYSTEM)
 // ============================================================================
 
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'user' | 'viewer';
 
 export interface UserProfile {
   id: string;
@@ -69,6 +69,8 @@ export interface UserProfile {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  is_archived: boolean;
+  archived_at: string | null;
 }
 
 export interface CreateUserPayload {
@@ -79,6 +81,81 @@ export interface CreateUserPayload {
 
 export interface UpdateUserPayload {
   role?: UserRole;
+}
+
+// ============================================================================
+// AUDIT LOG TYPES
+// ============================================================================
+
+export type AuditAction =
+  | 'login'
+  | 'logout'
+  | 'add_data'
+  | 'edit_data'
+  | 'delete_data'
+  | 'generate_report'
+  | 'export_report'
+  | 'create_user'
+  | 'update_user'
+  | 'delete_user'
+  | 'change_role'
+  | 'reset_password'
+  | 'create_branch'
+  | 'update_branch'
+  | 'create_mapping'
+  | 'update_mapping'
+  | 'delete_mapping';
+
+export type AuditModule =
+  | 'auth'
+  | 'summary'
+  | 'reports'
+  | 'user_management'
+  | 'settings'
+  | 'branches'
+  | 'mappings';
+
+export interface AuditLog {
+  id: string;
+  user_id: string | null;
+  user_email: string;
+  user_role: string;
+  action: AuditAction;
+  module: AuditModule;
+  target_type: string | null;
+  target_id: string | null;
+  target_name: string | null;
+  details: string | null;
+  metadata: Record<string, any>;
+  branch_id: string | null;
+  report_type: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface LogAuditEventPayload {
+  action: AuditAction;
+  module: AuditModule;
+  targetType?: string;
+  targetId?: string;
+  targetName?: string;
+  details?: string;
+  metadata?: Record<string, any>;
+  branchId?: string | null;
+  reportType?: string | null;
+}
+
+export interface ListAuditLogsParams {
+  userId?: string;
+  action?: AuditAction;
+  module?: AuditModule;
+  branchId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 // ============================================================================

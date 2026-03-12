@@ -71,9 +71,13 @@ import {
 } from "@/services/reportsService";
 import { dailyReportToJSON, dailyReportsFromRows } from "@/services/reportConverter";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
+import { useAuth } from "@/auth/useAuth";
+import { canAddData, canEditData, canDeleteData } from "@/lib/permissions";
+import { logEvent } from "@/services/auditService";
 
 export default function SummaryPage() {
   const { toast } = useToast();
+  const { role } = useAuth();
   const { branchOptions, isLoading: isLoadingBranches, getBranchLabel, getBranchUuid } = useLiveBranches();
 
   const [isLoadingReports, setIsLoadingReports] = useState(false);
@@ -410,6 +414,20 @@ export default function SummaryPage() {
       setIsPreviewOpen(false);
       resetAddModal();
 
+      void logEvent({
+        action: 'add_data',
+        module: 'summary',
+        targetId: savedReport.id,
+        targetName: `${getBranchLabel(savedReportWithId.branch)} — ${savedReportWithId.date}`,
+        details: `Uploaded data for ${getBranchLabel(savedReportWithId.branch)} on ${savedReportWithId.date}`,
+        metadata: {
+          branch: savedReportWithId.branch,
+          date: savedReportWithId.date,
+          filename: previewReport.filename,
+          totalRows: previewReport.totalRows,
+        },
+      });
+
       toast({
         title: "Report successfully added.",
         description: `Summary for ${getBranchLabel(savedReportWithId.branch)} on ${savedReportWithId.date} has been saved.`,
@@ -441,6 +459,15 @@ export default function SummaryPage() {
     try {
       setIsDeleting(true);
       await deleteDailyReport(reportPendingDelete.id);
+
+      void logEvent({
+        action: 'delete_data',
+        module: 'summary',
+        targetId: reportPendingDelete.id,
+        targetName: `${getBranchLabel(reportPendingDelete.branch)} — ${reportPendingDelete.date}`,
+        details: `Deleted daily report for ${getBranchLabel(reportPendingDelete.branch)} on ${reportPendingDelete.date}`,
+        metadata: { branch: reportPendingDelete.branch, date: reportPendingDelete.date },
+      });
 
       setDailyReports((prev) =>
         prev.filter((r) => r.id !== reportPendingDelete.id),
@@ -721,15 +748,17 @@ export default function SummaryPage() {
                 )}
               </Button>
 
-              {/* Add Data */}
-              <Button
-                size="lg"
-                className="rounded-full px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2"
-                onClick={handleOpenAddModal}
-              >
-                <PlusCircle className="h-5 w-5" />
-                ADD DATA
-              </Button>
+              {/* Add Data — hidden for Viewer role */}
+              {canAddData(role) && (
+                <Button
+                  size="lg"
+                  className="rounded-full px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2"
+                  onClick={handleOpenAddModal}
+                >
+                  <PlusCircle className="h-5 w-5" />
+                  ADD DATA
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -842,14 +871,16 @@ export default function SummaryPage() {
                       </span>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRequestDeleteReport(activeReport.id)}
-                    className="rounded-full border-red-200 text-red-600 hover:bg-red-50 shrink-0"
-                  >
-                    Delete data
-                  </Button>
+                  {canDeleteData(role) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRequestDeleteReport(activeReport.id)}
+                      className="rounded-full border-red-200 text-red-600 hover:bg-red-50 shrink-0"
+                    >
+                      Delete data
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="space-y-6">
@@ -901,7 +932,7 @@ export default function SummaryPage() {
                 handleMonthSelect(key);
                 setIsHistoryOpen(false);
               }}
-              onDelete={handleRequestDeleteReport}
+              onDelete={canDeleteData(role) ? handleRequestDeleteReport : undefined}
             />
           </div>
         </SheetContent>

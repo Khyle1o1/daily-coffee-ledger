@@ -1,7 +1,8 @@
 // User Service - Admin User Management
 // Handles user creation, profile management, and role checks
 
-import { supabase, handleSupabaseError, SUPABASE_ANON_KEY } from '@/lib/supabaseClient';
+import { supabase, handleSupabaseError } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { UserProfile, CreateUserPayload, UpdateUserPayload } from '@/lib/supabase-types';
 import { requireAdminUser } from '@/lib/api/authGuards';
 
@@ -130,85 +131,42 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
  */
 export async function createUser(payload: CreateUserPayload): Promise<UserProfile> {
   try {
-    // Quick client-side admin check (server will still verify)
-    await requireAdminUser();
+    const { userId: currentUserId } = await requireAdminUser();
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const email = payload.email.trim();
+    const password = payload.password ?? '';
+    const validRoles = ['admin', 'user', 'viewer'] as const;
+    const role: typeof validRoles[number] = validRoles.includes(payload.role as typeof validRoles[number])
+      ? (payload.role as typeof validRoles[number])
+      : 'user';
 
-    // Ensure we have a fresh access token (helps when auto-refresh hasn't run yet)
-    const {
-      data: { session: refreshedSession },
-    } = await supabase.auth.refreshSession();
+    if (!email) throw new Error('Email is required');
+    if (!password || password.length < 6) throw new Error('Password must be at least 6 characters');
 
-    const accessToken = refreshedSession?.access_token ?? session?.access_token;
-    const tokenParts = accessToken ? accessToken.split('.').length : 0;
-
-    if (!accessToken || tokenParts !== 3) {
-      // If this happens while you're "signed in", the session in storage is corrupted or missing.
-      throw new Error('Authentication session is invalid. Please sign out and sign in again.');
-    }
-
-    const { data, error } = await supabase.functions.invoke('admin-create-user', {
-      body: {
-        email: payload.email,
-        password: payload.password,
-        role: payload.role || 'user',
-      },
-      // Be explicit to avoid any edge cases where the invoke call doesn't attach auth
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`,
-      },
+    // Create the auth user with service-role client (bypasses RLS, no edge function needed)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
     });
 
-    if (error) {
-      // supabase-js wraps function errors; try to extract the function's JSON error message
-      const anyErr = error as unknown as { status?: number; message?: string; context?: unknown };
-      const ctx = anyErr.context as any;
+    if (authError) throw new Error(`Failed to create auth user: ${authError.message}`);
+    if (!authData.user) throw new Error('Failed to create auth user: no user returned');
 
-      const status: number | undefined =
-        anyErr.status ??
-        (typeof ctx?.status === 'number' ? ctx.status : undefined) ??
-        (typeof ctx?.statusCode === 'number' ? ctx.statusCode : undefined);
+    // Insert the matching user_profiles row
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .insert({ user_id: authData.user.id, email, role, created_by: currentUserId })
+      .select('*')
+      .single();
 
-      let serverMessage: string | undefined;
-      // supabase-js v2 typically provides a Response in `context`, but `instanceof Response`
-      // can fail across realms/bundles; use duck-typing instead.
-      if (ctx && typeof ctx === 'object') {
-        try {
-          if (typeof ctx.clone === 'function' && typeof ctx.json === 'function') {
-            const json = (await ctx.clone().json()) as { error?: string; message?: string };
-            serverMessage = json?.error ?? json?.message;
-          } else if (typeof ctx.json === 'function') {
-            const json = (await ctx.json()) as { error?: string; message?: string };
-            serverMessage = json?.error ?? json?.message;
-          } else if (typeof ctx.body === 'string') {
-            const parsed = JSON.parse(ctx.body) as { error?: string; message?: string };
-            serverMessage = parsed?.error ?? parsed?.message;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      const message = serverMessage
-        ? serverMessage
-        : status === 401
-          ? 'You must be signed in to create users'
-          : status === 403
-            ? 'Only admins can create users'
-            : anyErr.message || 'Failed to create user';
-      throw new Error(message);
+    if (profileError) {
+      // Roll back the auth user so we don't leave orphans
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id).catch(() => null);
+      throw new Error(`Failed to create user profile: ${profileError.message}`);
     }
 
-    const body = data as { profile?: UserProfile; error?: string } | null;
-    if (!body?.profile) {
-      throw new Error(body?.error || 'Failed to create user: missing profile data from server');
-    }
-
-    return body.profile;
+    return profile as UserProfile;
   } catch (error) {
     console.error('createUser error:', error);
     throw new Error(handleSupabaseError(error));
@@ -343,5 +301,86 @@ export async function resetUserPassword(
   } catch (error) {
     console.error('resetUserPassword error:', error);
     throw new Error(handleSupabaseError(error));
+  }
+}
+
+/**
+ * Archive a user — marks them as archived and bans their auth account so
+ * they cannot sign in. Their data and audit logs are preserved.
+ */
+export async function archiveUser(userId: string): Promise<void> {
+  try {
+    await requireAdminUser();
+
+    const { error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .update({ is_archived: true, archived_at: new Date().toISOString() })
+      .eq('user_id', userId);
+
+    if (profileError) throw new Error(`Failed to archive user profile: ${profileError.message}`);
+
+    // Ban the auth account so they can't sign in (100 years)
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: '876600h',
+    });
+
+    if (authError) throw new Error(`Failed to ban auth account: ${authError.message}`);
+  } catch (error) {
+    console.error('archiveUser error:', error);
+    throw new Error(handleSupabaseError(error));
+  }
+}
+
+/**
+ * Restore a previously archived user — unsets the archive flag and lifts the
+ * auth ban so they can sign in again.
+ */
+export async function restoreUser(userId: string): Promise<void> {
+  try {
+    await requireAdminUser();
+
+    const { error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .update({ is_archived: false, archived_at: null })
+      .eq('user_id', userId);
+
+    if (profileError) throw new Error(`Failed to restore user profile: ${profileError.message}`);
+
+    // Lift the auth ban
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: 'none',
+    });
+
+    if (authError) throw new Error(`Failed to restore auth account: ${authError.message}`);
+  } catch (error) {
+    console.error('restoreUser error:', error);
+    throw new Error(handleSupabaseError(error));
+  }
+}
+
+/**
+ * Returns a map of userId → audit log count for each given user ID.
+ * Used to decide whether a user can be hard-deleted or must be archived.
+ */
+export async function getActivityCountsForUsers(
+  userIds: string[]
+): Promise<Record<string, number>> {
+  if (userIds.length === 0) return {};
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('audit_logs')
+      .select('user_id')
+      .in('user_id', userIds);
+
+    if (error) throw new Error(error.message);
+
+    const counts: Record<string, number> = {};
+    for (const row of data ?? []) {
+      if (row.user_id) counts[row.user_id] = (counts[row.user_id] ?? 0) + 1;
+    }
+    return counts;
+  } catch (error) {
+    console.error('getActivityCountsForUsers error:', error);
+    return {};
   }
 }

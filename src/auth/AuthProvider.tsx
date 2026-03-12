@@ -2,13 +2,16 @@ import { createContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { getCurrentUserProfile, isCurrentUserAdmin } from '@/services/userService';
-import type { UserProfile } from '@/lib/supabase-types';
+import { logEvent } from '@/services/auditService';
+import type { UserProfile, UserRole } from '@/lib/supabase-types';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
+  role: UserRole | null;
   isAdmin: boolean;
+  isViewer: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
@@ -39,7 +42,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isViewer, setIsViewer] = useState(false);
   const [loading, setLoading] = useState(true);
   
   const isLoadingProfile = useRef(false);
@@ -93,7 +98,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!currentUser) {
       console.log('[AuthProvider] ❌ No current user, skipping profile load');
       setProfile(null);
+      setRole(null);
       setIsAdmin(false);
+      setIsViewer(false);
       clearCachedProfile();
       lastLoadedUserId.current = null;
       return;
@@ -158,10 +165,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         profile: userProfile
       });
 
+      const userRole = (userProfile?.role ?? null) as UserRole | null;
       setProfile(userProfile);
+      setRole(userRole);
       setIsAdmin(adminStatus);
-      // Only cache when we got a real profile back; a null profile with
-      // isAdmin=false likely means the DB call failed — don't cache that.
+      setIsViewer(userRole === 'viewer');
       if (userProfile !== null) {
         setCachedProfile(currentUser.id, userProfile, adminStatus);
       }
@@ -169,7 +177,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.error('[AuthProvider] 💥 EXCEPTION loading profile:', error);
       setProfile(null);
+      setRole(null);
       setIsAdmin(false);
+      setIsViewer(false);
     } finally {
       isLoadingProfile.current = false;
     }
@@ -240,10 +250,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (!error && data.user) {
+        void logEvent({ action: 'login', module: 'auth', details: `${email} signed in` });
+      }
       return { error };
     } catch (error) {
       return { error: error as AuthError };
@@ -304,7 +314,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     session,
     profile,
+    role,
     isAdmin,
+    isViewer,
     loading,
     signIn,
     signUp,

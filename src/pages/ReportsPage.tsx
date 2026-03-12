@@ -58,6 +58,9 @@ import {
 } from "@/services/reportsService";
 import { dailyReportsFromRows } from "@/services/reportConverter";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
+import { useAuth } from "@/auth/useAuth";
+import { canDeleteData } from "@/lib/permissions";
+import { logEvent } from "@/services/auditService";
 
 import {
   computeCategoryTotals,
@@ -122,6 +125,7 @@ interface DateRange {
 
 export default function ReportsPage() {
   const { toast } = useToast();
+  const { role } = useAuth();
   const canvasRef = useRef<HTMLDivElement>(null);
   const { branchOptions, getBranchLabel, getBranchUuid } = useLiveBranches();
 
@@ -403,6 +407,25 @@ export default function ReportsPage() {
       });
 
       setHistory((prev) => [saved, ...prev]);
+
+      void logEvent({
+        action: 'generate_report',
+        module: 'reports',
+        targetId: saved.id,
+        targetName: title,
+        details: `Generated ${REPORT_TYPE_OPTIONS.find(o => o.value === reportType)?.label ?? reportType} for ${branchLabel}`,
+        reportType,
+        branchId: branchId ?? undefined,
+        metadata: {
+          reportType,
+          branch: branchLabel,
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          compareFrom: filters.compareFrom ?? null,
+          compareTo: filters.compareTo ?? null,
+        },
+      });
+
       toast({ title: "Report generated and saved." });
     } catch (err) {
       console.error("Generate error:", err);
@@ -465,10 +488,18 @@ export default function ReportsPage() {
       const toStr = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : fromStr;
       const filename = `DOTCoffee_${canvasData.reportType}_${branchSlug}_${fromStr}_${toStr}.pdf`;
       await exportReportPdf(canvasData, filename);
+      void logEvent({
+        action: 'export_report',
+        module: 'reports',
+        targetName: filename,
+        details: `Exported PDF: ${REPORT_TYPE_OPTIONS.find(o => o.value === canvasData.reportType)?.label ?? canvasData.reportType} for ${branchLabel}`,
+        reportType: canvasData.reportType,
+        metadata: { format: 'pdf', branch: branchLabel, dateFrom: fromStr, dateTo: toStr },
+      });
     } finally {
       setIsExporting(false);
     }
-  }, [canvasData, filterBranch, dateRange]);
+  }, [canvasData, filterBranch, dateRange, branchLabel]);
 
   // ── Excel export ──────────────────────────────────────────────────────────
   const handleExportExcel = useCallback(() => {
@@ -480,10 +511,18 @@ export default function ReportsPage() {
       const toStr = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : fromStr;
       const filename = `DOTCoffee_${canvasData.reportType}_${branchSlug}_${fromStr}_${toStr}.xlsx`;
       exportReportExcel(canvasData, filename);
+      void logEvent({
+        action: 'export_report',
+        module: 'reports',
+        targetName: filename,
+        details: `Exported Excel: ${REPORT_TYPE_OPTIONS.find(o => o.value === canvasData.reportType)?.label ?? canvasData.reportType} for ${branchLabel}`,
+        reportType: canvasData.reportType,
+        metadata: { format: 'excel', branch: branchLabel, dateFrom: fromStr, dateTo: toStr },
+      });
     } finally {
       setIsExportingExcel(false);
     }
-  }, [canvasData, filterBranch, dateRange]);
+  }, [canvasData, filterBranch, dateRange, branchLabel]);
 
   // ── Reset filters ─────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
@@ -972,13 +1011,15 @@ export default function ReportsPage() {
                           {format(new Date(row.created_at), "MMM dd, yyyy HH:mm")}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteHistory(row.id)}
-                        className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {canDeleteData(role) && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteHistory(row.id)}
+                          className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                     <div className="flex gap-1.5 mt-2">
                       <button

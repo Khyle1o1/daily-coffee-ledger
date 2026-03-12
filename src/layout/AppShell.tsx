@@ -11,13 +11,33 @@ import {
   BarChart3,
   Link2,
   Settings,
+  Eye,
+  ScrollText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/auth/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { getRoleBadgeClass, getRoleLabel } from '@/lib/permissions';
+import { logEvent } from '@/services/auditService';
 
-function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
+function SidebarNav({ isAdmin, isViewer }: { isAdmin: boolean; isViewer: boolean }) {
+  const navLink = (to: string, icon: React.ReactNode, label: string) => (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
+          isActive
+            ? 'bg-white text-[#0e2d49] shadow-lg shadow-black/40'
+            : 'text-primary-foreground/80 hover:bg-white/10'
+        }`
+      }
+    >
+      {icon}
+      <span>{label}</span>
+    </NavLink>
+  );
+
   return (
     <aside className="w-[260px] lg:w-[280px] bg-[#0e2d49] text-primary-foreground flex flex-col border-r border-white/10">
       {/* Logo / Brand */}
@@ -43,125 +63,56 @@ function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
           Navigation
         </p>
 
-        <NavLink
-          to="/app/summary"
-          className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
-              isActive
-                ? "bg-white text-[#0e2d49] shadow-lg shadow-black/40"
-                : "text-primary-foreground/80 hover:bg-white/10"
-            }`
-          }
-        >
-          <Calendar className="h-5 w-5" />
-          <span>Summary</span>
-        </NavLink>
+        {navLink('/app/summary', <Calendar className="h-5 w-5" />, 'Summary')}
+        {navLink('/app/reports', <BarChart3 className="h-5 w-5" />, 'Reports')}
 
-        <NavLink
-          to="/app/reports"
-          className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
-              isActive
-                ? "bg-white text-[#0e2d49] shadow-lg shadow-black/40"
-                : "text-primary-foreground/80 hover:bg-white/10"
-            }`
-          }
-        >
-          <BarChart3 className="h-5 w-5" />
-          <span>Reports</span>
-        </NavLink>
-
-        {isAdmin && (
-          <NavLink
-            to="/app/users"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
-                isActive
-                  ? "bg-white text-[#0e2d49] shadow-lg shadow-black/40"
-                  : "text-primary-foreground/80 hover:bg-white/10"
-              }`
-            }
-          >
-            <Shield className="h-5 w-5" />
-            <span>User Management</span>
-          </NavLink>
-        )}
-
-        {isAdmin && (
-          <NavLink
-            to="/app/directory"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
-                isActive
-                  ? "bg-white text-[#0e2d49] shadow-lg shadow-black/40"
-                  : "text-primary-foreground/80 hover:bg-white/10"
-              }`
-            }
-          >
-            <Link2 className="h-5 w-5" />
-            <span>Directory</span>
-          </NavLink>
-        )}
-
-        {isAdmin && (
-          <NavLink
-            to="/app/settings"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
-                isActive
-                  ? "bg-white text-[#0e2d49] shadow-lg shadow-black/40"
-                  : "text-primary-foreground/80 hover:bg-white/10"
-              }`
-            }
-          >
-            <Settings className="h-5 w-5" />
-            <span>Settings</span>
-          </NavLink>
-        )}
+        {isAdmin && navLink('/app/users', <Shield className="h-5 w-5" />, 'User Management')}
+        {isAdmin && navLink('/app/activity-logs', <ScrollText className="h-5 w-5" />, 'Activity Logs')}
+        {isAdmin && navLink('/app/directory', <Link2 className="h-5 w-5" />, 'Directory')}
+        {isAdmin && navLink('/app/settings', <Settings className="h-5 w-5" />, 'Settings')}
       </nav>
     </aside>
   );
 }
 
 export default function AppShell() {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, role, isAdmin, isViewer, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const handleLogout = async () => {
+    void logEvent({ action: 'logout', module: 'auth', details: `${user?.email} signed out` });
     await signOut();
-    toast({
-      title: 'Signed out',
-      description: 'You have been successfully signed out.',
-    });
+    toast({ title: 'Signed out', description: 'You have been successfully signed out.' });
     navigate('/login');
   };
 
   const getPageTitle = () => {
-    if (location.pathname.includes('/summary')) return 'Summary';
-    if (location.pathname.includes('/reports')) return 'Reports';
-    if (location.pathname.includes('/users')) return 'User Management';
-    if (location.pathname.includes('/directory')) return 'Directory';
-    if (location.pathname.includes('/settings')) return 'Settings';
+    if (location.pathname.includes('/summary'))       return 'Summary';
+    if (location.pathname.includes('/reports'))       return 'Reports';
+    if (location.pathname.includes('/users'))         return 'User Management';
+    if (location.pathname.includes('/activity-logs')) return 'Activity Logs';
+    if (location.pathname.includes('/directory'))     return 'Directory';
+    if (location.pathname.includes('/settings'))      return 'Settings';
     return 'Dashboard';
   };
 
+  const roleLabel = getRoleLabel(role);
+  const roleBadgeClass = getRoleBadgeClass(role);
+
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Left Sidebar */}
       {!isSidebarCollapsed && (
-        <SidebarNav isAdmin={!!isAdmin} />
+        <SidebarNav isAdmin={!!isAdmin} isViewer={!!isViewer} />
       )}
 
-      {/* Right Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Topbar */}
         <header className="bg-primary shadow-md">
           <div className="px-8 py-5">
             <div className="flex items-center justify-between">
-              {/* Page Title + Sidebar Toggle */}
               <div className="flex items-center gap-3">
                 <Button
                   type="button"
@@ -181,14 +132,19 @@ export default function AppShell() {
                 </h2>
               </div>
 
-              {/* User Info and Logout */}
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary-foreground/10">
-                  {isAdmin ? <Shield className="h-4 w-4 text-primary-foreground" /> : <User className="h-4 w-4 text-primary-foreground" />}
-                  <span className="text-sm font-medium text-primary-foreground">{user?.email}</span>
-                  {isAdmin && (
-                    <Badge variant="secondary" className="ml-1">Admin</Badge>
+                  {isAdmin ? (
+                    <Shield className="h-4 w-4 text-primary-foreground" />
+                  ) : isViewer ? (
+                    <Eye className="h-4 w-4 text-primary-foreground" />
+                  ) : (
+                    <User className="h-4 w-4 text-primary-foreground" />
                   )}
+                  <span className="text-sm font-medium text-primary-foreground">{user?.email}</span>
+                  <span className={`ml-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${roleBadgeClass}`}>
+                    {roleLabel}
+                  </span>
                 </div>
                 <Button
                   variant="outline"
@@ -204,7 +160,6 @@ export default function AppShell() {
           </div>
         </header>
 
-        {/* Main Content Area */}
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
