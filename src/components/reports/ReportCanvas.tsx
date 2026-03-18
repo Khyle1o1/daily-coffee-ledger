@@ -6,12 +6,14 @@ import type {
   ComputedProductMix,
   ComputedTop5,
   ComputedCategoryPerformance,
+  ComputedProductMixByCategory,
 } from "@/lib/reports/compute";
 import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChannel";
 import type { PourReportData } from "@/lib/reports/computePourItForward";
 
 import SalesMixOverviewReport from "./renderers/SalesMixOverviewReport";
 import ProductMixReport from "./renderers/ProductMixReport";
+import ProductMixByCategoryReport from "./renderers/ProductMixByCategoryReport";
 import Top5ProductsReport from "./renderers/Top5ProductsReport";
 import RunningSalesMixCategoryReport from "./renderers/RunningSalesMixCategoryReport";
 import CategoryPerformanceReport from "./renderers/CategoryPerformanceReport";
@@ -27,6 +29,7 @@ export interface ReportCanvasData {
   // Populated depending on reportType
   salesMix?: ComputedSalesMix;
   productMix?: ComputedProductMix;
+  productMixByCategory?: ComputedProductMixByCategory;
   productMixChannel?: ProductMixChannelData;
   top5?: ComputedTop5;
   runningSalesMixCategory?: ComputedProductMix;
@@ -55,7 +58,16 @@ const ReportCanvas = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
         />
       )}
 
-      {data.reportType === "PRODUCT_MIX" && data.productMix && (
+      {data.reportType === "PRODUCT_MIX" && data.productMixByCategory && (
+        <ProductMixByCategoryReport
+          data={data.productMixByCategory}
+          branchLabel={data.branchLabel}
+          dateRangeLabel={data.dateRangeLabel}
+          compareLabel={data.compareLabel}
+        />
+      )}
+
+      {data.reportType === "PRODUCT_MIX" && !data.productMixByCategory && data.productMix && (
         <ProductMixReport
           data={data.productMix}
           branchLabel={data.branchLabel}

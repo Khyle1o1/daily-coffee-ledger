@@ -4,6 +4,7 @@ import type { ReportCanvasData } from "@/components/reports/ReportCanvas";
 import type {
   ComputedSalesMix,
   ComputedProductMix,
+  ComputedProductMixByCategory,
   ComputedTop5,
   ComputedCategoryPerformance,
 } from "@/lib/reports/compute";
@@ -215,6 +216,61 @@ function buildProductMixSheet(
     }
     rows.push(base);
   });
+
+  return buildSheet(rows, [6, 36, 16, 16, 10]);
+}
+
+function buildProductMixByCategorySheet(
+  data: ComputedProductMixByCategory,
+  branchLabel: string,
+  dateRangeLabel: string,
+  compareLabel: string | undefined,
+): XLSX.WorkSheet {
+  const hasCompare = data.groups.some((g) =>
+    g.products.some((p) => p.compareSales !== undefined),
+  );
+
+  const rows: XLSX.CellObject[][] = [
+    ...metaRows(branchLabel, dateRangeLabel),
+    [c(`Product Mix — Ranked per Category   Total: ${fmtPHP(data.grandTotalSales)}`, S_TITLE)],
+    [blank()],
+  ];
+
+  for (const group of data.groups) {
+    const catLabel = group.category ?? "ALL";
+    rows.push([c(`CATEGORY — ${catLabel}   Total: ${fmtPHP(group.totalSales)}`, S_SECTION)], [blank()]);
+
+    const head = hasCompare
+      ? [
+          c("#", S_HEADER),
+          c("Menu Item", S_HEADER_LEFT),
+          c(dateRangeLabel, S_HEADER),
+          c(compareLabel ?? "Compare", S_HEADER),
+          c("Change", S_HEADER),
+        ]
+      : [c("#", S_HEADER), c("Menu Item", S_HEADER_LEFT), c("Qty", S_HEADER), c("Sales", S_HEADER)];
+    rows.push(head);
+
+    group.products.forEach((row, idx) => {
+      const s = idx % 2 === 1 ? S_ALT : undefined;
+      const base = [c(String(idx + 1).padStart(2, "0"), s), c(row.name, s)];
+      if (hasCompare) {
+        base.push(c(fmtPHP(row.sales), { ...S_NUM, ...s }));
+        base.push(c(row.compareSales !== undefined ? fmtPHP(row.compareSales) : "—", { ...S_NUM, ...s }));
+        base.push(c(row.pctChange !== undefined ? pct(row.pctChange) : "—", { ...S_NUM, ...s }));
+      } else {
+        base.push(c(row.qty, { ...S_NUM, ...s }));
+        base.push(c(fmtPHP(row.sales), { ...S_NUM, ...s }));
+      }
+      rows.push(base);
+    });
+
+    rows.push([blank()]);
+  }
+
+  if (data.excludedCategories?.length) {
+    rows.push([c(`Excluded (no data): ${data.excludedCategories.join(", ")}`, { font: { color: { rgb: "64748B" } } })]);
+  }
 
   return buildSheet(rows, [6, 36, 16, 16, 10]);
 }
@@ -455,6 +511,7 @@ export function exportReportExcel(
     compareLabel,
     salesMix,
     productMix,
+    productMixByCategory,
     productMixChannel,
     top5,
     runningSalesMixCategory,
@@ -468,6 +525,13 @@ export function exportReportExcel(
 
   if (reportType === "SALES_MIX_OVERVIEW" && salesMix) {
     XLSX.utils.book_append_sheet(wb, buildSalesMixSheet(salesMix, branchLabel, dateRangeLabel, compareLabel), "Sales Mix");
+  }
+  else if (reportType === "PRODUCT_MIX" && productMixByCategory) {
+    XLSX.utils.book_append_sheet(
+      wb,
+      buildProductMixByCategorySheet(productMixByCategory, branchLabel, dateRangeLabel, compareLabel),
+      "Product Mix (By Cat)"
+    );
   }
   else if (reportType === "PRODUCT_MIX" && productMix) {
     XLSX.utils.book_append_sheet(wb, buildProductMixSheet(productMix, branchLabel, dateRangeLabel, compareLabel), "Product Mix");

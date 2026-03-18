@@ -66,6 +66,7 @@ import { logEvent } from "@/services/auditService";
 import {
   computeCategoryTotals,
   computeProductTotals,
+  computeProductTotalsByCategory,
   computeTopProducts,
   computeCategoryPerformance,
   type ReportFilters,
@@ -150,6 +151,7 @@ export default function ReportsPage() {
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([
     ...CATEGORIES,
   ]);
+  const [rankProductMixPerCategory, setRankProductMixPerCategory] = useState(false);
   const [runningCategory, setRunningCategory] = useState<Category>("ICED");
   const [channelCategory, setChannelCategory] = useState<Category | "ALL">("ALL");
 
@@ -296,21 +298,33 @@ export default function ReportsPage() {
           salesMix,
         };
       } else if (reportType === "PRODUCT_MIX") {
-        const primaryCat =
-          selectedCategories.length === 1 ? selectedCategories[0] : undefined;
-        const productMix = computeProductTotals(
-          dailyReports,
-          filters,
-          primaryCat
-        );
-        canvas = {
-          reportType,
-          branchLabel,
-          dateRangeLabel,
-          compareLabel,
-          selectedCategories,
-          productMix,
-        };
+        if (rankProductMixPerCategory) {
+          const productMixByCategory = computeProductTotalsByCategory(dailyReports, filters);
+          canvas = {
+            reportType,
+            branchLabel,
+            dateRangeLabel,
+            compareLabel,
+            selectedCategories,
+            productMixByCategory,
+          };
+        } else {
+          const primaryCat =
+            selectedCategories.length === 1 ? selectedCategories[0] : undefined;
+          const productMix = computeProductTotals(
+            dailyReports,
+            filters,
+            primaryCat
+          );
+          canvas = {
+            reportType,
+            branchLabel,
+            dateRangeLabel,
+            compareLabel,
+            selectedCategories,
+            productMix,
+          };
+        }
       } else if (reportType === "TOP_5_PRODUCTS") {
         const top5 = computeTopProducts(dailyReports, filters);
         canvas = {
@@ -398,7 +412,11 @@ export default function ReportsPage() {
 
       // Auto-save to DB
       const typeOption = REPORT_TYPE_OPTIONS.find((o) => o.value === reportType);
-      const title = `${typeOption?.label ?? reportType} • ${branchLabel} • ${dateRangeLabel}`;
+      const typeLabel =
+        reportType === "PRODUCT_MIX" && rankProductMixPerCategory
+          ? "Product Mix (Ranked per Category)"
+          : typeOption?.label ?? reportType;
+      const title = `${typeLabel} • ${branchLabel} • ${dateRangeLabel}`;
       const branchId =
         filterBranches.length === 1 ? (getBranchUuid(filterBranches[0]) ?? null) : null;
 
@@ -564,6 +582,7 @@ export default function ReportsPage() {
     setCompareMode(false);
     setCompareDateRange({ from: undefined, to: undefined });
     setSelectedCategories([...CATEGORIES]);
+    setRankProductMixPerCategory(false);
     setRunningCategory("ICED");
     setChannelCategory("ALL");
     setCanvasData(null);
@@ -947,6 +966,27 @@ export default function ReportsPage() {
                       </div>
                     </div>
                   )}
+
+                {reportType === "PRODUCT_MIX" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-slate-500 uppercase tracking-wider">
+                      Product Mix Options
+                    </Label>
+                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                      <Switch
+                        id="pm-per-category"
+                        checked={rankProductMixPerCategory}
+                        onCheckedChange={setRankProductMixPerCategory}
+                      />
+                      <Label
+                        htmlFor="pm-per-category"
+                        className="text-sm text-slate-700 cursor-pointer select-none"
+                      >
+                        Rank items per category
+                      </Label>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}

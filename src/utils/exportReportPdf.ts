@@ -68,6 +68,7 @@ export async function exportReportPdf(
     compareLabel,
     salesMix,
     productMix,
+    productMixByCategory,
     top5,
     runningSalesMixCategory,
     runningSalesCategory,
@@ -187,6 +188,83 @@ export async function exportReportPdf(
       });
       y = (doc as any).lastAutoTable?.finalY ?? y;
       y += 12;
+    }
+  }
+
+  else if (reportType === "PRODUCT_MIX" && productMixByCategory) {
+    const title = `Product Mix (Ranked per Category)   ${formatPHPPdf(productMixByCategory.grandTotalSales)}`;
+    let y = drawHeader(doc, title, branchLabel, dateRangeLabel, marginLeft);
+
+    const hasCompare = productMixByCategory.groups.some((g) =>
+      g.products.some((p) => p.compareSales !== undefined),
+    );
+    const head: string[][] = hasCompare
+      ? [["#", "Menu Item", dateRangeLabel, compareLabel ?? "Compare", "Change"]]
+      : [["#", "Menu Item", "Qty", "Sales"]];
+
+    if (!productMixByCategory.groups.length) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text("No transactions found for the selected categories in the chosen date range.", marginLeft, y);
+      y += 12;
+    } else {
+      if (productMixByCategory.excludedCategories?.length) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        doc.text(
+          `Excluded (no data): ${productMixByCategory.excludedCategories.join(", ")}`,
+          marginLeft,
+          y,
+        );
+        y += 14;
+      }
+
+      for (const group of productMixByCategory.groups) {
+        const catLabel = group.category ?? "ALL";
+
+        // Add a small category label
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(...HEADER_COLOR);
+        doc.text(`${catLabel} — Total: ${formatPHPPdf(group.totalSales)}`, marginLeft, y);
+        y += 10;
+
+        const body = group.products.map((row, idx) => {
+          const base = [String(idx + 1).padStart(2, "0"), row.name];
+          if (hasCompare) {
+            base.push(
+              formatPHPPdf(row.sales),
+              row.compareSales !== undefined ? formatPHPPdf(row.compareSales) : "—",
+              row.pctChange !== undefined ? pct(row.pctChange) : "—",
+            );
+          } else {
+            base.push(row.qty.toLocaleString(), formatPHPPdf(row.sales));
+          }
+          return base;
+        });
+
+        autoTable(doc, {
+          startY: y,
+          head,
+          body,
+          styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
+          headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+          alternateRowStyles: { fillColor: [253, 246, 238] },
+          margin: { left: marginLeft, right: marginLeft },
+          columnStyles: hasCompare ? { 4: { halign: "right" } } : { 2: { halign: "right" }, 3: { halign: "right" } },
+        });
+        y = (doc as any).lastAutoTable?.finalY ?? y;
+        y += 14;
+
+        // If we’re close to the bottom, add a new page for the next category
+        const pageHeight = doc.internal.pageSize.getHeight();
+        if (y > pageHeight - 120) {
+          doc.addPage();
+          y = 60;
+        }
+      }
     }
   }
 

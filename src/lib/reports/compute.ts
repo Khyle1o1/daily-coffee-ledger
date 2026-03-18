@@ -63,6 +63,12 @@ export interface ComputedProductMix {
   compareTotalSales?: number;
 }
 
+export interface ComputedProductMixByCategory {
+  groups: ComputedProductMix[]; // each group has category set
+  excludedCategories?: Category[];
+  grandTotalSales: number;
+}
+
 export interface ComputedTop5 {
   topByCategory: Record<string, TopProduct[]>;
   grandTotal: number;
@@ -275,6 +281,33 @@ export function computeProductTotals(
     .sort((a, b) => b.sales - a.sales);
 
   return { category: category ?? null, products, totalSales, compareTotalSales };
+}
+
+export function computeProductTotalsByCategory(
+  reports: DailyReport[],
+  filters: ReportFilters,
+): ComputedProductMixByCategory {
+  const cats = (filters.selectedCategories?.length ? filters.selectedCategories : [...CATEGORIES]) as Category[];
+
+  const groups: ComputedProductMix[] = [];
+  const excluded: Category[] = [];
+
+  for (const cat of cats) {
+    const mix = computeProductTotals(reports, filters, cat);
+    if (!mix.products.length || mix.totalSales <= 0) {
+      excluded.push(cat);
+      continue;
+    }
+    groups.push(mix);
+  }
+
+  const grandTotalSales = groups.reduce((sum, g) => sum + (g.totalSales ?? 0), 0);
+
+  return {
+    groups,
+    excludedCategories: excluded.length ? excluded : undefined,
+    grandTotalSales,
+  };
 }
 
 export function computeTopProducts(
