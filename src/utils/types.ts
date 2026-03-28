@@ -71,6 +71,7 @@ export interface ProcessedRow extends RawRow {
   mappedCat: Category | null;
   mappedItemName: string | null;
   status: "MAPPED" | "UNMAPPED" | "SKIPPED";
+  debugReason?: string;
 }
 
 export interface UnmappedSummary {

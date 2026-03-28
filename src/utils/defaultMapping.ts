@@ -11,9 +11,15 @@ import type { MappingEntry, Category } from "./types";
  */
 function normalizeOption(opt: string): string {
   let t = normalizeText(opt);     // lowercase, collapse spaces, 12oz→12 oz
+  // "(16 oz)" -> "16 oz" (common POS variant)
+  t = t.replace(/\(\s*(\d+\s*oz)\s*\)/g, "$1");
+  // Remove price adjustment markers so both
+  // "large 16 oz (+10)" and "large (16oz)" match.
+  t = t.replace(/\(\s*[+-]?\s*\d+\s*\)/g, "");
   t = t.replace(/\boz\./g, "oz"); // "12 oz." → "12 oz"
   t = t.replace(/\.$/, "");       // remove trailing period
   t = t.replace(/\s*\|\s*/g, " | "); // normalize pipe spacing
+  t = t.replace(/\s+/g, " "); // collapse any spaces introduced by removals
   return t.trim();
 }
 

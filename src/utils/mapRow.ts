@@ -1,5 +1,5 @@
 import { normalizeText } from "./normalize";
-import { normalizeOption } from "./defaultMapping";
+import { normalizeOption as normalizeValidationOption } from "./defaultMapping";
 import type { RawRow, ProcessedRow, MappingEntry, Category } from "./types";
 
 // ─── Normalization helpers ────────────────────────────────────────────────────
@@ -14,13 +14,157 @@ function normItem(s: string): string {
   return normalizeText(s);
 }
 
-/**
- * Strip a delivery prefix from a normalized category so that
- * "del - classics" → "classics", "del-add-ons" → "add-ons", etc.
- * Returns the same string if no delivery prefix is present.
- */
-function stripDeliveryPrefix(catNorm: string): string {
-  return catNorm.replace(/^del\s*-\s*/i, "").trim();
+function normalizeCategory(rawCategory: string): string {
+  const pre = rawCategory.replace(/[ÂÃ]/g, " ").replace(/\u00A0/g, " ");
+  let t = normCat(pre);
+  // Handles mojibake artifacts from CSV encoding issues.
+  t = t
+    .normalize("NFKD")
+    .replace(/[^\x00-\x7F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return t;
+}
+
+function normalizeItem(rawItem: string): string {
+  const pre = rawItem.replace(/[ÂÃ]/g, " ").replace(/\u00A0/g, " ");
+  const t = normItem(pre);
+  return t
+    .normalize("NFKD")
+    .replace(/[^\x00-\x7F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildCategoryCandidates(rawCategory: string): string[] {
+  const base = normalizeCategory(rawCategory);
+  const out = new Set<string>([base]);
+
+  const add = (s: string) => {
+    const t = normalizeText(s);
+    if (t) out.add(t);
+  };
+
+  // Direct aliases observed in March exports.
+  if (base === "dot classics") add("classics");
+  if (base === "del dot classics") add("del - classics");
+  if (base === "add ons" || base === "add-on" || base === "add ons") add("add-ons");
+  if (base === "del add ons" || base === "del add-on" || base === "del add ons") add("del-add-ons");
+  if (base === "dot snacks") add("snacks");
+  if (base.includes("packaging")) add("packaging");
+
+  // Preserve already-correct categories while normalizing DEL format variants.
+  if (base.startsWith("del ")) {
+    add(base.replace(/^del\s+/, "del - "));
+    add(base.replace(/^del\s+/, "del-"));
+    // Safe fallback to base category when delivery variant is incomplete in validation.
+    add(base.replace(/^del\s*-\s*/, "").replace(/^del-/, "").replace(/^del\s+/, ""));
+  }
+  if (/^del-/.test(base) || /^del\s*-\s*/.test(base)) {
+    add(base.replace(/^del\s*-\s*/, ""));
+    add(base.replace(/^del-/, ""));
+    add(base.replace(/^del-/, "del - "));
+  }
+
+  // General dash/space variants.
+  const current = Array.from(out);
+  for (const c of current) {
+    add(c.replace(/-/g, " "));
+    add(c.replace(/\s+/g, "-"));
+  }
+
+  return Array.from(out);
+}
+
+function normalizeOption(rawOption: string): string {
+  const pre = rawOption.replace(/[ÂÃ]/g, " ").replace(/\u00A0/g, " ");
+  let t = normalizeText(pre);
+  t = t
+    .normalize("NFKD")
+    .replace(/[^\x00-\x7F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (t === "-" || t === "--" || t === "n/a" || t === "na") return "";
+  t = t.replace(/\s+[l]\s+/g, " | ");
+  t = t.replace(/\s*\|\s*/g, " | ");
+
+  // Standardize explicit size forms.
+  t = t.replace(/\biced\s+regular\s*\(?\s*12\s*oz\s*\)?\.?/g, "iced regular 12 oz.");
+  t = t.replace(/\biced\s+large\s*\(?\s*16\s*oz\s*\)?\.?/g, "iced large 16 oz. (+10)");
+  t = t.replace(/\bhot\s+regular\s*\(?\s*12\s*oz\s*\)?\.?/g, "hot regular 12oz.");
+  t = t.replace(/\bhot\s+large\s*\(?\s*16\s*oz\s*\)?\.?/g, "hot large 16 oz. (+10)");
+  t = t.replace(/\bregular\s*\(?\s*12\s*oz\s*\)?\.?/g, "regular 12 oz.");
+  t = t.replace(/\blarge\s*\(?\s*16\s*oz\s*\)?\.?/g, "large 16 oz. (+10)");
+
+  return normalizeValidationOption(t);
+}
+
+function buildOptionCandidates(rawOption: string, catNorm: string): string[] {
+  const base = normalizeOption(rawOption);
+  const out = new Set<string>([base]);
+
+  if ((catNorm.includes("dot signatures") || catNorm.includes("del - dot signatures")) && base.startsWith("iced ")) {
+    out.add(base.replace(/^iced\s+/, "").trim());
+  }
+
+  // Accept either with or without (+10) token in normalized form.
+  if (base.includes("(+10)")) out.add(normalizeValidationOption(base.replace(/\s*\(\+10\)/g, "")));
+  if (/\blarge\s+16\s+oz\b/.test(base) && !base.includes("(+10)")) {
+    out.add(normalizeValidationOption(base.replace(/\blarge\s+16\s+oz\b/g, "large 16 oz. (+10)")));
+  }
+
+  return Array.from(out);
+}
+
+const ITEM_ALIASES: Record<string, string[]> = {
+  [normalizeText("dirty cereal")]: [normalizeText("dirty cereal milk")],
+  [normalizeText("double chocolate chip cookie")]: [normalizeText("double chocolate chip cookies")],
+  [normalizeText("peanut butter protein latte")]: [normalizeText("pb protein latte")],
+  [normalizeText("cocochata")]: [normalizeText("coco chata")],
+  [normalizeText("truffle salt bread")]: [normalizeText("truffle cheese salt bread")],
+  [normalizeText("oatmeal crunch protein bar")]: [normalizeText("oatmeal cookie protein bar")],
+  [normalizeText("bring your own tumbler")]: [normalizeText("bring your own tumbler")],
+};
+
+function buildItemCandidates(rawItem: string): string[] {
+  const base = normalizeItem(rawItem);
+  const out = new Set<string>([base]);
+  for (const alias of ITEM_ALIASES[base] ?? []) out.add(alias);
+  // Also try a spacing-insensitive form (e.g. "cocochata" <-> "coco chata").
+  if (base.includes(" ")) out.add(base.replace(/\s+/g, ""));
+  else if (base.length > 3) out.add(base.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
+  return Array.from(out);
+}
+
+function isAddOnsLikeCategory(catNorm: string): boolean {
+  return /(^|[\s-])add[\s-]*ons?([\s-]|$)/i.test(catNorm);
+}
+
+function isAddOnsBucketItem(itemNorm: string): boolean {
+  return /^add[\s-]*ons?[\s-]+/.test(itemNorm);
+}
+
+function resolveAddOnBucketItem(catNorm: string, itemNorm: string, optNorm: string): string | null {
+  if (!optNorm) return null;
+  if (!isAddOnsLikeCategory(catNorm)) return null;
+  if (!isAddOnsBucketItem(itemNorm)) return null;
+  return optNorm;
+}
+
+function buildCategoryRescueCandidates(catNorm: string, itemCandidates: string[]): string[] {
+  const out = new Set<string>();
+  const has = (name: string) => itemCandidates.includes(normalizeText(name));
+
+  // Observed March export issue: some DEHUSK items appear under DOT SIGNATURES.
+  if (
+    catNorm === "dot signatures" &&
+    (has("coco chata") || has("coconut cream cold brew") || has("calamansi coconut latte"))
+  ) {
+    out.add(normalizeText("dehusk line"));
+    out.add(normalizeText("del - dehusk line"));
+  }
+
+  return Array.from(out);
 }
 
 // ─── Validation index ─────────────────────────────────────────────────────────
@@ -168,41 +312,91 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   }
 
   const rowSales = row.quantity * row.unitPrice;
-  const catNorm  = normCat(row.rawCategory);
-  const itemNorm = normItem(row.rawItemName);
-  const optNorm  = normalizeOption(row.option);
+  const catNorm = normalizeCategory(row.rawCategory);
+  const itemNorm = normalizeItem(row.rawItemName);
+  const optNorm = normalizeOption(row.option);
+
+  const pass1Cats = [catNorm];
+  const pass1Items = [itemNorm];
+  const pass1Opts = [optNorm];
+
+  const pass2Cats = buildCategoryCandidates(row.rawCategory);
+  const pass3Opts = buildOptionCandidates(row.option, pass2Cats[0] ?? catNorm);
+  const pass4Items = buildItemCandidates(row.rawItemName);
 
   const idx = getIndex(mappingTable);
+  const resolveMapped = (entry: MappingEntry): ProcessedRow =>
+    mapped(row, rowSales, entry.mappedName, resolveOutputItem(entry));
 
-  // ── Step 2: EXACT 3-field match ─────────────────────────────────────────
-  const exact = lookupExact(idx, catNorm, itemNorm, optNorm);
-  if (exact) {
-    return mapped(row, rowSales, exact.mappedName, resolveOutputItem(exact));
+  const findExact = (cats: string[], items: string[], opts: string[]): MappingEntry | undefined => {
+    for (const c of cats) {
+      for (const i of items) {
+        for (const o of opts) {
+          const hit = lookupExact(idx, c, i, o);
+          if (hit) return hit;
+        }
+      }
+    }
+    return undefined;
+  };
+
+  // PASS 1: exact normalized (raw normalized fields only)
+  const p1 = findExact(pass1Cats, pass1Items, pass1Opts);
+  if (p1) return resolveMapped(p1);
+
+  // PASS 2: category alias normalization
+  const p2 = findExact(pass2Cats, pass1Items, pass1Opts);
+  if (p2) return resolveMapped(p2);
+
+  // PASS 3: option normalization variants
+  const p3 = findExact(pass2Cats, pass1Items, pass3Opts);
+  if (p3) return resolveMapped(p3);
+
+  // PASS 4: item aliases + option variants
+  const p4 = findExact(pass2Cats, pass4Items, pass3Opts);
+  if (p4) return resolveMapped(p4);
+
+  // PASS 4b: item-scoped category rescue for known export mis-buckets
+  const rescueCats = buildCategoryRescueCandidates(catNorm, pass4Items);
+  if (rescueCats.length) {
+    const p4b = findExact(rescueCats, pass4Items, pass3Opts);
+    if (p4b) return resolveMapped(p4b);
   }
 
-  // ── Step 3: Strip delivery prefix, retry exact match ────────────────────
-  const baseCatNorm = stripDeliveryPrefix(catNorm);
-  if (baseCatNorm !== catNorm) {
-    const baseExact = lookupExact(idx, baseCatNorm, itemNorm, optNorm);
-    if (baseExact) {
-      return mapped(row, rowSales, baseExact.mappedName, resolveOutputItem(baseExact));
+  // PASS 5: add-ons bucket resolver (option-as-item)
+  const bucketItem = resolveAddOnBucketItem(catNorm, itemNorm, optNorm);
+  if (bucketItem) {
+    const addOnsCats = buildCategoryCandidates("add-ons");
+    const p5 = findExact(addOnsCats, [bucketItem], [""]);
+    if (p5) return resolveMapped(p5);
+  }
+
+  // PASS 6: cat+item unique fallback only when unambiguous
+  for (const c of pass2Cats) {
+    for (const i of pass4Items) {
+      const unique = lookupCatItemUnique(idx, c, i);
+      if (unique) return resolveMapped(unique);
     }
   }
 
-  // ── Step 4: Cat+Item unique fallback (original category) ────────────────
-  const unique = lookupCatItemUnique(idx, catNorm, itemNorm);
-  if (unique) {
-    return mapped(row, rowSales, unique.mappedName, resolveOutputItem(unique));
+  // PASS 7: unmapped + diagnostic reason
+  let debugReason = "no_validation_candidate_found";
+  if (bucketItem) {
+    debugReason = "add_on_bucket_item_requires_option_as_item";
+  } else if (pass4Items.length > 1) {
+    debugReason = "item_alias_needed";
+  } else if (pass3Opts.length > 1) {
+    debugReason = "option_format_mismatch";
+  } else if (pass2Cats.length > 1) {
+    debugReason = "category_alias_missing";
   }
 
-  // ── Step 5: Cat+Item unique fallback (base category after DEL strip) ────
-  if (baseCatNorm !== catNorm) {
-    const baseUnique = lookupCatItemUnique(idx, baseCatNorm, itemNorm);
-    if (baseUnique) {
-      return mapped(row, rowSales, baseUnique.mappedName, resolveOutputItem(baseUnique));
-    }
-  }
-
-  // ── Step 6: UNMAPPED ────────────────────────────────────────────────────
-  return { ...row, rowSales, mappedCat: null, mappedItemName: null, status: "UNMAPPED" };
+  return {
+    ...row,
+    rowSales,
+    mappedCat: null,
+    mappedItemName: null,
+    status: "UNMAPPED",
+    debugReason,
+  };
 }

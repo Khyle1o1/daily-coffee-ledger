@@ -46,6 +46,7 @@ import { useManualMappings } from "@/hooks/useManualMappings";
 import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
+import { loadValidationMappingFromPublic } from "@/utils/loadValidationMapping";
 import type {
   BranchId,
   ColumnMapping,
@@ -93,8 +94,8 @@ export default function SummaryPage() {
   const [filterDateRange, setFilterDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [filterBranches, setFilterBranches] = useState<BranchId[]>([]);
 
-  // Mapping table (kept internal, no manual upload in UI)
-  const [mappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
+  // Mapping table (loaded from public/VALIDATION DATA.xlsx, fallback to bundled default)
+  const [mappingTable, setMappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
   const { manualEntries } = useManualMappings();
 
   // ADD REPORT modal state
@@ -145,6 +146,18 @@ export default function SummaryPage() {
 
     initializeData();
   }, [toast]);
+
+  useEffect(() => {
+    const loadValidation = async () => {
+      try {
+        const liveTable = await loadValidationMappingFromPublic();
+        setMappingTable(liveTable);
+      } catch (error) {
+        console.warn("Failed to load validation mapping from workbook; using bundled default.", error);
+      }
+    };
+    void loadValidation();
+  }, []);
 
   const resetAddModal = () => {
     setModalBranch("");
