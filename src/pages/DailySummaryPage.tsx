@@ -21,6 +21,7 @@ import { mapRow } from "@/utils/mapRow";
 import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
+import { preloadMenuReference } from "@/utils/menuReference";
 import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId } from "@/utils/types";
 import { CATEGORIES } from "@/utils/types";
 import { useManualMappings } from "@/hooks/useManualMappings";
@@ -62,6 +63,7 @@ export default function DailySummaryPage() {
     const initializeData = async () => {
       try {
         void seedBranchesIfEmpty();
+        void preloadMenuReference();
 
         setIsLoadingReports(true);
         const reportRows = await listAllDailyReports();

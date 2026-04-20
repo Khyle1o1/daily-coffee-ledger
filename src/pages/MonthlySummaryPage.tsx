@@ -13,6 +13,7 @@ import MonthlyUnmappedList from "@/components/MonthlyUnmappedList";
 import { normalizeText } from "@/utils/normalize";
 import { parseCsvFile } from "@/utils/parseCsv";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
+import { preloadMenuReference } from "@/utils/menuReference";
 import { computeMonthlyReport } from "@/utils/aggregateMonthly";
 import { formatNumber } from "@/utils/format";
 import type { DailyReport, MappingEntry, BranchId } from "@/utils/types";
@@ -42,6 +43,7 @@ export default function MonthlySummaryPage() {
     const initializeData = async () => {
       try {
         void seedBranchesIfEmpty();
+        void preloadMenuReference();
 
         setIsLoadingReports(true);
         const reportRows = await listAllDailyReports();

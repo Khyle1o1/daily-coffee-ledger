@@ -47,6 +47,7 @@ import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
 import { loadValidationMappingFromPublic } from "@/utils/loadValidationMapping";
+import { preloadMenuReference } from "@/utils/menuReference";
 import type {
   BranchId,
   ColumnMapping,
@@ -127,6 +128,7 @@ export default function SummaryPage() {
       try {
         // Seed default branches on first run (no-op if branches already exist).
         void seedBranchesIfEmpty();
+        void preloadMenuReference();
 
         setIsLoadingReports(true);
         const reportRows = await listAllDailyReports();
@@ -150,6 +152,7 @@ export default function SummaryPage() {
   useEffect(() => {
     const loadValidation = async () => {
       try {
+        void preloadMenuReference();
         const liveTable = await loadValidationMappingFromPublic();
         setMappingTable(liveTable);
       } catch (error) {

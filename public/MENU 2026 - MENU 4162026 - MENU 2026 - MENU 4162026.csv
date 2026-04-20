@@ -1,0 +1,345 @@
+CATEGORY ,,ITEM NAME,,
+PACKAGING,001 PACKAGING,12oz Iced Dabba Cup,,0
+PACKAGING,001 PACKAGING,16oz Iced Dabba Cup,,0
+PACKAGING,001 PACKAGING,12oz Paper Cup,,0
+PACKAGING,001 PACKAGING,16oz Paper Cup,,0
+PACKAGING,001 PACKAGING,Dagel Box of 3,,0
+PACKAGING,001 PACKAGING,Rice Straw,,1
+PACKAGING,001 PACKAGING,Delivery | Rice Straw,,3
+PACKAGING,001 PACKAGING,Delivery | Egg Carrier,,0
+PACKAGING,001 PACKAGING,Delivery | Paper Bag - Egg Tray,,5
+ADD-ONS,01 ADD ONS,ADD ONS MISC,Cereal Crunch,30
+ADD-ONS,01 ADD ONS,ADD ONS MISC,Coconut Water,45
+ADD-ONS,01 ADD ONS,ADD ONS MISC,Espresso Shot,40
+ADD-ONS,01 ADD ONS,ADD ONS MISC,Matcha Powder,35
+ADD-ONS,01 ADD ONS,ADD ONS MISC,Hojicha Powder,40
+ADD-ONS,01 ADD ONS,ADD ONS MISC,Water Bottle,40
+ADD-ONS,01 ADD ONS,ADD ONS MISC,Whey Protein,45
+ADD-ONS,01 ADD ONS,ADD ONS MILK,Almond Milk,45
+ADD-ONS,01 ADD ONS,ADD ONS MILK,Dehusk Coconut Milk,30
+ADD-ONS,01 ADD ONS,ADD ONS MILK,Oat Milk,45
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Burnt Vanilla Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Butterscotch Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Brown Sugar Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Caramelized Banana Syrup,40
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,French Vanilla Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Honey Syrup,35
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Peanut Butter Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Salted Caramel Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Signature Mocha Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Sugar Syrup,0
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Spanish Latte Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,Strawberry Puree,40
+ADD-ONS,01 ADD ONS,ADD ONS SYRUPS,White Chocolate Mocha Syrup,30
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Chocolate Foam,40
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Black Sesame Cold Foam,50
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Hojicha Cold Foam,50
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Matcha Cream Foam,50
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Rock Salt Cheese Foam,50
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Salted Caramel Foam,40
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Salted Cream Foam,50
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Strawberry Cream Foam,50
+ADD-ONS,01 ADD ONS,ADD ONS FOAM,Vanilla Foam,40
+ICED,02 DOT CLASSICS,Americano,Iced Regular (12oz),110
+ICED,02 DOT CLASSICS,Americano,Iced Large (16oz),120
+HOT,02 DOT CLASSICS,Americano,Hot Regular (12oz),110
+HOT,02 DOT CLASSICS,Americano,Hot Large (16oz),120
+ICED,02 DOT CLASSICS,Burnt Vanilla,Iced Regular (12oz),160
+ICED,02 DOT CLASSICS,Burnt Vanilla,Iced Large (16oz),170
+HOT,02 DOT CLASSICS,Burnt Vanilla,Hot Regular (12oz),160
+HOT,02 DOT CLASSICS,Burnt Vanilla,Hot Large (16oz),170
+ICED,02 DOT CLASSICS,Butterscotch,Iced Regular (12oz),150
+ICED,02 DOT CLASSICS,Butterscotch,Iced Large (16oz),160
+HOT,02 DOT CLASSICS,Butterscotch,Hot Regular (12oz),150
+HOT,02 DOT CLASSICS,Butterscotch,Hot Large (16oz),160
+ICED,02 DOT CLASSICS,Cold Brew,Iced Regular (12oz),120
+ICED,02 DOT CLASSICS,Cold Brew,Iced Large (16oz),130
+ICED,02 DOT CLASSICS,Dirty Matcha,Iced Regular (12oz),180
+ICED,02 DOT CLASSICS,Dirty Matcha,Iced Large (16oz),190
+HOT,02 DOT CLASSICS,Dirty Matcha,Hot Regular (12oz),180
+HOT,02 DOT CLASSICS,Dirty Matcha,Hot Large (16oz),190
+ICED,02 DOT CLASSICS,Latte,Iced Regular (12oz),130
+ICED,02 DOT CLASSICS,Latte,Iced Large (16oz),140
+HOT,02 DOT CLASSICS,Latte,Hot Regular (12oz),130
+HOT,02 DOT CLASSICS,Latte,Hot Large (16oz),140
+ICED,02 DOT CLASSICS,Matcha,Iced Regular (12oz),160
+ICED,02 DOT CLASSICS,Matcha,Iced Large (16oz),170
+HOT,02 DOT CLASSICS,Matcha,Hot Regular (12oz),160
+HOT,02 DOT CLASSICS,Matcha,Hot Large (16oz),170
+ICED,02 DOT CLASSICS,Salted Caramel,Iced Regular (12oz),150
+ICED,02 DOT CLASSICS,Salted Caramel,Iced Large (16oz),160
+HOT,02 DOT CLASSICS,Salted Caramel,Hot Regular (12oz),150
+HOT,02 DOT CLASSICS,Salted Caramel,Hot Large (16oz),160
+ICED,02 DOT CLASSICS,Signature Mocha,Iced Regular (12oz),150
+ICED,02 DOT CLASSICS,Signature Mocha,Iced Large (16oz),160
+HOT,02 DOT CLASSICS,Signature Mocha,Hot Regular (12oz),150
+HOT,02 DOT CLASSICS,Signature Mocha,Hot Large (16oz),160
+ICED,02 DOT CLASSICS,Spanish Latte,Iced Regular (12oz),150
+ICED,02 DOT CLASSICS,Spanish Latte,Iced Large (16oz),160
+HOT,02 DOT CLASSICS,Spanish Latte,Hot Regular (12oz),150
+HOT,02 DOT CLASSICS,Spanish Latte,Hot Large (16oz),160
+ICED,02 DOT CLASSICS,White Chocolate Mocha,Iced Regular (12oz),150
+ICED,02 DOT CLASSICS,White Chocolate Mocha,Iced Large (16oz),160
+HOT,02 DOT CLASSICS,White Chocolate Mocha,Hot Regular (12oz),150
+HOT,02 DOT CLASSICS,White Chocolate Mocha,Hot Large (16oz),160
+ICED,03 DOT SIGNATURES,Black Sesame Hojicha Latte,Iced Regular (12oz),220
+ICED,03 DOT SIGNATURES,Black Sesame Hojicha Latte,Iced Large (16oz),230
+ICED,03 DOT SIGNATURES,Caramelized Banana Hojicha Latte,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Caramelized Banana Hojicha Latte,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Cereal Milk,Iced Regular (12oz),150
+ICED,03 DOT SIGNATURES,Cereal Milk,Iced Large (16oz),160
+ICED,03 DOT SIGNATURES,Chocolate Milk,Iced Regular (12oz),130
+ICED,03 DOT SIGNATURES,Chocolate Milk,Iced Large (16oz),140
+HOT,03 DOT SIGNATURES,Chocolate Milk,Hot Regular 12oz.,130
+HOT,03 DOT SIGNATURES,Chocolate Milk,Hot Large 16oz.,140
+ICED,03 DOT SIGNATURES,Coco Americano,Iced Regular (12oz),160
+ICED,03 DOT SIGNATURES,Coco Americano,Iced Large (16oz),170
+ICED,03 DOT SIGNATURES,CocoChata,Iced Regular (12oz),185
+ICED,03 DOT SIGNATURES,CocoChata,Iced Large (16oz),195
+ICED,03 DOT SIGNATURES,Coconut Cream Cold Brew,Iced Regular (12oz),185
+ICED,03 DOT SIGNATURES,Coconut Cream Cold Brew,Iced Large (16oz),195
+ICED,03 DOT SIGNATURES,Cookie Butter Oat Latte,Iced Regular (12oz) l Dairy,200
+ICED,03 DOT SIGNATURES,Cookie Butter Oat Latte,Iced Regular (12oz) l Almond,200
+ICED,03 DOT SIGNATURES,Cookie Butter Oat Latte,Iced Regular (12oz) l Oat,200
+ICED,03 DOT SIGNATURES,Cookie Butter Oat Latte,Iced Large (16oz) l Dairy,210
+ICED,03 DOT SIGNATURES,Cookie Butter Oat Latte,Iced Large (16oz) l Almond,210
+ICED,03 DOT SIGNATURES,Cookie Butter Oat Latte,Iced Large (16oz) l Oat,210
+ICED,03 DOT SIGNATURES,Creamy Coco Hojicha,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Creamy Coco Hojicha,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Creamy Coco Matcha,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Creamy Coco Matcha,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Dirty Cereal,Iced Regular (12oz),180
+ICED,03 DOT SIGNATURES,Dirty Cereal,Iced Large (16oz),190
+ICED,03 DOT SIGNATURES,Dirty Coco,Iced Regular (12oz),170
+ICED,03 DOT SIGNATURES,Dirty Coco,Iced Large (16oz),180
+ICED,03 DOT SIGNATURES,Dirty Horchata,Iced Regular (12oz) l Dairy,170
+ICED,03 DOT SIGNATURES,Dirty Horchata,Iced Regular (12oz) l Almond,170
+ICED,03 DOT SIGNATURES,Dirty Horchata,Iced Regular (12oz) l Oat,170
+ICED,03 DOT SIGNATURES,Dirty Horchata,Iced Large (16oz) l Dairy,180
+ICED,03 DOT SIGNATURES,Dirty Horchata,Iced Large (16oz) l Almond,180
+ICED,03 DOT SIGNATURES,Dirty Horchata,Iced Large (16oz) l Oat,180
+ICED,03 DOT SIGNATURES,Hojicha Oat Latte,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Hojicha Oat Latte,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Horchata,Iced Regular (12oz) l Dairy,150
+ICED,03 DOT SIGNATURES,Horchata,Iced Regular (12oz) l Almond,150
+ICED,03 DOT SIGNATURES,Horchata,Iced Regular (12oz) l Oat,150
+ICED,03 DOT SIGNATURES,Horchata,Iced Large (16oz) l Dairy,160
+ICED,03 DOT SIGNATURES,Horchata,Iced Large (16oz) l Almond,160
+ICED,03 DOT SIGNATURES,Horchata,Iced Large (16oz) l Oat,160
+ICED,03 DOT SIGNATURES,Malted Milk Protein Latte,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Malted Milk Protein Latte,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Peanut Butter Protein Latte,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Peanut Butter Protein Latte,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Salted Caramel Matcha,Iced Regular (12oz),170
+ICED,03 DOT SIGNATURES,Salted Caramel Matcha,Iced Large (16oz),180
+ICED,03 DOT SIGNATURES,Salted Cream Matcha,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Salted Cream Matcha,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Salted Dark Choc Protein Latte,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Salted Dark Choc Protein Latte,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Salted Dark Chocolate,Iced Large (16oz),190
+ICED,03 DOT SIGNATURES,Salted Honey Oat Latte,Iced Regular (12oz) l Dairy,200
+ICED,03 DOT SIGNATURES,Salted Honey Oat Latte,Iced Regular (12oz) l Almond,200
+ICED,03 DOT SIGNATURES,Salted Honey Oat Latte,Iced Regular (12oz) l Oat,200
+ICED,03 DOT SIGNATURES,Salted Honey Oat Latte,Iced Large (16oz) l Dairy,210
+ICED,03 DOT SIGNATURES,Salted Honey Oat Latte,Iced Large (16oz) l Almond,210
+ICED,03 DOT SIGNATURES,Salted Honey Oat Latte,Iced Large (16oz) l Oat,210
+ICED,03 DOT SIGNATURES,Strawberry Cream Matcha,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Strawberry Cream Matcha,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Strawberry Hojicha Latte,Iced Regular (12oz),190
+ICED,03 DOT SIGNATURES,Strawberry Hojicha Latte,Iced Large (16oz),200
+ICED,03 DOT SIGNATURES,Strawberry Milk,Iced Regular (12oz),150
+ICED,03 DOT SIGNATURES,Strawberry Milk,Iced Large (16oz),160
+SNACKS,04 DOT SNACKS,Black & White Bar,,90
+SNACKS,04 DOT SNACKS,Calamansi Protein Bar,,90
+SNACKS,04 DOT SNACKS,Chocolate Salt Bread,,70
+SNACKS,04 DOT SNACKS,Corned Beef Pandesal,,55
+SNACKS,04 DOT SNACKS,Double Chocolate Chip Cookie,,120
+SNACKS,04 DOT SNACKS,Everything Dagel,,150
+SNACKS,04 DOT SNACKS,Ham Egg and Cheese Dagel,,175
+SNACKS,04 DOT SNACKS,Oatmeal Crunch Protein Bar,,90
+SNACKS,04 DOT SNACKS,Oatmeal Protein Cookie,,80
+SNACKS,04 DOT SNACKS,Peanut Butter Monkey Bar,,90
+SNACKS,04 DOT SNACKS,Salt Bread,,65
+SNACKS,04 DOT SNACKS,Spinach Mushroom Pandesal,,60
+SNACKS,04 DOT SNACKS,Truffle Salt Bread,,90
+MERCH,05 MERCH,DC Tote Bag,,850
+PROMO,05 MERCH,GC 100,,100
+PROMO,05 MERCH,GC 300,,300
+PROMO,05 MERCH,GC 500,,500
+LOYALTY CARD,05 MERCH,Gift Card Sleeves,,15
+MERCH,05 MERCH,FREE Gift Card Sleeves,total of 1000 php,0
+MERCH,05 MERCH,Tumbler Add-On,Set 1 (Straw + Rubber Stopper for Lid),80
+MERCH,05 MERCH,Tumbler Add-On,Set 2 (Silicone Boot + Handle),180
+MERCH,05 MERCH,Tumbler Holiday Set,,600
+MERCH,05 MERCH,Tumbler Only,,450
+PROMO,06 PROMO,Bring your Own Tumbler,,-10
+MERCH,06 PROMO,Tumbler Only Promo Price,min.of 300 pesos,250
+MERCH,06 PROMO,Add Ons Set 1 Promo Price,straw + rubber stopper,50
+MERCH,06 PROMO,Add Ons Set 2 Promo Price,boot + handle,150
+PROMO,06 PROMO,Free 100 Drinks,Hot Americano 12oz.,0
+PROMO,06 PROMO,Free 100 Drinks,Iced Americano 12oz.,0
+PROMO,06 PROMO,Free 100 Drinks,Hot Latte 12oz,0
+PROMO,06 PROMO,Free 100 Drinks,Iced Latte 12oz.,0
+PROMO,06 PROMO,Free 100 Drinks,Hot Matcha 12oz.,0
+PROMO,06 PROMO,Free 100 Drinks,Iced Matcha 12oz.,0
+PROMO,06 PROMO,Free 100 Drinks,Hot Spanish Latte 12oz.,0
+PROMO,06 PROMO,Free 100 Drinks,Iced Spanish Latte 12oz.,0
+LOYALTY CARD,07 LOYALTY CARD,LC Free Tumbler,,0
+LOYALTY CARD,07 LOYALTY CARD,LC Free Upsize,,-10
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MISC,Cereal Crunch,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MISC,Coconut Water,60
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MISC,Espresso Shot,55
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MISC,Matcha Powder,50
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MISC,Hojicha Powder,55
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MISC,Water Bottle,55
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MISC,Whey Protein,60
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MILK,Almond Milk,60
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MILK,Dehusk Coconut Milk,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS MILK,Oat Milk,60
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Burnt Vanilla Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Butterscotch Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Brown Sugar Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Caramelized Banana Syrup,55
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,French Vanilla Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Honey Syrup,50
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Peanut Butter Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Salted Caramel Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Signature Mocha Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Sugar Syrup,0
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Spanish Latte Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,Strawberry Puree,55
+ADD-ONS,08 DEL - ADD ONS,ADD ONS SYRUPS,White Chocolate Mocha Syrup,45
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Chocolate Foam,55
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Black Sesame Cold Foam,65
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Hojicha Cold Foam,65
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Matcha Cream Foam,65
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Rock Salt Cheese Foam,65
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Salted Caramel Foam,55
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Salted Cream Foam,65
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Strawberry Cream Foam,65
+ADD-ONS,08 DEL - ADD ONS,ADD ONS FOAM,Vanilla Foam,55
+ICED,09 DEL - CLASSICS,Americano,Iced Regular (12oz),150
+ICED,09 DEL - CLASSICS,Americano,Iced Large (16oz),160
+HOT,09 DEL - CLASSICS,Americano,Hot Regular (12oz),150
+HOT,09 DEL - CLASSICS,Americano,Hot Large (16oz),160
+ICED,09 DEL - CLASSICS,Burnt Vanilla,Iced Regular (12oz),200
+ICED,09 DEL - CLASSICS,Burnt Vanilla,Iced Large (16oz),210
+HOT,09 DEL - CLASSICS,Burnt Vanilla,Hot Regular (12oz),200
+HOT,09 DEL - CLASSICS,Burnt Vanilla,Hot Large (16oz),210
+ICED,09 DEL - CLASSICS,Butterscotch,Iced Regular (12oz),190
+ICED,09 DEL - CLASSICS,Butterscotch,Iced Large (16oz),200
+HOT,09 DEL - CLASSICS,Butterscotch,Hot Regular (12oz),190
+HOT,09 DEL - CLASSICS,Butterscotch,Hot Large (16oz),200
+ICED,09 DEL - CLASSICS,Cold Brew,Iced Regular (12oz),160
+ICED,09 DEL - CLASSICS,Cold Brew,Iced Large (16oz),170
+ICED,09 DEL - CLASSICS,Dirty Matcha,Iced Regular (12oz),220
+ICED,09 DEL - CLASSICS,Dirty Matcha,Iced Large (16oz),230
+HOT,09 DEL - CLASSICS,Dirty Matcha,Hot Regular (12oz),220
+HOT,09 DEL - CLASSICS,Dirty Matcha,Hot Large (16oz),230
+ICED,09 DEL - CLASSICS,Latte,Iced Regular (12oz),170
+ICED,09 DEL - CLASSICS,Latte,Iced Large (16oz),180
+HOT,09 DEL - CLASSICS,Latte,Hot Regular (12oz),170
+HOT,09 DEL - CLASSICS,Latte,Hot Large (16oz),180
+ICED,09 DEL - CLASSICS,Matcha,Iced Regular (12oz),200
+ICED,09 DEL - CLASSICS,Matcha,Iced Large (16oz),210
+HOT,09 DEL - CLASSICS,Matcha,Hot Regular (12oz),200
+HOT,09 DEL - CLASSICS,Matcha,Hot Large (16oz),210
+ICED,09 DEL - CLASSICS,Salted Caramel,Iced Regular (12oz),190
+ICED,09 DEL - CLASSICS,Salted Caramel,Iced Large (16oz),200
+HOT,09 DEL - CLASSICS,Salted Caramel,Hot Regular (12oz),190
+HOT,09 DEL - CLASSICS,Salted Caramel,Hot Large (16oz),200
+ICED,09 DEL - CLASSICS,Signature Mocha,Iced Regular (12oz),190
+ICED,09 DEL - CLASSICS,Signature Mocha,Iced Large (16oz),200
+HOT,09 DEL - CLASSICS,Signature Mocha,Hot Regular (12oz),190
+HOT,09 DEL - CLASSICS,Signature Mocha,Hot Large (16oz),200
+ICED,09 DEL - CLASSICS,Spanish Latte,Iced Regular (12oz),190
+ICED,09 DEL - CLASSICS,Spanish Latte,Iced Large (16oz),200
+HOT,09 DEL - CLASSICS,Spanish Latte,Hot Regular (12oz),190
+HOT,09 DEL - CLASSICS,Spanish Latte,Hot Large (16oz),200
+ICED,09 DEL - CLASSICS,White Chocolate Mocha,Iced Regular (12oz),190
+ICED,09 DEL - CLASSICS,White Chocolate Mocha,Iced Large (16oz),200
+HOT,09 DEL - CLASSICS,White Chocolate Mocha,Hot Regular (12oz),190
+HOT,09 DEL - CLASSICS,White Chocolate Mocha,Hot Large (16oz),200
+ICED,10 DEL - SIGNATURES,Black Sesame Hojicha Latte,Iced Regular (12oz),260
+ICED,10 DEL - SIGNATURES,Black Sesame Hojicha Latte,Iced Large (16oz),270
+ICED,10 DEL - SIGNATURES,Caramelized Banana Hojicha Latte,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Caramelized Banana Hojicha Latte,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Cereal Milk,Iced Regular (12oz),190
+ICED,10 DEL - SIGNATURES,Cereal Milk,Iced Large (16oz),200
+ICED,10 DEL - SIGNATURES,Chocolate Milk,Iced Regular (12oz),170
+ICED,10 DEL - SIGNATURES,Chocolate Milk,Iced Large (16oz),180
+HOT,10 DEL - SIGNATURES,Chocolate Milk,Hot Regular 12oz.,170
+HOT,10 DEL - SIGNATURES,Chocolate Milk,Hot Large 16oz.,180
+ICED,10 DEL - SIGNATURES,Coco Americano,Iced Regular (12oz),200
+ICED,10 DEL - SIGNATURES,Coco Americano,Iced Large (16oz),210
+ICED,10 DEL - SIGNATURES,CocoChata,Iced Regular (12oz),225
+ICED,10 DEL - SIGNATURES,CocoChata,Iced Large (16oz),235
+ICED,10 DEL - SIGNATURES,Coconut Cream Cold Brew,Iced Regular (12oz),225
+ICED,10 DEL - SIGNATURES,Coconut Cream Cold Brew,Iced Large (16oz),235
+ICED,10 DEL - SIGNATURES,Cookie Butter Oat Latte,Iced Regular (12oz) l Dairy,240
+ICED,10 DEL - SIGNATURES,Cookie Butter Oat Latte,Iced Regular (12oz) l Almond,240
+ICED,10 DEL - SIGNATURES,Cookie Butter Oat Latte,Iced Regular (12oz) l Oat,240
+ICED,10 DEL - SIGNATURES,Cookie Butter Oat Latte,Iced Large (16oz) l Dairy,250
+ICED,10 DEL - SIGNATURES,Cookie Butter Oat Latte,Iced Large (16oz) l Almond,250
+ICED,10 DEL - SIGNATURES,Cookie Butter Oat Latte,Iced Large (16oz) l Oat,250
+ICED,10 DEL - SIGNATURES,Creamy Coco Hojicha,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Creamy Coco Hojicha,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Creamy Coco Matcha,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Creamy Coco Matcha,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Dirty Cereal,Iced Regular (12oz),220
+ICED,10 DEL - SIGNATURES,Dirty Cereal,Iced Large (16oz),230
+ICED,10 DEL - SIGNATURES,Dirty Coco,Iced Regular (12oz),210
+ICED,10 DEL - SIGNATURES,Dirty Coco,Iced Large (16oz),220
+ICED,10 DEL - SIGNATURES,Dirty Horchata,Iced Regular (12oz) l Dairy,210
+ICED,10 DEL - SIGNATURES,Dirty Horchata,Iced Regular (12oz) l Almond,210
+ICED,10 DEL - SIGNATURES,Dirty Horchata,Iced Regular (12oz) l Oat,210
+ICED,10 DEL - SIGNATURES,Dirty Horchata,Iced Large (16oz) l Dairy,220
+ICED,10 DEL - SIGNATURES,Dirty Horchata,Iced Large (16oz) l Almond,220
+ICED,10 DEL - SIGNATURES,Dirty Horchata,Iced Large (16oz) l Oat,220
+ICED,10 DEL - SIGNATURES,Hojicha Oat Latte,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Hojicha Oat Latte,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Horchata,Iced Regular (12oz) l Dairy,190
+ICED,10 DEL - SIGNATURES,Horchata,Iced Regular (12oz) l Almond,190
+ICED,10 DEL - SIGNATURES,Horchata,Iced Regular (12oz) l Oat,190
+ICED,10 DEL - SIGNATURES,Horchata,Iced Large (16oz) l Dairy,200
+ICED,10 DEL - SIGNATURES,Horchata,Iced Large (16oz) l Almond,200
+ICED,10 DEL - SIGNATURES,Horchata,Iced Large (16oz) l Oat,200
+ICED,10 DEL - SIGNATURES,Malted Milk Protein Latte,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Malted Milk Protein Latte,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Peanut Butter Protein Latte,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Peanut Butter Protein Latte,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Salted Caramel Matcha,Iced Regular (12oz),210
+ICED,10 DEL - SIGNATURES,Salted Caramel Matcha,Iced Large (16oz),220
+ICED,10 DEL - SIGNATURES,Salted Cream Matcha,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Salted Cream Matcha,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Salted Dark Choc Protein Latte,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Salted Dark Choc Protein Latte,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Salted Dark Chocolate,Iced Large (16oz),230
+ICED,10 DEL - SIGNATURES,Salted Honey Oat Latte,Iced Regular (12oz) l Dairy,240
+ICED,10 DEL - SIGNATURES,Salted Honey Oat Latte,Iced Regular (12oz) l Almond,240
+ICED,10 DEL - SIGNATURES,Salted Honey Oat Latte,Iced Regular (12oz) l Oat,240
+ICED,10 DEL - SIGNATURES,Salted Honey Oat Latte,Iced Large (16oz) l Dairy,250
+ICED,10 DEL - SIGNATURES,Salted Honey Oat Latte,Iced Large (16oz) l Almond,250
+ICED,10 DEL - SIGNATURES,Salted Honey Oat Latte,Iced Large (16oz) l Oat,250
+ICED,10 DEL - SIGNATURES,Strawberry Cream Matcha,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Strawberry Cream Matcha,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Strawberry Hojicha Latte,Iced Regular (12oz),230
+ICED,10 DEL - SIGNATURES,Strawberry Hojicha Latte,Iced Large (16oz),240
+ICED,10 DEL - SIGNATURES,Strawberry Milk,Iced Regular (12oz),190
+ICED,10 DEL - SIGNATURES,Strawberry Milk,Iced Large (16oz),200
+SNACKS,11 DEL - SNACKS,Black & White Bar,,105
+SNACKS,11 DEL - SNACKS,Calamansi Protein Bar,,105
+SNACKS,11 DEL - SNACKS,Chocolate Salt Bread,,85
+SNACKS,11 DEL - SNACKS,Corned Beef Pandesal,,70
+SNACKS,11 DEL - SNACKS,Double Chocolate Chip Cookie,,135
+SNACKS,11 DEL - SNACKS,Everything Dagel,,165
+SNACKS,11 DEL - SNACKS,Ham Egg and Cheese Dagel,,190
+SNACKS,11 DEL - SNACKS,Oatmeal Crunch Protein Bar,,105
+SNACKS,11 DEL - SNACKS,Oatmeal Protein Cookie,,95
+SNACKS,11 DEL - SNACKS,Peanut Butter Monkey Bar,,105
+SNACKS,11 DEL - SNACKS,Salt Bread,,80
+SNACKS,11 DEL - SNACKS,Spinach Mushroom Pandesal,,75
+SNACKS,11 DEL - SNACKS,Truffle Salt Bread,,105
+MERCH,12 DEL - MERCH,Tumbler Add-On,Set 1 (Straw + Rubber Stopper for Lid),100
+MERCH,12 DEL - MERCH,Tumbler Add-On,Set 2 (Silicone Boot + Handle),225
+MERCH,12 DEL - MERCH,Tumbler Holiday Set,with extra straw,650

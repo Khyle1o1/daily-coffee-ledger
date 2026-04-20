@@ -26,6 +26,7 @@ import { mapRow } from "@/utils/mapRow";
 import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
+import { preloadMenuReference } from "@/utils/menuReference";
 import { computeMonthlyReport, getMonthKey } from "@/utils/aggregateMonthly";
 import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId, ViewMode } from "@/utils/types";
 import { CATEGORIES } from "@/utils/types";
@@ -86,6 +87,7 @@ const Index = () => {
     const initializeData = async () => {
       try {
         void seedBranchesIfEmpty();
+        void preloadMenuReference();
 
         // Load all existing reports from Supabase
         setIsLoadingReports(true);

@@ -1,6 +1,11 @@
 import { normalizeText } from "./normalize";
 import { normalizeOption as normalizeValidationOption } from "./defaultMapping";
 import type { RawRow, ProcessedRow, MappingEntry, Category } from "./types";
+import {
+  getMenuReferenceSnapshot,
+  makeMenuReferenceCategoryItemKey,
+  makeMenuReferenceTripleKey,
+} from "./menuReference";
 
 // ─── Normalization helpers ────────────────────────────────────────────────────
 
@@ -20,10 +25,21 @@ function normalizeCategory(rawCategory: string): string {
   // Handles mojibake artifacts from CSV encoding issues.
   t = t
     .normalize("NFKD")
-    .replace(/[^\x00-\x7F]/g, " ")
+    .replace(/[^\x20-\x7E]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   return t;
+}
+
+function normalizeCategoryCore(rawCategory: string): string {
+  let t = normalizeCategory(rawCategory);
+  t = t.replace(/^dot\s+classics$/, "classics");
+  t = t.replace(/^dot\s+snacks$/, "snacks");
+  t = t.replace(/^add[\s-]*ons?.*$/, "add-ons");
+  t = t.replace(/^del\s*-\s*add[\s-]*ons?.*$/, "del-add-ons");
+  t = t.replace(/^del\s*-\s*dot\s+classics$/, "del - classics");
+  t = t.replace(/^del\s*-\s*dot\s+snacks$/, "del-snacks");
+  return t.trim();
 }
 
 function normalizeItem(rawItem: string): string {
@@ -31,13 +47,13 @@ function normalizeItem(rawItem: string): string {
   const t = normItem(pre);
   return t
     .normalize("NFKD")
-    .replace(/[^\x00-\x7F]/g, " ")
+    .replace(/[^\x20-\x7E]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function buildCategoryCandidates(rawCategory: string): string[] {
-  const base = normalizeCategory(rawCategory);
+  const base = normalizeCategoryCore(rawCategory);
   const out = new Set<string>([base]);
 
   const add = (s: string) => {
@@ -46,11 +62,11 @@ function buildCategoryCandidates(rawCategory: string): string[] {
   };
 
   // Direct aliases observed in March exports.
-  if (base === "dot classics") add("classics");
+  if (base === "dot classics" || base === "classics") add("classics");
   if (base === "del dot classics") add("del - classics");
-  if (base === "add ons" || base === "add-on" || base === "add ons") add("add-ons");
+  if (base === "add ons" || base === "add-on" || base === "add-ons") add("add-ons");
   if (base === "del add ons" || base === "del add-on" || base === "del add ons") add("del-add-ons");
-  if (base === "dot snacks") add("snacks");
+  if (base === "dot snacks" || base === "snacks") add("snacks");
   if (base.includes("packaging")) add("packaging");
 
   // Preserve already-correct categories while normalizing DEL format variants.
@@ -81,11 +97,12 @@ function normalizeOption(rawOption: string): string {
   let t = normalizeText(pre);
   t = t
     .normalize("NFKD")
-    .replace(/[^\x00-\x7F]/g, " ")
+    .replace(/[^\x20-\x7E]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (t === "-" || t === "--" || t === "n/a" || t === "na") return "";
   t = t.replace(/\s+[l]\s+/g, " | ");
+  t = t.replace(/\s+l\s+/g, " | ");
   t = t.replace(/\s*\|\s*/g, " | ");
 
   // Standardize explicit size forms.
@@ -95,6 +112,10 @@ function normalizeOption(rawOption: string): string {
   t = t.replace(/\bhot\s+large\s*\(?\s*16\s*oz\s*\)?\.?/g, "hot large 16 oz. (+10)");
   t = t.replace(/\bregular\s*\(?\s*12\s*oz\s*\)?\.?/g, "regular 12 oz.");
   t = t.replace(/\blarge\s*\(?\s*16\s*oz\s*\)?\.?/g, "large 16 oz. (+10)");
+  t = t.replace(/\biced\s+regular\s+12oz\b/g, "iced regular 12 oz.");
+  t = t.replace(/\biced\s+large\s+16oz\b/g, "iced large 16 oz. (+10)");
+  t = t.replace(/\bhot\s+regular\s+12oz\b/g, "hot regular 12oz.");
+  t = t.replace(/\bhot\s+large\s+16oz\b/g, "hot large 16 oz. (+10)");
 
   return normalizeValidationOption(t);
 }
@@ -103,7 +124,14 @@ function buildOptionCandidates(rawOption: string, catNorm: string): string[] {
   const base = normalizeOption(rawOption);
   const out = new Set<string>([base]);
 
-  if ((catNorm.includes("dot signatures") || catNorm.includes("del - dot signatures")) && base.startsWith("iced ")) {
+  const maybeSignatureCategory =
+    catNorm.includes("dot signatures") || catNorm.includes("del - dot signatures");
+
+  if (maybeSignatureCategory && base.startsWith("iced ")) {
+    out.add(base.replace(/^iced\s+/, "").trim());
+  }
+  // Preserve milk suffixes while trying no-leading-iced variants.
+  if (maybeSignatureCategory && /\|\s*(oat|almond|dairy)\b/.test(base)) {
     out.add(base.replace(/^iced\s+/, "").trim());
   }
 
@@ -123,12 +151,32 @@ const ITEM_ALIASES: Record<string, string[]> = {
   [normalizeText("cocochata")]: [normalizeText("coco chata")],
   [normalizeText("truffle salt bread")]: [normalizeText("truffle cheese salt bread")],
   [normalizeText("oatmeal crunch protein bar")]: [normalizeText("oatmeal cookie protein bar")],
+  [normalizeText("chocolate salt bread")]: [normalizeText("dark chocolate salt bread")],
+  [normalizeText("dc tote bag")]: [normalizeText("dc tote bag"), normalizeText("Dc Tote Bag")],
   [normalizeText("bring your own tumbler")]: [normalizeText("bring your own tumbler")],
 };
 
-function buildItemCandidates(rawItem: string): string[] {
+function applyMenuReferenceAliases(rawItem: string, menuItems: Set<string>): string[] {
+  const base = normalizeItem(rawItem);
+  const out = new Set<string>();
+  const knownAliases = ITEM_ALIASES[base] ?? [];
+  for (const alias of knownAliases) {
+    if (menuItems.size === 0 || menuItems.has(alias)) out.add(alias);
+  }
+  return Array.from(out);
+}
+
+function buildItemCandidates(rawItem: string, catCandidates: string[]): string[] {
   const base = normalizeItem(rawItem);
   const out = new Set<string>([base]);
+  const menuRef = getMenuReferenceSnapshot();
+  const menuItemsForCats = new Set<string>();
+  for (const c of catCandidates) {
+    const menuItems = menuRef.itemsByCategory.get(c);
+    if (!menuItems) continue;
+    for (const i of menuItems) menuItemsForCats.add(i);
+  }
+  for (const alias of applyMenuReferenceAliases(rawItem, menuItemsForCats)) out.add(alias);
   for (const alias of ITEM_ALIASES[base] ?? []) out.add(alias);
   // Also try a spacing-insensitive form (e.g. "cocochata" <-> "coco chata").
   if (base.includes(" ")) out.add(base.replace(/\s+/g, ""));
@@ -147,8 +195,17 @@ function isAddOnsBucketItem(itemNorm: string): boolean {
 function resolveAddOnBucketItem(catNorm: string, itemNorm: string, optNorm: string): string | null {
   if (!optNorm) return null;
   if (!isAddOnsLikeCategory(catNorm)) return null;
-  if (!isAddOnsBucketItem(itemNorm)) return null;
+  const menuRef = getMenuReferenceSnapshot();
+  const inKnownBucket = menuRef.addOnBuckets.has(itemNorm);
+  if (!isAddOnsBucketItem(itemNorm) && !inKnownBucket) return null;
   return optNorm;
+}
+
+function normalizePackagingItem(rawItem: string): string {
+  const normalized = normalizeItem(rawItem);
+  if (normalized.startsWith("delivery | ")) return `delivery | ${normalized.replace(/^delivery\s+\|\s+/, "")}`;
+  if (normalized.startsWith("delivery|")) return `delivery | ${normalized.replace(/^delivery\|/, "").trim()}`;
+  return normalized;
 }
 
 function buildCategoryRescueCandidates(catNorm: string, itemCandidates: string[]): string[] {
@@ -312,8 +369,8 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   }
 
   const rowSales = row.quantity * row.unitPrice;
-  const catNorm = normalizeCategory(row.rawCategory);
-  const itemNorm = normalizeItem(row.rawItemName);
+  const catNorm = normalizeCategoryCore(row.rawCategory);
+  const itemNorm = normalizePackagingItem(row.rawItemName);
   const optNorm = normalizeOption(row.option);
 
   const pass1Cats = [catNorm];
@@ -322,9 +379,10 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
 
   const pass2Cats = buildCategoryCandidates(row.rawCategory);
   const pass3Opts = buildOptionCandidates(row.option, pass2Cats[0] ?? catNorm);
-  const pass4Items = buildItemCandidates(row.rawItemName);
+  const pass4Items = buildItemCandidates(row.rawItemName, pass2Cats);
 
   const idx = getIndex(mappingTable);
+  const menuRef = getMenuReferenceSnapshot();
   const resolveMapped = (entry: MappingEntry): ProcessedRow =>
     mapped(row, rowSales, entry.mappedName, resolveOutputItem(entry));
 
@@ -367,28 +425,62 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   const bucketItem = resolveAddOnBucketItem(catNorm, itemNorm, optNorm);
   if (bucketItem) {
     const addOnsCats = buildCategoryCandidates("add-ons");
-    const p5 = findExact(addOnsCats, [bucketItem], [""]);
+    const p5 = findExact(addOnsCats, [normalizeItem(bucketItem)], [""]);
     if (p5) return resolveMapped(p5);
   }
 
-  // PASS 6: cat+item unique fallback only when unambiguous
+  // PASS 6: menu-confirmed candidate expansion (no fuzzy guessing)
   for (const c of pass2Cats) {
     for (const i of pass4Items) {
+      const menuCatItemKey = makeMenuReferenceCategoryItemKey(c, i);
+      const menuOptions = menuRef.optionsByCategoryItem.get(menuCatItemKey);
+      if (!menuOptions) continue;
+
+      const menuDrivenOptions = new Set<string>(pass3Opts);
+      for (const menuOption of menuOptions) {
+        for (const candidate of buildOptionCandidates(menuOption, c)) {
+          menuDrivenOptions.add(candidate);
+          if (menuRef.validTriples.has(makeMenuReferenceTripleKey(c, i, candidate))) {
+            menuDrivenOptions.add(candidate);
+          }
+        }
+      }
+      const p6 = findExact([c], [i], Array.from(menuDrivenOptions));
+      if (p6) return resolveMapped(p6);
+    }
+  }
+
+  // PASS 7: cat+item fallback only when exactly one validation row exists
+  const seenCatItem = new Set<string>();
+  for (const c of pass2Cats) {
+    for (const i of pass4Items) {
+      const catItemKey = makeMenuReferenceCategoryItemKey(c, i);
+      if (seenCatItem.has(catItemKey)) continue;
+      seenCatItem.add(catItemKey);
       const unique = lookupCatItemUnique(idx, c, i);
       if (unique) return resolveMapped(unique);
     }
   }
 
-  // PASS 7: unmapped + diagnostic reason
-  let debugReason = "no_validation_candidate_found";
+  // PASS 8: unmapped + diagnostic reason
+  let debugReason = "no_exact_candidate_found";
   if (bucketItem) {
-    debugReason = "add_on_bucket_item_requires_option_as_item";
-  } else if (pass4Items.length > 1) {
-    debugReason = "item_alias_needed";
-  } else if (pass3Opts.length > 1) {
-    debugReason = "option_format_mismatch";
+    debugReason = "add_on_bucket_not_resolved";
   } else if (pass2Cats.length > 1) {
     debugReason = "category_alias_missing";
+  } else if (pass3Opts.length > 1) {
+    debugReason = "option_normalization_missing";
+  } else if (pass4Items.length > 1) {
+    debugReason = "item_alias_needed";
+  } else if (menuRef.itemsByCategory.size > 0) {
+    const existsInMenu = pass2Cats.some((c) => {
+      const items = menuRef.itemsByCategory.get(c);
+      if (!items) return false;
+      return pass4Items.some((i) => items.has(i));
+    });
+    if (existsInMenu) {
+      debugReason = "menu_item_not_in_validation";
+    }
   }
 
   return {
