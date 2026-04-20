@@ -208,7 +208,8 @@ export type ReportType =
   | "TOP_5_PRODUCTS"
   | "RUNNING_SALES_MIX_CATEGORY"
   | "CATEGORY_PERFORMANCE"
-  | "POUR_IT_FORWARD";
+  | "POUR_IT_FORWARD"
+  | "HQ_SYNC_PACK";
 
 export interface GeneratedReportRow {
   id: string;

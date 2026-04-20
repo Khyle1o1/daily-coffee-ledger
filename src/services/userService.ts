@@ -123,6 +123,73 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
 }
 
 // ============================================================================
+// DB-ONLY HELPERS (no getUser() — accept userId directly)
+// Use these when the caller already has the authenticated user from a session
+// to avoid triggering an extra auth-lock acquisition.
+// ============================================================================
+
+/**
+ * Fetch the profile for a known userId without calling getUser().
+ * Avoids auth-lock contention when the caller already holds a session.
+ */
+export async function getUserProfileById(userId: string): Promise<UserProfile | null> {
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[userService] ❌ ERROR fetching profile by userId:', error.message);
+      return null;
+    }
+    return data as UserProfile | null;
+  } catch (error) {
+    console.error('[userService] 💥 EXCEPTION in getUserProfileById:', error);
+    return null;
+  }
+}
+
+/**
+ * Mirror the app role into the user's Supabase app_metadata so the JWT
+ * carries it as a fallback when the REST API / user_profiles table is
+ * temporarily unreachable. Call this fire-and-forget after any profile write.
+ */
+export async function syncRoleToJwtMetadata(userId: string, role: UserRole): Promise<void> {
+  try {
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      app_metadata: { role },
+    });
+    console.log('[userService] ✅ Role synced to app_metadata:', role);
+  } catch (err) {
+    console.warn('[userService] ⚠️ Failed to sync role to app_metadata:', err);
+  }
+}
+
+/**
+ * Check admin status for a known userId without calling getUser().
+ */
+export async function isAdminByUserId(userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[userService] ❌ ERROR checking admin by userId:', error.message);
+      return false;
+    }
+    return data?.role === 'admin';
+  } catch (error) {
+    console.error('[userService] 💥 EXCEPTION in isAdminByUserId:', error);
+    return false;
+  }
+}
+
+// ============================================================================
 // USER MANAGEMENT (ADMIN ONLY)
 // ============================================================================
 
@@ -143,11 +210,14 @@ export async function createUser(payload: CreateUserPayload): Promise<UserProfil
     if (!email) throw new Error('Email is required');
     if (!password || password.length < 6) throw new Error('Password must be at least 6 characters');
 
-    // Create the auth user with service-role client (bypasses RLS, no edge function needed)
+    // Create the auth user with service-role client (bypasses RLS, no edge function needed).
+    // app_metadata.role is set here so the JWT carries the role as a fallback
+    // for when the user_profiles REST API is temporarily unreachable.
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
+      app_metadata: { role },
     });
 
     if (authError) throw new Error(`Failed to create auth user: ${authError.message}`);
@@ -245,6 +315,11 @@ export async function updateUserProfile(
 
     if (error) {
       throw new Error(`Failed to update user profile: ${error.message}`);
+    }
+
+    // Keep app_metadata.role in sync so the JWT fallback stays accurate
+    if (updates.role) {
+      void syncRoleToJwtMetadata(userId, updates.role);
     }
 
     return data as UserProfile;

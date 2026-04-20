@@ -74,12 +74,18 @@ import {
 } from "@/lib/reports/compute";
 import { computeProductMixChannel } from "@/lib/reports/computeProductMixChannel";
 import { computePourItForward } from "@/lib/reports/computePourItForward";
+import { computeHQSyncPack } from "@/lib/reports/computeHQSyncPack";
 
 // ============================================================================
 // Constants
 // ============================================================================
 
 const REPORT_TYPE_OPTIONS: { value: ReportType; label: string; desc: string }[] = [
+  {
+    value: "HQ_SYNC_PACK",
+    label: "HQ Sync Report Pack",
+    desc: "Full 8-page executive pack: overview, ICED/HOT/Pastries/Add-Ons detail, Top 5 by channel",
+  },
   {
     value: "SALES_MIX_OVERVIEW",
     label: "Sales Mix Overview",
@@ -138,7 +144,7 @@ export default function ReportsPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   // ── Filter state ──────────────────────────────────────────────────────────
-  const [reportType, setReportType] = useState<ReportType>("SALES_MIX_OVERVIEW");
+  const [reportType, setReportType] = useState<ReportType>("HQ_SYNC_PACK");
   const [filterBranches, setFilterBranches] = useState<BranchId[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({
     from: undefined,
@@ -168,7 +174,11 @@ export default function ReportsPage() {
     const init = async () => {
       try {
         setIsLoadingData(true);
-        void seedBranchesIfEmpty();
+        // Run seed first, then load data — avoids 3-way concurrent auth-lock
+        // contention that was causing NavigatorLockAcquireTimeoutError at startup.
+        await seedBranchesIfEmpty().catch((err) => {
+          console.warn("seedBranchesIfEmpty warning (non-fatal):", err);
+        });
         const [reportRows, historyRows] = await Promise.all([
           listAllDailyReports(),
           listGeneratedReports(),
@@ -406,6 +416,16 @@ export default function ReportsPage() {
           selectedCategories,
           pourItForward,
         };
+      } else if (reportType === "HQ_SYNC_PACK") {
+        const hqSyncPack = computeHQSyncPack(dailyReports, filters);
+        canvas = {
+          reportType,
+          branchLabel,
+          dateRangeLabel,
+          compareLabel,
+          selectedCategories,
+          hqSyncPack,
+        };
       }
 
       if (!canvas) return;
@@ -533,7 +553,9 @@ export default function ReportsPage() {
       const reportSlug = slug(
         canvasData.reportType === "SALES_MIX_OVERVIEW"
           ? "product-mix"
-          : canvasData.reportType.replace(/_/g, " "),
+          : canvasData.reportType === "HQ_SYNC_PACK"
+            ? "hq-sync-pack"
+            : canvasData.reportType.replace(/_/g, " "),
       );
       const branchSlug =
         filterBranches.length === 0
@@ -546,11 +568,12 @@ export default function ReportsPage() {
       const filename = `${reportSlug}-${branchSlug}-${slug(fromStr)}-to-${slug(toStr)}.pdf`;
 
       if (canvasRef.current) {
+        const isPackReport = canvasData.reportType === "HQ_SYNC_PACK";
         await exportRenderedReportPdf(canvasRef.current, {
           filename,
-          backgroundColor: "#F4F0E5",
-          contentWidthPx: 1400,
-          marginPt: 20,
+          backgroundColor: isPackReport ? "#EDE7D6" : "#F4F0E5",
+          contentWidthPx: isPackReport ? 1500 : 1400,
+          marginPt: isPackReport ? 16 : 20,
         });
       } else {
         // Fallback for safety if canvas ref is unavailable.
@@ -599,7 +622,7 @@ export default function ReportsPage() {
 
   // ── Reset filters ─────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
-    setReportType("SALES_MIX_OVERVIEW");
+    setReportType("HQ_SYNC_PACK");
     setFilterBranches([]);
     setDateRange({ from: undefined, to: undefined });
     setCompareMode(false);
@@ -962,7 +985,8 @@ export default function ReportsPage() {
                 )}
 
                 {reportType !== "RUNNING_SALES_MIX_CATEGORY" &&
-                  reportType !== "PRODUCT_MIX_CHANNEL" && (
+                  reportType !== "PRODUCT_MIX_CHANNEL" &&
+                  reportType !== "HQ_SYNC_PACK" && (
                     <div className="space-y-1.5">
                       <Label className="text-xs text-slate-500 uppercase tracking-wider">
                         Categories
@@ -989,6 +1013,15 @@ export default function ReportsPage() {
                       </div>
                     </div>
                   )}
+
+                {reportType === "HQ_SYNC_PACK" && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#1e3a5f]/20 bg-[#1e3a5f]/5">
+                    <div className="h-2 w-2 rounded-full bg-[#C05A1F]" />
+                    <p className="text-xs text-[#1e3a5f] font-semibold">
+                      Generates 8 pages: Overview · ICED · HOT · Pastries · Add-Ons · Top 5 Drinks · Pastry · Add-On by channel
+                    </p>
+                  </div>
+                )}
 
                 {reportType === "PRODUCT_MIX" && (
                   <div className="space-y-1.5">

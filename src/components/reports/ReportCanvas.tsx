@@ -10,6 +10,7 @@ import type {
 } from "@/lib/reports/compute";
 import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChannel";
 import type { PourReportData } from "@/lib/reports/computePourItForward";
+import type { ComputedHQSyncPack } from "@/lib/reports/computeHQSyncPack";
 
 import SalesMixOverviewReport from "./renderers/SalesMixOverviewReport";
 import ProductMixReport from "./renderers/ProductMixReport";
@@ -19,6 +20,7 @@ import RunningSalesMixCategoryReport from "./renderers/RunningSalesMixCategoryRe
 import CategoryPerformanceReport from "./renderers/CategoryPerformanceReport";
 import ProductMixChannelReport from "./renderers/ProductMixChannelReport";
 import PourItForwardReport from "./renderers/PourItForwardReport";
+import HQSyncPackReport from "./renderers/HQSyncPackReport";
 
 export interface ReportCanvasData {
   reportType: ReportType;
@@ -36,6 +38,7 @@ export interface ReportCanvasData {
   categoryPerformance?: ComputedCategoryPerformance;
   runningSalesCategory?: Category;
   pourItForward?: PourReportData;
+  hqSyncPack?: ComputedHQSyncPack;
 }
 
 interface Props {
@@ -114,6 +117,15 @@ const ReportCanvas = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
 
       {data.reportType === "POUR_IT_FORWARD" && data.pourItForward && (
         <PourItForwardReport data={data.pourItForward} />
+      )}
+
+      {data.reportType === "HQ_SYNC_PACK" && data.hqSyncPack && (
+        <HQSyncPackReport
+          data={data.hqSyncPack}
+          branchLabel={data.branchLabel}
+          dateRangeLabel={data.dateRangeLabel}
+          compareLabel={data.compareLabel}
+        />
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 import { createContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
-import { getCurrentUserProfile, isCurrentUserAdmin } from '@/services/userService';
+import { getUserProfileById, isAdminByUserId, syncRoleToJwtMetadata } from '@/services/userService';
 import { logEvent } from '@/services/auditService';
 import type { UserProfile, UserRole } from '@/lib/supabase-types';
 
@@ -30,13 +30,26 @@ interface AuthProviderProps {
 interface CachedProfile {
   userId: string;
   profile: UserProfile | null;
+  role: UserRole | null;
   isAdmin: boolean;
   timestamp: number;
 }
 
-// Bump version to instantly evict any stale cached data
-const PROFILE_CACHE_KEY = 'auth_profile_cache_v2';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+// localStorage key — persists across tabs and page refreshes so a cached role
+// is available even when the Supabase REST API is temporarily unreachable.
+const PROFILE_CACHE_KEY = 'auth_profile_cache_v3';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+// Max time to wait for a DB profile fetch before falling back to cache/JWT.
+// Prevents the loading screen from hanging when Supabase is slow or paused.
+const DB_FETCH_TIMEOUT_MS = 5000;
+
+function withTimeout<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), DB_FETCH_TIMEOUT_MS)),
+  ]);
+}
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
@@ -52,7 +65,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const getCachedProfile = (userId: string): CachedProfile | null => {
     try {
-      const cached = sessionStorage.getItem(PROFILE_CACHE_KEY);
+      const cached = localStorage.getItem(PROFILE_CACHE_KEY);
       if (!cached) return null;
       
       const data: CachedProfile = JSON.parse(cached);
@@ -70,15 +83,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const setCachedProfile = (userId: string, profile: UserProfile | null, isAdmin: boolean) => {
+  const setCachedProfile = (userId: string, profile: UserProfile | null, isAdmin: boolean, role: UserRole | null) => {
     try {
       const data: CachedProfile = {
         userId,
         profile,
+        role,
         isAdmin,
         timestamp: Date.now()
       };
-      sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(data));
+      localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(data));
     } catch (error) {
       console.error('[AuthProvider] ❌ Error writing cache:', error);
     }
@@ -86,7 +100,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const clearCachedProfile = () => {
     try {
-      sessionStorage.removeItem(PROFILE_CACHE_KEY);
+      localStorage.removeItem(PROFILE_CACHE_KEY);
     } catch (error) {
       console.error('[AuthProvider] ❌ Error clearing cache:', error);
     }
@@ -123,12 +137,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       email: currentUser.email
     });
 
-    // Try to use cached profile first
+    // Try to use cached profile first (warm path — DB not needed)
     if (!force) {
       const cached = getCachedProfile(currentUser.id);
       if (cached) {
         setProfile(cached.profile);
+        setRole(cached.role);
         setIsAdmin(cached.isAdmin);
+        setIsViewer(cached.role === 'viewer');
         lastLoadedUserId.current = currentUser.id;
         return;
       }
@@ -140,39 +156,68 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       console.log('[AuthProvider] 📡 Fetching profile from database...');
 
-      const [profileResult, adminResult] = await Promise.allSettled([
-        getCurrentUserProfile(),
-        isCurrentUserAdmin(),
+      const userId = currentUser.id;
+      const [userProfile, adminStatus] = await Promise.all([
+        withTimeout(getUserProfileById(userId), null),
+        withTimeout(isAdminByUserId(userId), false),
       ]);
 
-      let userProfile: UserProfile | null = null;
-      if (profileResult.status === 'fulfilled') {
-        userProfile = profileResult.value;
-      } else {
-        console.error('[AuthProvider] ❌ Failed to get profile:', profileResult.reason);
+      // Determine the resolved role using a three-tier fallback:
+      //  1. DB user_profiles row (authoritative)
+      //  2. JWT app_metadata.role (seeded by createUser / updateUserProfile,
+      //     available even when the REST API is offline)
+      //  3. localStorage cache (populated by previous successful loads)
+      let resolvedRole = (userProfile?.role ?? null) as UserRole | null;
+      let resolvedAdmin = adminStatus;
+
+      if (!resolvedRole) {
+        // Tier 2: JWT app_metadata.role (set by createUser / updateUserProfile)
+        const jwtRole = currentUser.app_metadata?.role as UserRole | undefined;
+        if (jwtRole && (['admin', 'user', 'viewer'] as string[]).includes(jwtRole)) {
+          console.log('[AuthProvider] ℹ️ DB unavailable — using JWT app_metadata.role:', jwtRole);
+          resolvedRole = jwtRole;
+          resolvedAdmin = jwtRole === 'admin';
+        }
       }
 
-      let adminStatus = false;
-      if (adminResult.status === 'fulfilled') {
-        adminStatus = adminResult.value;
-      } else {
-        console.error('[AuthProvider] ❌ Failed to check admin status:', adminResult.reason);
+      if (!resolvedRole) {
+        // Tier 3: stale localStorage cache (ignore expiry — better than "Unknown")
+        try {
+          const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+          if (raw) {
+            const stale: CachedProfile = JSON.parse(raw);
+            if (stale.userId === currentUser.id && stale.role) {
+              console.log('[AuthProvider] ⚠️ DB+JWT failed — using stale cached role:', stale.role);
+              resolvedRole = stale.role;
+              resolvedAdmin = stale.isAdmin;
+            }
+          }
+        } catch {
+          // ignore parse errors
+        }
       }
 
       console.log('[AuthProvider] ✅ Profile loaded:', {
         hasProfile: !!userProfile,
-        isAdmin: adminStatus,
-        profile: userProfile
+        resolvedRole,
+        isAdmin: resolvedAdmin,
       });
 
-      const userRole = (userProfile?.role ?? null) as UserRole | null;
       setProfile(userProfile);
-      setRole(userRole);
-      setIsAdmin(adminStatus);
-      setIsViewer(userRole === 'viewer');
+      setRole(resolvedRole);
+      setIsAdmin(resolvedAdmin);
+      setIsViewer(resolvedRole === 'viewer');
+
       if (userProfile !== null) {
-        setCachedProfile(currentUser.id, userProfile, adminStatus);
+        setCachedProfile(currentUser.id, userProfile, resolvedAdmin, resolvedRole);
+
+        // One-time background sync: mirror role into app_metadata so the JWT
+        // carries it as a fallback for future sessions when the DB is offline.
+        if (!currentUser.app_metadata?.role) {
+          void syncRoleToJwtMetadata(userId, userProfile.role);
+        }
       }
+
       lastLoadedUserId.current = currentUser.id;
     } catch (error) {
       console.error('[AuthProvider] 💥 EXCEPTION loading profile:', error);
@@ -187,23 +232,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     console.log('[AuthProvider] 🚀 Initializing auth system...');
-    
-    // Get initial session
+
     const initializeAuth = async () => {
       try {
         console.log('[AuthProvider] 📡 Getting session from Supabase...');
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-        
+
         console.log('[AuthProvider] ✅ Session retrieved:', {
           hasSession: !!initialSession,
           hasUser: !!initialSession?.user,
-          userEmail: initialSession?.user?.email
+          userEmail: initialSession?.user?.email,
         });
-        
+
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
-        // Fire-and-forget profile load so Auth UI is not blocked
-        void loadProfile(initialSession?.user ?? null);
+
+        // Await the profile so role/isAdmin are committed before loading=false
+        // clears the spinner. Without this the header renders with role=null
+        // ("Unknown") and only corrects itself after the DB query completes.
+        await loadProfile(initialSession?.user ?? null);
       } catch (error) {
         console.error('[AuthProvider] ❌ Error getting session:', error);
       } finally {
@@ -221,24 +268,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('[AuthProvider] 🔔 Auth state changed:', event, {
           hasSession: !!currentSession,
           hasUser: !!currentSession?.user,
-          userEmail: currentSession?.user?.email
+          userEmail: currentSession?.user?.email,
         });
-        
-        // Only reload profile for actual auth changes, not initial session.
-        // Force a fresh DB fetch on SIGNED_IN so a stale cache never hides
-        // the correct role after the user logs in.
-        const shouldReloadProfile = event !== 'INITIAL_SESSION';
-        const forceRefresh = event === 'SIGNED_IN';
-        
+
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
-        
-        if (shouldReloadProfile) {
-          // Fire-and-forget so auth UI is never blocked on DB latency
-          void loadProfile(currentSession?.user ?? null, forceRefresh);
+
+        if (event === 'INITIAL_SESSION') {
+          // initializeAuth already awaits loadProfile and controls loading=false
+          // for the initial session — nothing to do here.
+          return;
         }
-        
-        setLoading(false);
+
+        if (event === 'SIGNED_OUT') {
+          // State already cleared via setUser/setSession above; no loading needed.
+          setLoading(false);
+          return;
+        }
+
+        // TOKEN_REFRESHED / USER_UPDATED are background operations — the user
+        // is already on a page and should NOT see the loading screen.
+        // Refresh the profile silently without touching the loading flag.
+        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          if (!isLoadingProfile.current) {
+            void loadProfile(currentSession?.user ?? null, false);
+          }
+          return;
+        }
+
+        // SIGNED_IN: silently update profile in the background — no loading screen.
+        //
+        // Why: this event fires in three situations:
+        //   1. A new browser tab detects the existing session.
+        //   2. The user signs in from the login page (initializeAuth already
+        //      handled the initial loading state; the listener just refreshes).
+        //   3. Any other re-auth flow.
+        //
+        // In all cases the user is already on a page (or ProtectedRoute will
+        // immediately render once setUser above commits). Showing loading=true
+        // here flashes the full-screen spinner on every new tab and every login,
+        // even when the profile is already cached in localStorage.
+        if (event === 'SIGNED_IN' && !isLoadingProfile.current) {
+          void loadProfile(currentSession?.user ?? null, false);
+        }
       }
     );
 

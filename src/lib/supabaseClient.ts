@@ -12,11 +12,35 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+// ─── Local promise-queue mutex ────────────────────────────────────────────────
+// Replaces the default Navigator LockManager so concurrent auth operations
+// (e.g. multiple getUser() calls fired at startup) queue up locally instead of
+// competing for an exclusive cross-tab OS lock that times out after 10 s.
+// This is safe for a single-tab SPA; the Navigator lock is only needed to
+// synchronise sessions across browser tabs, which is not required here.
+const _lockQueues = new Map<string, Promise<unknown>>();
+
+function localLock<R>(
+  name: string,
+  _acquireTimeout: number,
+  fn: () => Promise<R>,
+): Promise<R> {
+  const prev = _lockQueues.get(name) ?? Promise.resolve();
+  // Chain on the previous operation — always run fn even if prev rejected
+  const next = prev.then(() => fn(), () => fn()) as Promise<R>;
+  // Store only a void-settled tail so the chain never grows unboundedly
+  _lockQueues.set(name, next.then(() => undefined, () => undefined));
+  return next;
+}
+
 // Create Supabase client
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    // Use the local mutex above instead of navigator.locks so concurrent auth
+    // calls at startup never trigger NavigatorLockAcquireTimeoutError.
+    lock: localLock,
   },
 });
 

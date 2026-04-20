@@ -57,7 +57,7 @@ export function getRoleLabel(role: UserRole | null | undefined): string {
     case 'admin':  return 'Admin';
     case 'user':   return 'User';
     case 'viewer': return 'Viewer';
-    default:       return 'Unknown';
+    default:       return '–';
   }
 }
 
