@@ -37,6 +37,9 @@ function normalizeCategoryCore(rawCategory: string): string {
   t = t.replace(/^dot\s+snacks$/, "snacks");
   t = t.replace(/^add[\s-]*ons?.*$/, "add-ons");
   t = t.replace(/^del\s*-\s*add[\s-]*ons?.*$/, "del-add-ons");
+  t = t.replace(/^del\s+dot\s+snacks$/, "del-snacks");
+  t = t.replace(/^del\s+dot\s+signatures$/, "del - dot signatures");
+  t = t.replace(/^del\s+dot\s+classics$/, "del - classics");
   t = t.replace(/^del\s*-\s*dot\s+classics$/, "del - classics");
   t = t.replace(/^del\s*-\s*dot\s+snacks$/, "del-snacks");
   return t.trim();
@@ -67,6 +70,8 @@ function buildCategoryCandidates(rawCategory: string): string[] {
   if (base === "add ons" || base === "add-on" || base === "add-ons") add("add-ons");
   if (base === "del add ons" || base === "del add-on" || base === "del add ons") add("del-add-ons");
   if (base === "dot snacks" || base === "snacks") add("snacks");
+  if (base === "del dot snacks") add("del-snacks");
+  if (base === "del dot signatures") add("del - dot signatures");
   if (base.includes("packaging")) add("packaging");
 
   // Preserve already-correct categories while normalizing DEL format variants.
@@ -214,7 +219,7 @@ function buildCategoryRescueCandidates(catNorm: string, itemCandidates: string[]
 
   // Observed March export issue: some DEHUSK items appear under DOT SIGNATURES.
   if (
-    catNorm === "dot signatures" &&
+    (catNorm === "dot signatures" || catNorm === "del - dot signatures" || catNorm === "del dot signatures") &&
     (has("coco chata") || has("coconut cream cold brew") || has("calamansi coconut latte"))
   ) {
     out.add(normalizeText("dehusk line"));

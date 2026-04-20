@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ProcessedRow, Category } from "@/utils/types";
 import { CATEGORIES } from "@/utils/types";
 import { formatNumber } from "@/utils/format";
@@ -14,6 +14,7 @@ export default function DetailsTable({ rows }: Props) {
   const [filter, setFilter] = useState<Filter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<Category | "ALL" | "COLD BREW">("ALL");
   const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(200);
 
   // Identify Cold Brew items (they're in ICED category but contain "cold brew")
   const isColdBrewItem = (r: ProcessedRow) => {
@@ -45,6 +46,13 @@ export default function DetailsTable({ rows }: Props) {
     }
     return true;
   });
+  const displayedRows = filtered.slice(0, visibleCount);
+  const hasMoreRows = filtered.length > visibleCount;
+  const canShowLess = visibleCount > 200;
+
+  useEffect(() => {
+    setVisibleCount(200);
+  }, [filter, categoryFilter, search, rows]);
 
   const filters: Filter[] = ["ALL", "MAPPED", "UNMAPPED", "SKIPPED"];
 
@@ -124,6 +132,41 @@ export default function DetailsTable({ rows }: Props) {
         </div>
       </div>
 
+      {/* Row visibility controls */}
+      {filtered.length > 200 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p className="text-xs text-muted-foreground">
+            Showing {displayedRows.length} of {filtered.length} rows
+          </p>
+          <div className="flex items-center gap-2">
+            {hasMoreRows && (
+              <button
+                onClick={() => setVisibleCount(prev => Math.min(prev + 200, filtered.length))}
+                className="text-xs px-3 py-1.5 rounded-full font-semibold bg-[#F1F5F9] text-[#334155] hover:bg-[#E5EBF3] transition-all"
+              >
+                Show next 200
+              </button>
+            )}
+            {hasMoreRows && (
+              <button
+                onClick={() => setVisibleCount(filtered.length)}
+                className="text-xs px-3 py-1.5 rounded-full font-semibold bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD] hover:bg-[#CFF0FF] transition-all"
+              >
+                Show all rows
+              </button>
+            )}
+            {canShowLess && (
+              <button
+                onClick={() => setVisibleCount(200)}
+                className="text-xs px-3 py-1.5 rounded-full font-semibold bg-[#F8FAFC] text-[#475569] border border-[#E2E8F0] hover:bg-[#F1F5F9] transition-all"
+              >
+                Show first 200
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Clean Table */}
       <div className="overflow-x-auto rounded-2xl shadow-lg max-h-[340px] bg-white border border-[#E2E8F0]">
         <table className="w-full border-collapse text-sm min-w-[800px] bg-white">
@@ -142,7 +185,7 @@ export default function DetailsTable({ rows }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filtered.slice(0, 200).map((r, i) => (
+            {displayedRows.map((r, i) => (
               <tr key={i} className="border-b border-border hover:bg-[#EEF2F7] transition-colors even:bg-[#F7F9FC]">
                 <td className="px-4 py-3 text-card-foreground">{r.rawCategory}</td>
                 <td className="px-4 py-3 text-card-foreground">{r.rawItemName}</td>
@@ -165,8 +208,10 @@ export default function DetailsTable({ rows }: Props) {
             ))}
           </tbody>
         </table>
-        {filtered.length > 200 && (
-          <p className="text-sm text-muted-foreground p-4 bg-muted">Showing first 200 of {filtered.length} rows</p>
+        {hasMoreRows && (
+          <p className="text-sm text-muted-foreground p-4 bg-muted">
+            Showing {displayedRows.length} of {filtered.length} rows
+          </p>
         )}
       </div>
     </div>

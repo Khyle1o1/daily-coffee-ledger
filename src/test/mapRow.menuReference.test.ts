@@ -85,4 +85,30 @@ describe("mapRow menu reference coverage", () => {
     expect(result.status).toBe("MAPPED");
     expect(result.mappedItemName).toBe("FREE Gift Card Sleeves");
   });
+
+  it("maps DEL DOT category variants from current uploads", () => {
+    const peanut = mapRow(row("DEL DOT SNACKS", "Peanut Butter Monkey Bar"), DEFAULT_MAPPING);
+    const oatmeal = mapRow(row("DEL DOT SNACKS", "Oatmeal Protein Cookie"), DEFAULT_MAPPING);
+    const coconut = mapRow(
+      row("DEL DOT SIGNATURES", "Coconut Cream Cold Brew", "Iced Large (16oz)"),
+      DEFAULT_MAPPING,
+    );
+    const cocochata = mapRow(row("DEL DOT SIGNATURES", "CocoChata", "Iced Regular (12oz)"), DEFAULT_MAPPING);
+
+    expect(peanut.status).toBe("MAPPED");
+    expect(peanut.mappedCat).toBe("SNACKS");
+    expect(peanut.mappedItemName).toBe("Peanut Butter Monkey Bar");
+
+    expect(oatmeal.status).toBe("MAPPED");
+    expect(oatmeal.mappedCat).toBe("SNACKS");
+    expect(oatmeal.mappedItemName).toBe("Oatmeal Protein Cookie");
+
+    expect(coconut.status).toBe("MAPPED");
+    expect(coconut.mappedCat).toBe("ICED");
+    expect(coconut.mappedItemName).toBe("Coconut Cream Cold Brew");
+
+    expect(cocochata.status).toBe("MAPPED");
+    expect(cocochata.mappedCat).toBe("ICED");
+    expect(cocochata.mappedItemName).toBe("Coco Chata");
+  });
 });
