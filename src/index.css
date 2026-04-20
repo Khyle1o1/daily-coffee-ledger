@@ -11,19 +11,24 @@
     --background: 212 72% 42%; /* Royal Blue background */
     --foreground: 0 0% 100%; /* White text on blue background */
 
-    --card: 0 0% 100%; /* Pure white cards */
-    --card-foreground: 212 30% 20%; /* Dark text on white cards */
+    --surface-base: 42 31% 93%; /* #F4F0E5 warm cream */
+    --surface-elevated: 42 31% 94%;
+    --surface-muted: 40 24% 89%;
+    --border-soft: 38 18% 80%;
 
-    --popover: 0 0% 100%;
+    --card: var(--surface-base); /* Warm cream cards */
+    --card-foreground: 212 30% 20%; /* Dark text on cream cards */
+
+    --popover: var(--surface-elevated);
     --popover-foreground: 212 30% 20%;
 
     --primary: 212 72% 42%; /* Royal Blue #1E63B6 */
     --primary-foreground: 0 0% 100%; /* White text on blue */
 
-    --secondary: 212 15% 95%; /* Very light blue-gray */
+    --secondary: var(--surface-elevated);
     --secondary-foreground: 212 30% 20%; /* Dark text */
 
-    --muted: 212 20% 96%; /* Very light blue tint */
+    --muted: var(--surface-muted); /* Warm muted surface */
     --muted-foreground: 212 20% 40%; /* Darker for better contrast */
 
     --accent: 212 50% 88%; /* Light blue accent */
@@ -32,8 +37,8 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 212 15% 88%; /* Soft blue-gray borders */
-    --input: 212 15% 88%;
+    --border: var(--border-soft); /* Cream-compatible border */
+    --input: var(--border-soft);
     --ring: 212 72% 42%; /* Blue focus ring */
 
     --radius: 1rem; /* Increased border radius for modern look */
@@ -44,14 +49,14 @@
     --table-grid: 212 10% 90%; /* Subtle grid lines */
     --table-totals: 212 50% 95%; /* Soft blue highlight */
     --table-row-hover: 212 80% 97%; /* Light blue hover */
-    --history-card: 0 0% 100%; /* White history cards */
-    --history-card-hover: 212 20% 97%;
+    --history-card: var(--surface-elevated);
+    --history-card-hover: 40 26% 91%;
     --history-card-active: 212 72% 42%; /* Blue for active */
     --badge-mapped: 142 60% 40%;
     --badge-unmapped: 33 100% 50%; /* Keep warning color visible */
     --badge-skipped: 212 15% 60%;
 
-    --sidebar-background: 212 50% 96%; /* Soft blue sidebar */
+    --sidebar-background: var(--surface-base);
     --sidebar-foreground: 212 30% 20%; /* Dark text */
     --sidebar-border: 212 15% 88%;
   }
@@ -79,7 +84,7 @@
     @apply px-2.5 py-2 text-right text-xs tabular-nums;
     border: none; /* Remove dotted borders */
     border-bottom: 1px solid hsl(var(--table-grid));
-    background: white;
+    background: hsl(var(--surface-base));
     color: hsl(212 30% 20%); /* Dark text for readability */
     transition: background-color 0.2s ease;
   }
@@ -103,7 +108,7 @@
   
   .totals-row .spreadsheet-cell {
     @apply font-bold text-sm;
-    background: #FFFFFF; /* white surface for totals */
+    background: hsl(var(--surface-base)); /* warm cream surface for totals */
     color: hsl(212 30% 20%); /* Dark text */
     border-bottom: 1px solid hsl(var(--table-grid));
   }
@@ -116,7 +121,7 @@
   
   .percent-row .spreadsheet-cell {
     @apply font-semibold text-xs;
-    background: #EEF4FB; /* light blue tint */
+    background: hsl(210 45% 92%); /* cool contrast tint */
     color: #2B67B2;
     font-style: normal; /* Remove italic */
   }
@@ -133,5 +138,12 @@
   
   .quantities-row:hover .spreadsheet-cell {
     background: hsl(var(--muted));
+  }
+}
+
+@layer utilities {
+  /* System-wide white-surface replacement */
+  .bg-white {
+    background-color: hsl(var(--surface-base)) !important;
   }
 }

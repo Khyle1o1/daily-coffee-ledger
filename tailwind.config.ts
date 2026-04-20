@@ -50,6 +50,11 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        surface: {
+          base: "hsl(var(--surface-base))",
+          elevated: "hsl(var(--surface-elevated))",
+          muted: "hsl(var(--surface-muted))",
+        },
         "table-header": "hsl(var(--table-header))",
         "table-header-fg": "hsl(var(--table-header-foreground))",
         "table-grid": "hsl(var(--table-grid))",

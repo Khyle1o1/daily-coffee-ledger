@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import ReportCanvas, { type ReportCanvasData } from "@/components/reports/ReportCanvas";
 import { exportReportPdf } from "@/utils/exportReportPdf";
 import { exportReportExcel } from "@/utils/exportReportExcel";
+import { exportRenderedReportPdf } from "@/utils/exportRenderedReportPdf";
 
 import type { ReportType, GeneratedReportRow } from "@/lib/supabase-types";
 import type { BranchId, Category, DailyReport } from "@/utils/types";
@@ -523,28 +524,50 @@ export default function ReportsPage() {
     if (!canvasData) return;
     setIsExporting(true);
     try {
+      const slug = (value: string) =>
+        value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
+      const reportSlug = slug(
+        canvasData.reportType === "SALES_MIX_OVERVIEW"
+          ? "product-mix"
+          : canvasData.reportType.replace(/_/g, " "),
+      );
       const branchSlug =
         filterBranches.length === 0
           ? "all-branches"
           : filterBranches.length === 1
-            ? filterBranches[0]
+            ? slug(getBranchLabel(filterBranches[0]))
             : "multi-branches";
-      const fromStr = dateRange.from ? format(dateRange.from, "yyyy-MM-dd") : "all";
-      const toStr = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : fromStr;
-      const filename = `DOTCoffee_${canvasData.reportType}_${branchSlug}_${fromStr}_${toStr}.pdf`;
-      await exportReportPdf(canvasData, filename);
+      const fromStr = dateRange.from ? format(dateRange.from, "MMM-dd-yyyy") : "all";
+      const toStr = dateRange.to ? format(dateRange.to, "MMM-dd-yyyy") : fromStr;
+      const filename = `${reportSlug}-${branchSlug}-${slug(fromStr)}-to-${slug(toStr)}.pdf`;
+
+      if (canvasRef.current) {
+        await exportRenderedReportPdf(canvasRef.current, {
+          filename,
+          backgroundColor: "#F4F0E5",
+          contentWidthPx: 1400,
+          marginPt: 20,
+        });
+      } else {
+        // Fallback for safety if canvas ref is unavailable.
+        await exportReportPdf(canvasData, filename);
+      }
       void logEvent({
         action: 'export_report',
         module: 'reports',
         targetName: filename,
         details: `Exported PDF: ${REPORT_TYPE_OPTIONS.find(o => o.value === canvasData.reportType)?.label ?? canvasData.reportType} for ${branchLabel}`,
         reportType: canvasData.reportType,
-        metadata: { format: 'pdf', branch: branchLabel, dateFrom: fromStr, dateTo: toStr },
+        metadata: { format: 'pdf', branch: branchLabel, dateFrom: fromStr, dateTo: toStr, mode: 'rendered' },
       });
     } finally {
       setIsExporting(false);
     }
-  }, [canvasData, filterBranches, dateRange, branchLabel]);
+  }, [canvasData, filterBranches, dateRange, branchLabel, getBranchLabel]);
 
   // ── Excel export ──────────────────────────────────────────────────────────
   const handleExportExcel = useCallback(() => {

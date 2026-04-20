@@ -1,5 +1,7 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useState } from "react";
 import type { ComputedSalesMix } from "@/lib/reports/compute";
+import { CHANNEL_BRANDING, type ChannelBranding } from "../channelBranding";
 
 const CATEGORY_COLORS: Record<string, string> = {
   ICED: "#3B82F6",
@@ -25,6 +27,28 @@ interface Props {
   dateRangeLabel: string;
 }
 
+function ChannelLogo({ channel }: { channel: ChannelBranding }) {
+  const [useFallback, setUseFallback] = useState(false);
+  const Fallback = channel.fallbackIcon;
+
+  return (
+    <span className={`inline-flex h-12 w-12 items-center justify-center rounded-full border border-current/20 bg-white/70 ${channel.accentClass}`}>
+      {!useFallback ? (
+        <img
+          src={channel.logoSrc}
+          alt={`${channel.title} logo`}
+          className="h-15 w-15 object-contain"
+          loading="eager"
+          decoding="sync"
+          onError={() => setUseFallback(true)}
+        />
+      ) : (
+        <Fallback className="h-4.5 w-4.5" />
+      )}
+    </span>
+  );
+}
+
 export default function SalesMixOverviewReport({ data, branchLabel, dateRangeLabel }: Props) {
   const pieData = data.categoryTotals
     .filter((c) => c.sales > 0)
@@ -34,6 +58,23 @@ export default function SalesMixOverviewReport({ data, branchLabel, dateRangeLab
     }));
 
   const hasCompare = data.categoryTotals.some((c) => c.compareSales !== undefined);
+  const channels = CHANNEL_BRANDING;
+
+  const channelSales = channels.map(({ key }) => {
+    const channelData = data.top5ByChannel?.[key];
+    const items = channelData?.items ?? [];
+    const sales =
+      channelData?.totals?.totalSales ??
+      items.reduce((sum, item) => sum + item.sales, 0);
+    return { key, sales };
+  });
+  const combinedChannelSales = channelSales.reduce((sum, c) => sum + c.sales, 0);
+  const channelShareByKey = new Map(
+    channelSales.map((c) => [
+      c.key,
+      combinedChannelSales > 0 ? (c.sales / combinedChannelSales) * 100 : 0,
+    ]),
+  );
 
   return (
     <div className="bg-white rounded-none p-8 min-h-[600px] font-sans">
@@ -177,24 +218,32 @@ export default function SalesMixOverviewReport({ data, branchLabel, dateRangeLab
           Top 5 items per channel
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {(["WALK_IN", "GRAB", "FOODPANDA"] as const).map((channel) => {
+          {channels.map((channelMeta) => {
+            const { key: channel, title, badgeClass, headerBgClass } = channelMeta;
             const channelData = data.top5ByChannel?.[channel];
             const items = channelData?.items ?? [];
-            const title =
-              channel === "WALK_IN" ? "Walk-in" : channel === "GRAB" ? "Grab" : "FoodPanda";
+            const share = channelShareByKey.get(channel) ?? 0;
 
             return (
               <div
                 key={channel}
                 className="rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col"
               >
-                <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                  <span className="text-xs font-semibold tracking-wide text-slate-700">
-                    {title}
-                  </span>
-                  <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                    Top 5
-                  </span>
+                <div className={`px-4 py-2.5 border-b border-slate-200 ${headerBgClass} flex items-center justify-between gap-3`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ChannelLogo channel={channelMeta} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold tracking-wide text-slate-800">
+                        {title}
+                      </p>
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                        Top 5 items
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold tabular-nums ${badgeClass}`}>
+                    {share.toFixed(1)}%
+                  </div>
                 </div>
                 {items.length ? (
                   <table className="w-full text-xs border-collapse">
