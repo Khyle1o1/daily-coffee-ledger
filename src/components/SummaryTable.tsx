@@ -217,7 +217,7 @@ export default function SummaryTable(props: Props) {
 
   return (
     <div className="overflow-x-auto rounded-2xl shadow-lg border border-[#E2E8F0] bg-white">
-      <table className="w-full border-collapse min-w-[680px] text-[11px] bg-white">
+      <table className="w-full border-collapse min-w-[760px] text-[11px] sm:text-xs bg-white">
         <thead className="sticky top-0 z-10">
           <tr>
             {allCols.map(col => (

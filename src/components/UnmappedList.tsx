@@ -21,12 +21,12 @@ export default function UnmappedList({ items }: Props) {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-5 bg-amber-50 p-4 rounded-xl border-2 border-amber-200">
+      <div className="flex items-center gap-3 mb-5 bg-amber-50 p-3 sm:p-4 rounded-xl border-2 border-amber-200">
         <AlertTriangle className="h-5 w-5 text-amber-600" />
-        <span className="text-base font-bold text-amber-700">{items.length} unmapped item(s) require attention</span>
+        <span className="text-sm sm:text-base font-bold text-amber-700">{items.length} unmapped item(s) require attention</span>
       </div>
       <div className="overflow-x-auto rounded-2xl shadow-lg">
-        <table className="w-full border-collapse text-sm bg-white">
+        <table className="w-full border-collapse text-xs sm:text-sm min-w-[520px] bg-white">
           <thead>
             <tr>
               <th className="px-4 py-3 text-left font-semibold text-primary-foreground bg-primary rounded-tl-2xl">Item Name</th>

@@ -678,18 +678,18 @@ export default function SummaryPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* ── Top bar ───────────────────────────────────────────────────────── */}
       <div className="bg-primary shadow-md">
-        <div className="max-w-[1600px] mx-auto px-8 py-5">
-          <div className="flex flex-wrap items-center gap-4">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8 py-3 sm:py-4 lg:py-5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4">
             {/* Date Range Filter */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   className={cn(
-                    "px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all",
+                    "w-full sm:w-auto sm:min-w-[240px] justify-start px-4 sm:px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all text-xs sm:text-sm",
                     !filterDateRange.from && "text-primary-foreground/70",
                   )}
                 >
@@ -708,15 +708,15 @@ export default function SummaryPage() {
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0 max-w-[95vw]" align="start">
                 <CalendarUI
                   mode="range"
                   selected={filterDateRange}
                   onSelect={(range) =>
                     setFilterDateRange(range || { from: undefined, to: undefined })
                   }
-                  className="p-3 pointer-events-auto rounded-2xl"
-                  numberOfMonths={2}
+                  className="p-2 sm:p-3 pointer-events-auto rounded-2xl"
+                  numberOfMonths={1}
                 />
               </PopoverContent>
             </Popover>
@@ -742,13 +742,13 @@ export default function SummaryPage() {
                 <Button
                   variant="outline"
                   disabled={isLoadingBranches}
-                  className="w-[220px] justify-start px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all"
+                  className="w-full sm:w-[220px] justify-start px-4 sm:px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all text-xs sm:text-sm"
                 >
                   <MapPin className="mr-2 h-4 w-4" />
                   <span className="truncate">{branchFilterLabel}</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[280px] p-3 rounded-2xl" align="start">
+              <PopoverContent className="w-[92vw] sm:w-[280px] p-3 rounded-2xl" align="start">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <p className="text-sm font-semibold text-card-foreground">Branches</p>
                   {filterBranches.length > 0 && (
@@ -815,11 +815,11 @@ export default function SummaryPage() {
             </Popover>
 
             {/* Right-side actions */}
-            <div className="ml-auto flex items-center gap-3">
+            <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap sm:flex-nowrap items-center justify-end gap-2 sm:gap-3">
               {/* History button */}
               <Button
                 variant="outline"
-                className="relative rounded-full px-5 py-2.5 h-auto bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all flex items-center gap-2"
+                className="relative rounded-full px-4 sm:px-5 py-2.5 h-auto bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all flex items-center gap-2 text-xs sm:text-sm min-h-10"
                 onClick={() => setIsHistoryOpen(true)}
               >
                 <Clock className="h-4 w-4" />
@@ -835,7 +835,7 @@ export default function SummaryPage() {
               {canAddData(role) && (
                 <Button
                   size="lg"
-                  className="rounded-full px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2"
+                  className="rounded-full px-4 sm:px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2 text-xs sm:text-sm min-h-10"
                   onClick={handleOpenAddModal}
                 >
                   <PlusCircle className="h-5 w-5" />
@@ -848,14 +848,14 @@ export default function SummaryPage() {
       </div>
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
-      <div className="max-w-[1600px] mx-auto px-8 py-6">
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-5 lg:py-6">
 
         {/* KPI cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
           {kpiCards.map((card) => (
             <div
               key={card.label}
-              className="bg-card rounded-2xl shadow-sm border border-border/40 p-4"
+              className="bg-card rounded-2xl shadow-sm border border-border/40 p-4 sm:p-5 min-h-[96px]"
             >
               <div className="flex items-center gap-2 mb-2.5">
                 <div className={`rounded-xl p-1.5 ${card.bg}`}>
@@ -865,7 +865,7 @@ export default function SummaryPage() {
                   {card.label}
                 </span>
               </div>
-              <p className={`text-base font-bold leading-none ${card.color}`}>
+              <p className={`text-lg sm:text-xl font-bold leading-none ${card.color}`}>
                 {card.value}
               </p>
             </div>
@@ -875,19 +875,19 @@ export default function SummaryPage() {
         {/* Summary + active report */}
         <div className="space-y-6">
           {/* Filtered totals */}
-          <div ref={filteredTotalsRef} className="bg-card rounded-3xl shadow-xl p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div ref={filteredTotalsRef} className="bg-card rounded-2xl sm:rounded-3xl shadow-xl p-4 sm:p-5 lg:p-6 min-w-0">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
               <div>
                 <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
                   Summary
                 </p>
-                <h2 className="text-xl font-bold text-card-foreground">
+                <h2 className="text-lg sm:text-xl font-bold text-card-foreground">
                   Filtered totals
                 </h2>
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <p className="text-xs text-muted-foreground">Total sales</p>
-                <p className="text-2xl font-bold text-primary">
+                <p className="text-xl sm:text-2xl font-bold text-primary">
                   ₱{formatNumber(combinedSummaryForFilters?.grandTotal || 0)}
                 </p>
               </div>
@@ -918,14 +918,14 @@ export default function SummaryPage() {
 
           {/* Active report detail */}
           {activeReport && (
-            <div className="bg-card rounded-3xl shadow-xl p-8">
+            <div className="bg-card rounded-2xl sm:rounded-3xl shadow-xl p-4 sm:p-6 lg:p-8 min-w-0">
               <div className="mb-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-card-foreground mb-2">
+                <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0">
+                    <h2 className="text-xl sm:text-2xl font-bold text-card-foreground mb-2 break-words">
                       Report preview — {activeReport.date}
                     </h2>
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-3">
+                    <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm text-muted-foreground mb-3">
                       <span className="flex items-center gap-1.5">
                         <MapPin className="h-4 w-4 text-primary" />
                         <span className="font-semibold text-primary">
@@ -951,7 +951,7 @@ export default function SummaryPage() {
                         ⚠ Unmapped: {activeReport.unmappedRows}
                       </span>
                       <span>Skipped: {activeReport.skippedRows}</span>
-                      <span className="font-bold text-primary text-lg">
+                      <span className="font-bold text-primary text-base sm:text-lg">
                         Total: ₱{formatNumber(activeReport.grandTotal)}
                       </span>
                     </div>
@@ -961,7 +961,7 @@ export default function SummaryPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleRequestDeleteReport(activeReport.id)}
-                      className="rounded-full border-red-200 text-red-600 hover:bg-red-50 shrink-0"
+                      className="rounded-full border-red-200 text-red-600 hover:bg-red-50 shrink-0 text-xs sm:text-sm"
                     >
                       Delete data
                     </Button>
@@ -1025,7 +1025,7 @@ export default function SummaryPage() {
 
       {/* ADD REPORT Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={(open) => (open ? handleOpenAddModal() : handleCloseAddModal())}>
-        <DialogContent className="w-full max-w-2xl sm:max-w-3xl rounded-3xl bg-primary text-primary-foreground border border-white/15 shadow-2xl px-8 py-7">
+        <DialogContent className="w-[95vw] max-w-2xl sm:max-w-3xl rounded-2xl sm:rounded-3xl bg-primary text-primary-foreground border border-white/15 shadow-2xl px-4 sm:px-6 lg:px-8 py-5 sm:py-7">
           <DialogHeader className="pb-4 border-b border-white/10 mb-3">
             <DialogTitle className="text-2xl font-bold tracking-tight">Add new report</DialogTitle>
           </DialogHeader>
@@ -1186,7 +1186,7 @@ export default function SummaryPage() {
 
       {/* Preview Modal */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="w-full max-w-[1200px] max-h-[90vh] rounded-2xl bg-white text-slate-900 border border-[#E2E8F0] shadow-2xl px-6 py-5 flex flex-col">
+        <DialogContent className="w-[96vw] max-w-[1200px] max-h-[90vh] rounded-2xl bg-white text-slate-900 border border-[#E2E8F0] shadow-2xl px-3 sm:px-5 lg:px-6 py-4 sm:py-5 flex flex-col">
           <DialogHeader className="pb-3 border-b border-border/60 mb-4">
             <DialogTitle className="text-xl font-semibold tracking-tight">
               Preview report
@@ -1209,9 +1209,9 @@ export default function SummaryPage() {
           </DialogHeader>
 
           {previewReport && (
-            <div className="flex-1 overflow-y-auto pr-1 space-y-5">
+            <div className="flex-1 overflow-y-auto pr-1 space-y-4 sm:space-y-5 min-w-0">
               {/* Top summary strip */}
-              <div className="flex flex-wrap items-center justify-between gap-4 px-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 px-1">
                 <div className="space-y-1">
                   <p className="text-xs font-semibold tracking-[0.16em] uppercase text-muted-foreground">
                     Branch
@@ -1237,12 +1237,12 @@ export default function SummaryPage() {
                         : previewReport.date}
                   </p>
                 </div>
-                <div className="ml-auto">
-                  <div className="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-sm text-right min-w-[180px]">
+                <div className="w-full sm:w-auto sm:ml-auto">
+                  <div className="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-sm text-left sm:text-right min-w-0 sm:min-w-[180px]">
                     <p className="text-xs font-semibold tracking-[0.16em] uppercase text-[#64748B]">
                       Total sales
                     </p>
-                    <p className="text-2xl font-extrabold text-[#2B67B2]">
+                    <p className="text-xl sm:text-2xl font-extrabold text-[#2B67B2]">
                       ₱{formatNumber(previewReport.grandTotal)}
                     </p>
                   </div>

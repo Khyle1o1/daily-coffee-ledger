@@ -73,6 +73,23 @@ function buildCategoryCandidates(rawCategory: string): string[] {
   if (base === "del dot snacks") add("del-snacks");
   if (base === "del dot signatures") add("del - dot signatures");
   if (base.includes("packaging")) add("packaging");
+  if (base === "special events") {
+    // Special Events exports are source buckets; validation remains in canonical categories.
+    for (const c of [
+      "classics",
+      "dot signatures",
+      "dehusk line",
+      "dot tea line",
+      "snacks",
+      "packaging",
+      "add-ons",
+      "promo",
+      "merch",
+      "loyalty card",
+    ]) {
+      add(c);
+    }
+  }
 
   // Preserve already-correct categories while normalizing DEL format variants.
   if (base.startsWith("del ")) {
@@ -159,6 +176,13 @@ const ITEM_ALIASES: Record<string, string[]> = {
   [normalizeText("chocolate salt bread")]: [normalizeText("dark chocolate salt bread")],
   [normalizeText("dc tote bag")]: [normalizeText("dc tote bag"), normalizeText("Dc Tote Bag")],
   [normalizeText("bring your own tumbler")]: [normalizeText("bring your own tumbler")],
+  [normalizeText("16oz iced dabba cups")]: [normalizeText("16oz iced dabba cup")],
+  [normalizeText("12oz iced dabba cups")]: [normalizeText("12oz iced dabba cup")],
+  [normalizeText("straw")]: [normalizeText("rice straw")],
+  [normalizeText("16oz hot paper cups")]: [normalizeText("16oz paper cup")],
+  [normalizeText("12oz hot paper cups")]: [normalizeText("12oz paper cup")],
+  [normalizeText("delivery | straw")]: [normalizeText("delivery | rice straw")],
+  [normalizeText("salted carmael")]: [normalizeText("salted caramel")],
 };
 
 function applyMenuReferenceAliases(rawItem: string, menuItems: Set<string>): string[] {
@@ -202,8 +226,18 @@ function resolveAddOnBucketItem(catNorm: string, itemNorm: string, optNorm: stri
   if (!isAddOnsLikeCategory(catNorm)) return null;
   const menuRef = getMenuReferenceSnapshot();
   const inKnownBucket = menuRef.addOnBuckets.has(itemNorm);
-  if (!isAddOnsBucketItem(itemNorm) && !inKnownBucket) return null;
+  const genericBucket =
+    itemNorm === "others" ||
+    itemNorm === "milk" ||
+    itemNorm === "syrups" ||
+    itemNorm === "misc" ||
+    itemNorm === "foam";
+  if (!isAddOnsBucketItem(itemNorm) && !inKnownBucket && !genericBucket) return null;
   return optNorm;
+}
+
+function isSpecialEventsCategory(catNorm: string): boolean {
+  return catNorm === "special events";
 }
 
 function normalizePackagingItem(rawItem: string): string {
@@ -432,6 +466,19 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
     const addOnsCats = buildCategoryCandidates("add-ons");
     const p5 = findExact(addOnsCats, [normalizeItem(bucketItem)], [""]);
     if (p5) return resolveMapped(p5);
+  }
+
+  // PASS 5b: Special Events bucket rows (Item is bucket, Option is real item)
+  if (isSpecialEventsCategory(catNorm) && optNorm) {
+    const specialBucketItem = normalizeItem(row.rawItemName);
+    if (specialBucketItem.includes("packaging")) {
+      const p5bPack = findExact(buildCategoryCandidates("packaging"), buildItemCandidates(row.option, ["packaging"]), [""]);
+      if (p5bPack) return resolveMapped(p5bPack);
+    }
+    if (specialBucketItem.includes("add ons") || specialBucketItem.includes("add-ons")) {
+      const p5bAddOns = findExact(buildCategoryCandidates("add-ons"), buildItemCandidates(row.option, ["add-ons"]), [""]);
+      if (p5bAddOns) return resolveMapped(p5bAddOns);
+    }
   }
 
   // PASS 6: menu-confirmed candidate expansion (no fuzzy guessing)

@@ -79,7 +79,7 @@ export default function DetailsTable({ rows }: Props) {
           placeholder="Search items..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="ml-auto max-w-[240px] h-9 text-xs rounded-full border px-3 bg-white text-[#0F172A] placeholder:text-[#94A3B8]"
+          className="w-full sm:w-auto sm:ml-auto sm:max-w-[240px] h-9 text-xs rounded-full border px-3 bg-white text-[#0F172A] placeholder:text-[#94A3B8]"
         />
       </div>
 
@@ -169,7 +169,7 @@ export default function DetailsTable({ rows }: Props) {
 
       {/* Clean Table */}
       <div className="overflow-x-auto rounded-2xl shadow-lg max-h-[340px] bg-white border border-[#E2E8F0]">
-        <table className="w-full border-collapse text-sm min-w-[800px] bg-white">
+        <table className="w-full border-collapse text-xs sm:text-sm min-w-[880px] bg-white">
           <thead className="sticky top-0 z-10">
             <tr>
               {["Category", "Item Name", "Option", "Qty", "Unit Price", "Sales", "Mapped Cat", "Mapped Name", "Status"].map((h, i) => (
