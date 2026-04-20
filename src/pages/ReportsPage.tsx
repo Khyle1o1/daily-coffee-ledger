@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import {
   BarChart3,
   Calendar,
+  CheckSquare,
   ChevronDown,
   Clock,
   Download,
@@ -10,6 +11,7 @@ import {
   Loader2,
   MapPin,
   RefreshCw,
+  Square,
   Trash2,
   X,
 } from "lucide-react";
@@ -37,6 +39,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +65,7 @@ import {
   listGeneratedReports,
   saveGeneratedReport,
   deleteGeneratedReport,
+  deleteManyGeneratedReports,
 } from "@/services/generatedReportsService";
 import {
   listAllDailyReports,
@@ -168,6 +181,11 @@ export default function ReportsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historySelectMode, setHistorySelectMode] = useState(false);
+  const [historySelectedIds, setHistorySelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
+  const [isDeletingMany, setIsDeletingMany] = useState(false);
 
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -521,12 +539,13 @@ export default function ReportsPage() {
     toast({ title: "Report loaded from history." });
   }, [toast]);
 
-  // ── Delete history item ───────────────────────────────────────────────────
+  // ── Delete history item (after confirmation) ─────────────────────────────
   const handleDeleteHistory = useCallback(
     async (id: string) => {
       try {
         await deleteGeneratedReport(id);
         setHistory((prev) => prev.filter((r) => r.id !== id));
+        setHistorySelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
         toast({ title: "Report deleted." });
       } catch (err) {
         toast({
@@ -534,6 +553,32 @@ export default function ReportsPage() {
           title: "Failed to delete report",
           description: err instanceof Error ? err.message : "Unexpected error.",
         });
+      } finally {
+        setDeleteConfirmId(null);
+      }
+    },
+    [toast]
+  );
+
+  // ── Delete many / all ─────────────────────────────────────────────────────
+  const handleDeleteMany = useCallback(
+    async (ids: string[]) => {
+      setIsDeletingMany(true);
+      try {
+        await deleteManyGeneratedReports(ids);
+        setHistory((prev) => prev.filter((r) => !ids.includes(r.id)));
+        setHistorySelectedIds(new Set());
+        setHistorySelectMode(false);
+        setDeleteAllConfirm(false);
+        toast({ title: `${ids.length} report${ids.length !== 1 ? "s" : ""} deleted.` });
+      } catch (err) {
+        toast({
+          variant: "destructive",
+          title: "Failed to delete reports",
+          description: err instanceof Error ? err.message : "Unexpected error.",
+        });
+      } finally {
+        setIsDeletingMany(false);
       }
     },
     [toast]
@@ -1163,79 +1208,259 @@ export default function ReportsPage() {
       )}
 
       {/* ── History drawer ────────────────────────────────────────────────── */}
-      <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+      <Sheet
+        open={isHistoryOpen}
+        onOpenChange={(open) => {
+          setIsHistoryOpen(open);
+          if (!open) {
+            setHistorySelectMode(false);
+            setHistorySelectedIds(new Set());
+          }
+        }}
+      >
         <SheetContent
           side="right"
-          className="w-full sm:max-w-[420px] p-0 flex flex-col bg-background"
+          className="w-full sm:max-w-[420px] p-0 flex flex-col bg-white"
         >
-          <SheetHeader className="px-5 pt-5 pb-4 border-b border-border/60 shrink-0">
-            <SheetTitle className="flex items-center gap-2 text-base font-bold">
-              <Clock className="h-4 w-4 text-primary" />
+          {/* Header */}
+          <SheetHeader className="px-5 pt-5 pb-3 border-b border-slate-100 shrink-0 bg-white">
+            <SheetTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
+              <Clock className="h-4 w-4 text-[#1e3a5f]" />
               Report History
               {history.length > 0 && (
-                <span className="ml-auto text-xs font-semibold text-muted-foreground">
-                  {history.length} report{history.length !== 1 ? "s" : ""}
+                <span className="ml-1 text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                  {history.length}
                 </span>
               )}
             </SheetTitle>
+
+            {/* Action toolbar */}
+            {canDeleteData(role) && history.length > 0 && (
+              <div className="flex items-center gap-2 pt-2">
+                {/* Select / Cancel toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistorySelectMode((v) => !v);
+                    setHistorySelectedIds(new Set());
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-semibold border transition-colors flex items-center gap-1.5 ${
+                    historySelectMode
+                      ? "bg-slate-100 border-slate-300 text-slate-700"
+                      : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400"
+                  }`}
+                >
+                  {historySelectMode ? (
+                    <><X className="h-3 w-3" /> Cancel</>
+                  ) : (
+                    <><CheckSquare className="h-3 w-3" /> Select</>
+                  )}
+                </button>
+
+                {/* Select-all toggle (only in select mode) */}
+                {historySelectMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (historySelectedIds.size === history.length) {
+                        setHistorySelectedIds(new Set());
+                      } else {
+                        setHistorySelectedIds(new Set(history.map((r) => r.id)));
+                      }
+                    }}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+                  >
+                    {historySelectedIds.size === history.length ? (
+                      <><Square className="h-3 w-3" /> None</>
+                    ) : (
+                      <><CheckSquare className="h-3 w-3" /> All</>
+                    )}
+                  </button>
+                )}
+
+                <div className="flex-1" />
+
+                {/* Delete selected (select mode) */}
+                {historySelectMode && historySelectedIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteAllConfirm(true)}
+                    disabled={isDeletingMany}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Delete ({historySelectedIds.size})
+                  </button>
+                )}
+
+                {/* Delete all (normal mode) */}
+                {!historySelectMode && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteAllConfirm(true)}
+                    disabled={isDeletingMany}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Delete All
+                  </button>
+                )}
+              </div>
+            )}
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4">
+          {/* List */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50">
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                <FileText className="h-10 w-10 mb-3 text-slate-200" />
+                <FileText className="h-10 w-10 mb-3 text-slate-300" />
                 <p className="text-sm font-medium text-slate-500">No generated reports yet</p>
                 <p className="text-xs text-slate-400 mt-1">Generate a report to see it here</p>
               </div>
             ) : (
               <div className="space-y-2">
-                {history.map((row) => (
-                  <div
-                    key={row.id}
-                    className="rounded-xl border border-slate-100 bg-slate-50 p-3 hover:border-[#1e3a5f]/30 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-slate-800 truncate leading-tight">
-                          {row.title}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          {format(new Date(row.created_at), "MMM dd, yyyy HH:mm")}
-                        </p>
+                {history.map((row) => {
+                  const isSelected = historySelectedIds.has(row.id);
+                  return (
+                    <div
+                      key={row.id}
+                      onClick={() => {
+                        if (!historySelectMode) return;
+                        setHistorySelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(row.id)) next.delete(row.id);
+                          else next.add(row.id);
+                          return next;
+                        });
+                      }}
+                      className={`rounded-xl border p-3 transition-colors ${
+                        historySelectMode ? "cursor-pointer" : ""
+                      } ${
+                        isSelected
+                          ? "border-red-300 bg-red-50"
+                          : "border-slate-100 bg-slate-50 hover:border-[#1e3a5f]/30"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {/* Checkbox in select mode */}
+                        {historySelectMode && (
+                          <div className="mt-0.5 shrink-0">
+                            {isSelected ? (
+                              <CheckSquare className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <Square className="h-4 w-4 text-slate-300" />
+                            )}
+                          </div>
+                        )}
+
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-slate-800 truncate leading-tight">
+                            {row.title}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {format(new Date(row.created_at), "MMM dd, yyyy HH:mm")}
+                          </p>
+                        </div>
+
+                        {/* Single-delete button (normal mode only) */}
+                        {!historySelectMode && canDeleteData(role) && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(row.id); }}
+                            className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
-                      {canDeleteData(role) && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteHistory(row.id)}
-                          className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+
+                      {/* View + badge (hidden in select mode) */}
+                      {!historySelectMode && (
+                        <div className="flex gap-1.5 mt-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleLoadHistory(row);
+                              setIsHistoryOpen(false);
+                            }}
+                            className="text-[10px] px-2.5 py-1 rounded-full bg-[#1e3a5f] text-white font-semibold hover:bg-[#0e2d49] transition-colors flex items-center gap-1"
+                          >
+                            <FileText className="h-2.5 w-2.5" />
+                            View
+                          </button>
+                          <span className="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-500 font-medium">
+                            {row.report_type.replace(/_/g, " ")}
+                          </span>
+                        </div>
                       )}
                     </div>
-                    <div className="flex gap-1.5 mt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleLoadHistory(row);
-                          setIsHistoryOpen(false);
-                        }}
-                        className="text-[10px] px-2.5 py-1 rounded-full bg-[#1e3a5f] text-white font-semibold hover:bg-[#0e2d49] transition-colors flex items-center gap-1"
-                      >
-                        <FileText className="h-2.5 w-2.5" />
-                        View
-                      </button>
-                      <span className="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-500 font-medium">
-                        {row.report_type.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ── Confirm single delete ──────────────────────────────────────────── */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => { if (!o) setDeleteConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the report from history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={() => { if (deleteConfirmId) handleDeleteHistory(deleteConfirmId); }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Confirm bulk / delete-all ──────────────────────────────────────── */}
+      <AlertDialog open={deleteAllConfirm} onOpenChange={(o) => { if (!o) setDeleteAllConfirm(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {historySelectMode && historySelectedIds.size > 0
+                ? `Delete ${historySelectedIds.size} selected report${historySelectedIds.size !== 1 ? "s" : ""}?`
+                : `Delete all ${history.length} reports?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {historySelectMode && historySelectedIds.size > 0
+                ? "The selected reports will be permanently removed from history."
+                : "All reports in your history will be permanently removed."}
+              {" "}This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingMany}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeletingMany}
+              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={() => {
+                const ids =
+                  historySelectMode && historySelectedIds.size > 0
+                    ? [...historySelectedIds]
+                    : history.map((r) => r.id);
+                handleDeleteMany(ids);
+              }}
+            >
+              {isDeletingMany ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Deleting…</>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

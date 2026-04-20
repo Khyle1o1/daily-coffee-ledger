@@ -86,3 +86,18 @@ export async function deleteGeneratedReport(id: string): Promise<void> {
     throw new Error(handleSupabaseError(error));
   }
 }
+
+export async function deleteManyGeneratedReports(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    const { error } = await supabase
+      .from('generated_reports')
+      .delete()
+      .in('id', ids);
+
+    if (error) throw new Error(`Failed to delete reports: ${error.message}`);
+  } catch (error) {
+    console.error('deleteManyGeneratedReports error:', error);
+    throw new Error(handleSupabaseError(error));
+  }
+}
