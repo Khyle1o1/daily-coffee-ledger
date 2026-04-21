@@ -1,4 +1,5 @@
 import type { ComputedProductMix } from "@/lib/reports/compute";
+import { getPercentChange, pctToneClass } from "@/utils/percentChange";
 
 function formatPHP(value: number) {
   return `₱${value.toLocaleString("en-PH", {
@@ -93,15 +94,11 @@ export default function ProductMixReport({
                         : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-xs font-bold">
-                      {row.pctChange !== undefined ? (
-                        <span
-                          className={
-                            row.pctChange >= 0 ? "text-emerald-600" : "text-red-500"
-                          }
-                        >
-                          {row.pctChange >= 0 ? "+" : ""}
-                          {row.pctChange}%
-                        </span>
+                      {row.compareSales !== undefined ? (
+                        (() => {
+                          const pc = getPercentChange(row.compareSales, row.sales);
+                          return <span className={pctToneClass(pc.tone)}>{pc.label}</span>;
+                        })()
                       ) : (
                         "—"
                       )}

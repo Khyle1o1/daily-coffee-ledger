@@ -1,5 +1,6 @@
 import type { ComputedProductMix } from "@/lib/reports/compute";
 import type { Category } from "@/utils/types";
+import { getPercentChange, pctToneClass } from "@/utils/percentChange";
 
 function fmtNum(n: number) {
   return n.toLocaleString("en-PH", { maximumFractionDigits: 0 });
@@ -86,10 +87,11 @@ export default function RunningSalesMixCategoryReport({
                 )}
                 {hasCompare && (
                   <td className="px-4 py-2.5 text-right text-xs font-bold">
-                    {item.pctChange !== undefined ? (
-                      <span className={item.pctChange >= 0 ? "text-emerald-600" : "text-red-500"}>
-                        {item.pctChange >= 0 ? "+" : ""}{item.pctChange}%
-                      </span>
+                    {item.compareQty !== undefined ? (
+                      (() => {
+                        const pc = getPercentChange(item.compareQty, item.qty);
+                        return <span className={pctToneClass(pc.tone)}>{pc.label}</span>;
+                      })()
                     ) : "—"}
                   </td>
                 )}
@@ -135,10 +137,11 @@ export default function RunningSalesMixCategoryReport({
                   )}
                   {hasCompare && (
                     <td className="px-4 py-1.5 text-right font-bold">
-                      {item.pctChange !== undefined ? (
-                        <span className={item.pctChange >= 0 ? "text-emerald-500" : "text-red-400"}>
-                          {item.pctChange >= 0 ? "+" : ""}{item.pctChange}%
-                        </span>
+                      {item.compareQty !== undefined ? (
+                        (() => {
+                          const pc = getPercentChange(item.compareQty, item.qty);
+                          return <span className={pctToneClass(pc.tone)}>{pc.label}</span>;
+                        })()
                       ) : "—"}
                     </td>
                   )}

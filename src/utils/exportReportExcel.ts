@@ -10,6 +10,7 @@ import type {
 } from "@/lib/reports/compute";
 import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChannel";
 import type { PourReportData } from "@/lib/reports/computePourItForward";
+import { getPercentChange } from "@/utils/percentChange";
 
 // ── Style constants ─────────────────────────────────────────────────────────
 const S_HEADER = {
@@ -60,11 +61,6 @@ function c(v: string | number, s?: object): XLSX.CellObject {
 
 function blank(): XLSX.CellObject {
   return { v: "", t: "s" };
-}
-
-function pct(n: number | undefined): string {
-  if (n === undefined) return "";
-  return `${n >= 0 ? "+" : ""}${n}%`;
 }
 
 function fmt(n: number): string {
@@ -142,7 +138,7 @@ function buildSalesMixSheet(
     const base = [c(row.category, s ? { ...S_HEADER_LEFT, ...s, font: undefined } : undefined), c(fmtPHP(row.sales), { ...S_NUM, ...s }), c(`${row.percent.toFixed(1)}%`, { ...S_PCT, ...s })];
     if (hasCompare) {
       base.push(c(row.compareSales !== undefined ? fmtPHP(row.compareSales) : "—", { ...S_NUM, ...s }));
-      base.push(c(row.pctChange !== undefined ? pct(row.pctChange) : "—", { ...S_NUM, ...s }));
+      base.push(c(row.compareSales !== undefined ? getPercentChange(row.compareSales, row.sales).label : "—", { ...S_NUM, ...s }));
     }
     rows.push(base);
   });
@@ -209,7 +205,7 @@ function buildProductMixSheet(
     if (hasCompare) {
       base.push(c(fmtPHP(row.sales), { ...S_NUM, ...s }));
       base.push(c(row.compareSales !== undefined ? fmtPHP(row.compareSales) : "—", { ...S_NUM, ...s }));
-      base.push(c(row.pctChange !== undefined ? pct(row.pctChange) : "—", { ...S_NUM, ...s }));
+      base.push(c(row.compareSales !== undefined ? getPercentChange(row.compareSales, row.sales).label : "—", { ...S_NUM, ...s }));
     } else {
       base.push(c(row.qty, { ...S_NUM, ...s }));
       base.push(c(fmtPHP(row.sales), { ...S_NUM, ...s }));
@@ -257,7 +253,7 @@ function buildProductMixByCategorySheet(
       if (hasCompare) {
         base.push(c(fmtPHP(row.sales), { ...S_NUM, ...s }));
         base.push(c(row.compareSales !== undefined ? fmtPHP(row.compareSales) : "—", { ...S_NUM, ...s }));
-        base.push(c(row.pctChange !== undefined ? pct(row.pctChange) : "—", { ...S_NUM, ...s }));
+        base.push(c(row.compareSales !== undefined ? getPercentChange(row.compareSales, row.sales).label : "—", { ...S_NUM, ...s }));
       } else {
         base.push(c(row.qty, { ...S_NUM, ...s }));
         base.push(c(fmtPHP(row.sales), { ...S_NUM, ...s }));
@@ -332,7 +328,7 @@ function buildRunningSalesMixSheet(
     const base = [c(String(idx + 1).padStart(2, "0")), c(item.name), c(item.qty, S_NUM)];
     if (hasCompare) {
       base.push(c(item.compareQty !== undefined ? item.compareQty : "—", S_NUM));
-      base.push(c(item.pctChange !== undefined ? pct(item.pctChange) : "—", S_NUM));
+      base.push(c(item.compareQty !== undefined ? getPercentChange(item.compareQty, item.qty).label : "—", S_NUM));
     }
     rows.push(base);
   });
@@ -344,7 +340,7 @@ function buildRunningSalesMixSheet(
       const base = [c(String(idx + 6)), c(item.name), c(item.qty, S_NUM)];
       if (hasCompare) {
         base.push(c(item.compareQty !== undefined ? item.compareQty : "—", S_NUM));
-        base.push(c(item.pctChange !== undefined ? pct(item.pctChange) : "—", S_NUM));
+        base.push(c(item.compareQty !== undefined ? getPercentChange(item.compareQty, item.qty).label : "—", S_NUM));
       }
       rows.push(base);
     });
@@ -377,7 +373,7 @@ function buildCategoryPerformanceSheet(
     const base = [c(idx + 1, s), c(row.category, s), c(fmtPHP(row.sales), { ...S_NUM, ...s }), c(`${row.percent.toFixed(1)}%`, { ...S_PCT, ...s })];
     if (hasCompare) {
       base.push(c(row.compareSales !== undefined ? fmtPHP(row.compareSales) : "—", { ...S_NUM, ...s }));
-      base.push(c(row.pctChange !== undefined ? pct(row.pctChange) : "—", { ...S_NUM, ...s }));
+      base.push(c(row.compareSales !== undefined ? getPercentChange(row.compareSales, row.sales).label : "—", { ...S_NUM, ...s }));
     }
     rows.push(base);
   });

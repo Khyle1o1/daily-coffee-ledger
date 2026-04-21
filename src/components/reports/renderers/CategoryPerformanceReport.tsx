@@ -1,4 +1,5 @@
 import type { ComputedCategoryPerformance } from "@/lib/reports/compute";
+import { getPercentChange, pctToneClass } from "@/utils/percentChange";
 
 function formatPHP(value: number) {
   return `₱${value.toLocaleString("en-PH", {
@@ -84,15 +85,15 @@ export default function CategoryPerformanceReport({
                       {formatPHP(row.compareSales)}
                     </span>
                   )}
-                  {hasCompare && row.pctChange !== undefined && (
-                    <span
-                      className={`text-xs font-bold tabular-nums w-12 text-right ${
-                        row.pctChange >= 0 ? "text-emerald-600" : "text-red-500"
-                      }`}
-                    >
-                      {row.pctChange >= 0 ? "+" : ""}
-                      {row.pctChange}%
-                    </span>
+                  {hasCompare && row.compareSales !== undefined && (
+                    (() => {
+                      const pc = getPercentChange(row.compareSales, row.sales);
+                      return (
+                        <span className={`text-xs font-bold tabular-nums w-12 text-right ${pctToneClass(pc.tone)}`}>
+                          {pc.label}
+                        </span>
+                      );
+                    })()
                   )}
                   <span className="text-sm font-bold text-slate-900 tabular-nums w-28 text-right">
                     {formatPHP(row.sales)}

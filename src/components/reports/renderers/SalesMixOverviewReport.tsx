@@ -2,6 +2,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import { useState } from "react";
 import type { ComputedSalesMix } from "@/lib/reports/compute";
 import { CHANNEL_BRANDING, type ChannelBranding } from "../channelBranding";
+import { getPercentChange, pctToneClass } from "@/utils/percentChange";
 
 const CATEGORY_COLORS: Record<string, string> = {
   ICED: "#3B82F6",
@@ -175,11 +176,11 @@ export default function SalesMixOverviewReport({ data, branchLabel, dateRangeLab
                         {row.compareSales !== undefined ? formatPHP(row.compareSales) : "—"}
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-xs font-bold">
-                        {row.pctChange !== undefined ? (
-                          <span className={row.pctChange >= 0 ? "text-emerald-600" : "text-red-500"}>
-                            {row.pctChange >= 0 ? "+" : ""}
-                            {row.pctChange}%
-                          </span>
+                        {row.compareSales !== undefined ? (
+                          (() => {
+                            const pc = getPercentChange(row.compareSales, row.sales);
+                            return <span className={pctToneClass(pc.tone)}>{pc.label}</span>;
+                          })()
                         ) : (
                           "—"
                         )}

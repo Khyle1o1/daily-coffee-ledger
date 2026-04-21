@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { ReportCanvasData } from "@/components/reports/ReportCanvas";
 import { formatPHP } from "@/utils/format";
+import { getPercentChange } from "@/utils/percentChange";
 
 function formatPHPPdf(value: number) {
   // Use plain "PHP" text instead of the peso symbol to avoid garbled glyphs in PDFs
@@ -9,11 +10,6 @@ function formatPHPPdf(value: number) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   })}`;
-}
-
-function pct(n: number | undefined) {
-  if (n === undefined) return "";
-  return `${n >= 0 ? "+" : ""}${n}%`;
 }
 
 const HEADER_COLOR: [number, number, number] = [30, 58, 95];
@@ -106,7 +102,7 @@ export async function exportReportPdf(
       if (hasCompare) {
         base.push(
           row.compareSales !== undefined ? formatPHPPdf(row.compareSales) : "—",
-          row.pctChange !== undefined ? pct(row.pctChange) : "—"
+          row.compareSales !== undefined ? getPercentChange(row.compareSales, row.sales).label : "—"
         );
       }
       return base;
@@ -237,7 +233,7 @@ export async function exportReportPdf(
             base.push(
               formatPHPPdf(row.sales),
               row.compareSales !== undefined ? formatPHPPdf(row.compareSales) : "—",
-              row.pctChange !== undefined ? pct(row.pctChange) : "—",
+              row.compareSales !== undefined ? getPercentChange(row.compareSales, row.sales).label : "—",
             );
           } else {
             base.push(row.qty.toLocaleString(), formatPHPPdf(row.sales));
@@ -284,7 +280,7 @@ export async function exportReportPdf(
         base.push(
           formatPHPPdf(row.sales),
           row.compareSales !== undefined ? formatPHPPdf(row.compareSales) : "—",
-          row.pctChange !== undefined ? pct(row.pctChange) : "—"
+          row.compareSales !== undefined ? getPercentChange(row.compareSales, row.sales).label : "—"
         );
       } else {
         base.push(row.qty.toLocaleString(), formatPHPPdf(row.sales));
@@ -508,7 +504,7 @@ export async function exportReportPdf(
         if (hasCompare) {
           base.push(
             item.compareQty !== undefined ? item.compareQty.toLocaleString() : "—",
-            item.pctChange !== undefined ? pct(item.pctChange) : "—"
+            item.compareQty !== undefined ? getPercentChange(item.compareQty, item.qty).label : "—"
           );
         }
         return base;
@@ -538,7 +534,7 @@ export async function exportReportPdf(
           if (hasCompare) {
             base.push(
               item.compareQty !== undefined ? item.compareQty.toLocaleString() : "—",
-              item.pctChange !== undefined ? pct(item.pctChange) : "—"
+              item.compareQty !== undefined ? getPercentChange(item.compareQty, item.qty).label : "—"
             );
           }
           return base;
@@ -583,7 +579,7 @@ export async function exportReportPdf(
       if (hasCompare) {
         base.push(
           row.compareSales !== undefined ? formatPHPPdf(row.compareSales) : "—",
-          row.pctChange !== undefined ? pct(row.pctChange) : "—"
+          row.compareSales !== undefined ? getPercentChange(row.compareSales, row.sales).label : "—"
         );
       }
       return base;

@@ -8,6 +8,7 @@ import type {
 import type { ComputedProductMix, ComputedSalesMix } from "@/lib/reports/compute";
 import { CHANNEL_BRANDING, type ChannelBranding } from "../channelBranding";
 import type { SalesChannel } from "@/lib/reports/channel";
+import { getPercentChange } from "@/utils/percentChange";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -62,22 +63,15 @@ function extractYear(label: string): string {
   return m ? m[1] : String(new Date().getFullYear());
 }
 
-/**
- * % change using the "proportion" formula: (curr - prev) / curr × 100.
- * This matches the values shown in the reference images.
- */
-function qtyPct(curr: number, prev: number | undefined): number | undefined {
-  if (curr === 0 || prev === undefined) return undefined;
-  return Math.round(((curr - prev) / curr) * 100);
-}
-
-function PctTag({ v }: { v: number | undefined }) {
-  if (v === undefined) return <span style={{ color: "#94A3B8" }}>—</span>;
-  const color = v > 0 ? "#059669" : v < 0 ? "#DC2626" : "#64748B";
+function PctTag({ prev, curr }: { prev: unknown; curr: number }) {
+  const pc = getPercentChange(prev, curr);
+  if (pc.label === "-") return <span style={{ color: "#94A3B8" }}>—</span>;
+  const color =
+    pc.tone === "positive" ? "#059669" :
+    pc.tone === "negative" ? "#DC2626" : "#64748B";
   return (
     <span style={{ color, fontWeight: 700, fontSize: 11 }}>
-      {v > 0 ? "+" : ""}
-      {v}%
+      {pc.label}
     </span>
   );
 }
@@ -499,23 +493,20 @@ function ProductMixCategoryDetailPage({
                 paddingTop: 31, // align with first data row (skip header)
               }}
             >
-              {data.products.map((item, idx) => {
-                const pct = qtyPct(item.qty, item.compareQty);
-                return (
-                  <div
-                    key={item.name}
-                    style={{
-                      height: 27,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      paddingRight: 4,
-                    }}
-                  >
-                    <PctTag v={pct} />
-                  </div>
-                );
-              })}
+              {data.products.map((item) => (
+                <div
+                  key={item.name}
+                  style={{
+                    height: 27,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    paddingRight: 4,
+                  }}
+                >
+                  <PctTag prev={item.compareQty} curr={item.qty} />
+                </div>
+              ))}
             </div>
           )}
         </div>

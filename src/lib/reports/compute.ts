@@ -3,6 +3,7 @@ import { CATEGORIES } from "@/utils/types";
 import { filterRowsByDateRange } from "./filterRowsByDateRange";
 import type { Top5ByChannel } from "./computeTop5ByChannel";
 import { computeTop5ByChannelFromRows } from "./computeTop5ByChannel";
+import { getPercentChange } from "@/utils/percentChange";
 
 // ============================================================================
 // Filter types
@@ -168,8 +169,9 @@ function getCompareRows(
 }
 
 function calcPctChange(current: number, previous: number): number | undefined {
-  if (previous === 0) return undefined;
-  return Math.round(((current - previous) / Math.abs(previous)) * 100);
+  const result = getPercentChange(previous, current);
+  if (result.raw === null) return undefined;
+  return Math.round(result.raw);
 }
 
 // ============================================================================
