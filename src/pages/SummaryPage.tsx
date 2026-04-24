@@ -514,22 +514,47 @@ export default function SummaryPage() {
     }
   }, [reportPendingDelete, activeReportId, toast]);
 
-  const filteredReports = useMemo(() => {
-    if (!dailyReports.length) return [];
+  /**
+   * Convert a Date object to a local YYYY-MM-DD string, avoiding UTC-offset
+   * issues that arise from new Date("YYYY-MM-DD") treating the string as UTC
+   * midnight while calendar-picker Dates represent local midnight.
+   */
+  const toLocalDateKey = useCallback((d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
 
-    return dailyReports.filter((report) => {
+  const filteredReports = useMemo(() => {
+    // Compute filter bounds as plain YYYY-MM-DD strings so the comparison is
+    // purely lexicographic and completely immune to timezone shifts.
+    const fromKey = filterDateRange.from ? toLocalDateKey(filterDateRange.from) : null;
+    const toKey   = filterDateRange.to   ? toLocalDateKey(filterDateRange.to)   : fromKey;
+
+    console.log("[DateFilter] selected from:", fromKey ?? "(none)", " to:", toKey ?? "(none)");
+    console.log("[DateFilter] total reports before filter:", dailyReports.length);
+
+    const result = dailyReports.filter((report) => {
+      // Branch filter
       if (filterBranches.length > 0 && !filterBranches.includes(report.branch)) return false;
 
-      if (filterDateRange.from) {
-        const from = filterDateRange.from;
-        const to = filterDateRange.to || filterDateRange.from;
-        const reportDate = new Date(report.date);
-        if (reportDate < from || reportDate > to) return false;
+      // Date filter — compare YYYY-MM-DD strings (safe for any timezone)
+      if (fromKey) {
+        const reportDateKey = report.date.slice(0, 10); // ensure no time component
+        if (reportDateKey < fromKey || reportDateKey > toKey!) return false;
       }
 
       return true;
     });
-  }, [dailyReports, filterBranches, filterDateRange]);
+
+    console.log(
+      "[DateFilter] reports after filter:", result.length,
+      result.map((r) => `${r.date} (${r.branch})`),
+    );
+
+    return result;
+  }, [dailyReports, filterBranches, filterDateRange, toLocalDateKey]);
 
   const activeReport = useMemo(
     () => filteredReports.find((r) => r.id === activeReportId) || null,
