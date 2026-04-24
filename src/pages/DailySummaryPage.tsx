@@ -13,6 +13,7 @@ import SummaryTable from "@/components/SummaryTable";
 import DailyHistoryList from "@/components/DailyHistoryList";
 import DetailsTable from "@/components/DetailsTable";
 import UnmappedList from "@/components/UnmappedList";
+import MappingConflictList from "@/components/MappingConflictList";
 import ColumnMapperModal from "@/components/ColumnMapperModal";
 
 import { parseCsvFile, autoDetectColumns } from "@/utils/parseCsv";
@@ -560,17 +561,25 @@ export default function DailySummaryPage() {
 
                 {/* Tabs */}
                 <Tabs defaultValue="summary">
-                  <TabsList className="mb-6 bg-muted p-1.5 rounded-2xl">
-                    <TabsTrigger value="summary" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                      Summary
-                    </TabsTrigger>
-                    <TabsTrigger value="details" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                      Details
-                    </TabsTrigger>
-                    <TabsTrigger value="unmapped" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                      Unmapped ({displayReport.unmappedSummary.length})
-                    </TabsTrigger>
-                  </TabsList>
+                  {(() => {
+                    const conflictCount = displayReport.rowDetails.filter(r => r.categoryConflict).length;
+                    return (
+                      <TabsList className="mb-6 bg-muted p-1.5 rounded-2xl">
+                        <TabsTrigger value="summary" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                          Summary
+                        </TabsTrigger>
+                        <TabsTrigger value="details" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                          Details
+                        </TabsTrigger>
+                        <TabsTrigger value="unmapped" className="rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                          Unmapped ({displayReport.unmappedSummary.length})
+                        </TabsTrigger>
+                        <TabsTrigger value="conflicts" className={`rounded-xl px-6 py-2.5 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground ${conflictCount > 0 ? "text-orange-600" : ""}`}>
+                          {conflictCount > 0 ? `⚠ Conflicts (${conflictCount})` : "Conflicts"}
+                        </TabsTrigger>
+                      </TabsList>
+                    );
+                  })()}
 
                   <TabsContent value="summary">
                     {viewMode === "combined" ? (
@@ -597,6 +606,10 @@ export default function DailySummaryPage() {
 
                   <TabsContent value="unmapped">
                     <UnmappedList items={displayReport.unmappedSummary} />
+                  </TabsContent>
+
+                  <TabsContent value="conflicts">
+                    <MappingConflictList rows={displayReport.rowDetails} />
                   </TabsContent>
                 </Tabs>
               </div>

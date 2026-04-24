@@ -1,6 +1,7 @@
 import { normalizeText } from "./normalize";
 import { normalizeOption as normalizeValidationOption } from "./defaultMapping";
 import type { RawRow, ProcessedRow, MappingEntry, Category } from "./types";
+import { CATEGORIES } from "./types";
 import {
   getMenuReferenceSnapshot,
   makeMenuReferenceCategoryItemKey,
@@ -321,6 +322,56 @@ function getIndex(table: MappingEntry[]): ValidationIndex {
   return _cachedIndex;
 }
 
+// ─── Category conflict detection ─────────────────────────────────────────────
+
+/**
+ * Categories whose rawCategory name is "strict" — i.e. an item with that source
+ * category should not silently land in a completely different output category.
+ * Cross-categorisation IS expected for beverage/food categories (ICED, HOT, …).
+ */
+const STRICT_SOURCE_CATEGORIES: Category[] = ["MERCH", "PACKAGING", "LOYALTY CARD"];
+
+/**
+ * If the raw source category directly corresponds to a strict category (after
+ * stripping the DEL- delivery prefix) but the final mapped category is
+ * different, return the expected category so callers can flag the conflict.
+ */
+function detectCategoryConflict(rawCategory: string, mappedCat: Category): Category | undefined {
+  // Strip optional delivery prefix (DEL-, DEL - , DEL , …)
+  const stripped = rawCategory.replace(/^del[-\s]+/i, "").trim().toUpperCase();
+  for (const strict of STRICT_SOURCE_CATEGORIES) {
+    if (stripped === strict && mappedCat !== strict) return strict;
+  }
+  return undefined;
+}
+
+// ─── Protected mapping rules ──────────────────────────────────────────────────
+
+/**
+ * Returns true when the raw row is a gift-card / GC merchandise item that must
+ * always map to MERCH regardless of what the validation table says.
+ *
+ * Matches:
+ *   - Exactly "GC" (case-insensitive)
+ *   - "GC <digits>" or "GC-<digits>" — e.g. GC 100, GC 500, GC-200
+ *   - Exactly "Gift Card" (case-insensitive)
+ *   - "Gift Card <digits>" — e.g. Gift Card 100
+ *
+ * Does NOT match "FREE Gift Card Sleeves", "Gift Card Sleeves", etc. — those
+ * are accessories that have their own correct non-MERCH mappings.
+ */
+function isMerchGiftCardItem(catNorm: string, rawItemName: string): boolean {
+  const baseCat = catNorm.replace(/^del[-\s]+/i, "").trim();
+  if (baseCat !== "merch") return false;
+  const item = rawItemName.trim().toLowerCase();
+  return (
+    item === "gc" ||
+    /^gc[\s-]\d/.test(item) ||           // GC 100, GC-200, GC 500, GC 1000, …
+    item === "gift card" ||              // Exact "Gift Card"
+    /^gift\s+card\s+\d/.test(item)      // Gift Card 100, Gift Card 500, …
+  );
+}
+
 // ─── Row helpers ──────────────────────────────────────────────────────────────
 
 function isSkipped(row: RawRow): boolean {
@@ -335,8 +386,18 @@ function mapped(
   rowSales: number,
   mappedCat: Category,
   mappedItemName: string,
+  reason?: string,
 ): ProcessedRow {
-  return { ...row, rowSales, mappedCat, mappedItemName, status: "MAPPED" };
+  const categoryConflict = detectCategoryConflict(row.rawCategory, mappedCat);
+  return {
+    ...row,
+    rowSales,
+    mappedCat,
+    mappedItemName,
+    status: "MAPPED",
+    categoryConflict,
+    debugReason: reason,
+  };
 }
 
 /**
@@ -386,8 +447,11 @@ function lookupCatItemUnique(
  * pair using the validation table as the authoritative source.
  *
  * Matching priority:
- *   1. SKIP – invalid rows (blank name, NaN quantity/price).
- *   2. EXACT – normalize Category + Item + Option, look up directly in table.
+ *   0. SKIP       – invalid rows (blank name, NaN quantity/price).
+ *   1. PROTECTED  – GC / Gift Card items from a MERCH source category are
+ *                   always MERCH, overriding anything in the validation table.
+ *                   This prevents a wrong table entry from misclassifying merch.
+ *   2. EXACT      – normalize Category + Item + Option, look up directly in table.
  *   3. DEL PREFIX – strip "DEL-" / "DEL - " from category, retry exact lookup.
  *      (Handles cases like DEL-ADD-ONS → ADD-ONS when the item isn't listed
  *       under the delivery variant.)
@@ -398,11 +462,14 @@ function lookupCatItemUnique(
  *   6. UNMAPPED – no match found.
  *
  * Output:
- *   mappedCat      = validationRow.mappedName  (e.g. "ICED", "HOT", "ADD-ONS")
- *   mappedItemName = validationRow.item        (original item name from table)
+ *   mappedCat        = validationRow.mappedName  (e.g. "ICED", "HOT", "ADD-ONS")
+ *   mappedItemName   = validationRow.item        (original item name from table)
+ *   categoryConflict = set when rawCategory implies a different strict category
+ *                      than the final mappedCat (e.g. rawCategory=MERCH but
+ *                      mappedCat=PROMO would be flagged with expectedCat=MERCH)
  */
 export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow {
-  // ── Step 1: SKIP ────────────────────────────────────────────────────────
+  // ── Step 0: SKIP ────────────────────────────────────────────────────────
   if (isSkipped(row)) {
     return { ...row, rowSales: 0, mappedCat: null, mappedItemName: null, status: "SKIPPED" };
   }
@@ -436,6 +503,23 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
     }
     return undefined;
   };
+
+  // PASS 0: PROTECTED RULE — GC / Gift Card items from a MERCH source category
+  // must always stay as MERCH, regardless of what any validation table row says.
+  // We look for a table entry only to get the canonical item name; the category
+  // is ALWAYS forced to MERCH so a wrong table entry cannot override it.
+  if (isMerchGiftCardItem(catNorm, row.rawItemName)) {
+    const tableEntry =
+      findExact(["merch"], pass4Items, pass3Opts) ??
+      findExact(["merch"], pass4Items, [""]) ??
+      findExact(["merch"], pass1Items, [""]);
+    const itemName = tableEntry ? resolveOutputItem(tableEntry) : row.rawItemName.trim();
+    // Flag in debugReason if the table entry disagreed (helps audit trail).
+    const reason = tableEntry && tableEntry.mappedName !== "MERCH"
+      ? "protected_merch_gc"
+      : undefined;
+    return mapped(row, rowSales, "MERCH", itemName, reason);
+  }
 
   // PASS 1: exact normalized (raw normalized fields only)
   const p1 = findExact(pass1Cats, pass1Items, pass1Opts);

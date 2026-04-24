@@ -72,6 +72,12 @@ export interface ProcessedRow extends RawRow {
   mappedItemName: string | null;
   status: "MAPPED" | "UNMAPPED" | "SKIPPED";
   debugReason?: string;
+  /**
+   * Set when the mapped category conflicts with what the original rawCategory
+   * implies. Value is the expected category (e.g. "MERCH") so UIs can show a
+   * meaningful warning.  Only present when a conflict is detected.
+   */
+  categoryConflict?: Category;
 }
 
 export interface UnmappedSummary {
