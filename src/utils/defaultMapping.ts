@@ -406,15 +406,15 @@ const RAW: [string, string, string, string][] = [
   ["SNACKS","DEL-SNACKS","Roni Pizza Dagel",""],
 
   // ── MERCH ─────────────────────────────────────────────────────────────────
-  // Gift Cards (GC) are MERCHANDISE, not promos. Never remap to PROMO.
   ["MERCH","MERCH","Dc Tote Bag",""],
-  ["MERCH","MERCH","GC 50",""],
-  ["MERCH","MERCH","GC 100",""],
-  ["MERCH","MERCH","GC 200",""],
-  ["MERCH","MERCH","GC 300",""],
-  ["MERCH","MERCH","GC 500",""],
-  ["MERCH","MERCH","GC 1000",""],
-  ["MERCH","MERCH","Gift Card",""],
+  // ── GC / Gift Card → PROMO ────────────────────────────────────────────────
+  ["PROMO","MERCH","GC 50",""],
+  ["PROMO","MERCH","GC 100",""],
+  ["PROMO","MERCH","GC 200",""],
+  ["PROMO","MERCH","GC 300",""],
+  ["PROMO","MERCH","GC 500",""],
+  ["PROMO","MERCH","GC 1000",""],
+  ["PROMO","MERCH","Gift Card",""],
   ["LOYALTY CARD","MERCH","Gift Card Sleeves",""],
   ["LOYALTY CARD","MERCH","FREE Gift Card Sleeves","total of 1000 php"],
   ["MERCH","MERCH","Tumbler Add-On","Set 1 (Straw + Rubber Stopper for Lid)"],
