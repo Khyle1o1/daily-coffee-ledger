@@ -98,7 +98,8 @@ export interface SummaryRow {
 
 export interface DailyReport {
   id: string; // unique identifier for this record
-  date: string; // the report date (dateKey)
+  date: string; // report date — the START of the uploaded date range (YYYY-MM-DD)
+  dateRangeEnd?: string; // end of the uploaded date range (YYYY-MM-DD). Equals date for single-day reports.
   branch: BranchId; // branch identifier
   filename: string;
   uploadedAt: number; // timestamp

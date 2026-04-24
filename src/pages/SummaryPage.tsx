@@ -350,6 +350,7 @@ export default function SummaryPage() {
     const report: DailyReport = {
       id: "",
       date: dateStr,
+      dateRangeEnd: dateEndStr,
       branch: modalBranch,
       filename: modalFile.name,
       uploadedAt: Date.now(),
@@ -416,6 +417,7 @@ export default function SummaryPage() {
       const savedReportWithId: DailyReport = {
         ...previewReport,
         id: savedReport.id,
+        dateRangeEnd: dateEndStr,
       };
 
       setDailyReports((prev) => {
@@ -515,52 +517,127 @@ export default function SummaryPage() {
   }, [reportPendingDelete, activeReportId, toast]);
 
   /**
-   * Convert a Date object to a local YYYY-MM-DD string, avoiding UTC-offset
-   * issues that arise from new Date("YYYY-MM-DD") treating the string as UTC
-   * midnight while calendar-picker Dates represent local midnight.
+   * Derive plain YYYY-MM-DD filter bounds from the calendar-picker Dates.
+   * Using local date components (getFullYear/getMonth/getDate) avoids the
+   * UTC-midnight vs. local-midnight mismatch that makes new Date("YYYY-MM-DD")
+   * land on the wrong calendar day in UTC+8 timezones.
    */
-  const toLocalDateKey = useCallback((d: Date): string => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }, []);
+  const { fromKey, toKey } = useMemo(() => {
+    const toKey_ = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+    const from = filterDateRange.from ? toKey_(filterDateRange.from) : null;
+    const to   = filterDateRange.to   ? toKey_(filterDateRange.to)   : from;
+    return { fromKey: from, toKey: to };
+  }, [filterDateRange]);
 
-  const filteredReports = useMemo(() => {
-    // Compute filter bounds as plain YYYY-MM-DD strings so the comparison is
-    // purely lexicographic and completely immune to timezone shifts.
-    const fromKey = filterDateRange.from ? toLocalDateKey(filterDateRange.from) : null;
-    const toKey   = filterDateRange.to   ? toLocalDateKey(filterDateRange.to)   : fromKey;
-
-    console.log("[DateFilter] selected from:", fromKey ?? "(none)", " to:", toKey ?? "(none)");
-    console.log("[DateFilter] total reports before filter:", dailyReports.length);
-
-    const result = dailyReports.filter((report) => {
-      // Branch filter
-      if (filterBranches.length > 0 && !filterBranches.includes(report.branch)) return false;
-
-      // Date filter — compare YYYY-MM-DD strings (safe for any timezone)
-      if (fromKey) {
-        const reportDateKey = report.date.slice(0, 10); // ensure no time component
-        if (reportDateKey < fromKey || reportDateKey > toKey!) return false;
+  /**
+   * For a single report, aggregate only the rowDetails whose transactionDate
+   * falls within [fromKey, toKey].  Falls back to the pre-computed totals when
+   * rows carry no transactionDate (legacy uploads) so those are never silently
+   * zeroed out.
+   */
+  const getEffectiveTotals = useCallback(
+    (report: DailyReport) => {
+      // If no date filter is active, always use the pre-computed totals.
+      if (!fromKey) {
+        return {
+          totals: report.summaryTotalsByCat,
+          quantities: report.summaryQuantitiesByCat,
+          grandTotal: report.grandTotal,
+          grandQuantity: report.grandQuantity,
+        };
       }
 
-      return true;
+      const reportStart = report.date.slice(0, 10);
+      const reportEnd   = (report.dateRangeEnd ?? report.date).slice(0, 10);
+
+      // Report is entirely within the selected range — pre-computed totals are exact.
+      if (reportStart >= fromKey && reportEnd <= toKey!) {
+        return {
+          totals: report.summaryTotalsByCat,
+          quantities: report.summaryQuantitiesByCat,
+          grandTotal: report.grandTotal,
+          grandQuantity: report.grandQuantity,
+        };
+      }
+
+      // Report partially overlaps — re-aggregate from row-level transaction dates.
+      const rowsWithDate = report.rowDetails.filter((r) => r.transactionDate != null);
+      if (rowsWithDate.length === 0) {
+        // Legacy report: no per-row dates stored — use pre-computed totals as fallback.
+        return {
+          totals: report.summaryTotalsByCat,
+          quantities: report.summaryQuantitiesByCat,
+          grandTotal: report.grandTotal,
+          grandQuantity: report.grandQuantity,
+        };
+      }
+
+      const filteredRows = rowsWithDate.filter((row) => {
+        const d = row.transactionDate!;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return key >= fromKey && key <= toKey!;
+      });
+
+      const agg = aggregateByCategory(filteredRows);
+      return {
+        totals: agg.totals,
+        quantities: agg.quantities,
+        grandTotal: agg.grandTotal,
+        grandQuantity: agg.grandQuantity,
+      };
+    },
+    [fromKey, toKey],
+  );
+
+  /**
+   * Filtered report list — includes any report whose date range OVERLAPS the
+   * selected filter range (not just the start date).
+   *
+   * Before: only `report.date` (start) was compared, so a Mar 1–31 report
+   *         always passed a "Mar 1–11" filter and carried its full-month totals.
+   * After:  overlap is checked using both `report.date` and `report.dateRangeEnd`,
+   *         and totals are re-aggregated from row-level transaction dates.
+   */
+  const filteredReports = useMemo(() => {
+    console.log("[DateFilter] selected from:", fromKey ?? "(none)", " to:", toKey ?? "(none)");
+    console.log("[DateFilter] total records before filter:", dailyReports.length);
+
+    const result = dailyReports.filter((report) => {
+      if (filterBranches.length > 0 && !filterBranches.includes(report.branch)) return false;
+      if (!fromKey) return true;
+
+      const reportStart = report.date.slice(0, 10);
+      const reportEnd   = (report.dateRangeEnd ?? report.date).slice(0, 10);
+
+      // Keep the report if its date range overlaps with the selected filter range.
+      // Overlap condition: reportStart <= toKey  AND  reportEnd >= fromKey
+      return reportStart <= toKey! && reportEnd >= fromKey;
     });
 
     console.log(
-      "[DateFilter] reports after filter:", result.length,
-      result.map((r) => `${r.date} (${r.branch})`),
+      "[DateFilter] records after filter:", result.length,
+      result.map((r) => `${r.date}→${r.dateRangeEnd ?? r.date} (${r.branch})`),
     );
 
     return result;
-  }, [dailyReports, filterBranches, filterDateRange, toLocalDateKey]);
+  }, [dailyReports, filterBranches, fromKey, toKey]);
 
   const activeReport = useMemo(
     () => filteredReports.find((r) => r.id === activeReportId) || null,
     [filteredReports, activeReportId],
   );
 
+  /**
+   * Combined totals across all filtered reports.
+   * Each report's contribution is limited to rows within the selected date
+   * range via `getEffectiveTotals`, so narrowing the date range immediately
+   * recalculates every KPI card and the Filtered Totals table.
+   */
   const combinedSummaryForFilters = useMemo(() => {
     if (!filteredReports.length) return null;
 
@@ -568,32 +645,29 @@ export default function SummaryPage() {
     const combinedQuantities: Record<string, number> = {};
     let grandTotal = 0;
     let grandQuantity = 0;
+    CATEGORIES.forEach((cat) => { combinedTotals[cat] = 0; combinedQuantities[cat] = 0; });
 
-    filteredReports.forEach((report) => {
+    for (const report of filteredReports) {
+      const eff = getEffectiveTotals(report);
       CATEGORIES.forEach((cat) => {
-        combinedTotals[cat] = (combinedTotals[cat] || 0) + (report.summaryTotalsByCat[cat] || 0);
-        combinedQuantities[cat] = (combinedQuantities[cat] || 0) + (report.summaryQuantitiesByCat[cat] || 0);
+        combinedTotals[cat]    += (eff.totals[cat]    || 0);
+        combinedQuantities[cat]+= (eff.quantities[cat]|| 0);
       });
-      grandTotal += report.grandTotal;
-      grandQuantity += report.grandQuantity;
-    });
+      grandTotal    += eff.grandTotal;
+      grandQuantity += eff.grandQuantity;
+    }
 
     const percents: Record<string, number> = {};
     CATEGORIES.forEach((cat) => {
       percents[cat] = grandTotal > 0 ? (combinedTotals[cat] / grandTotal) * 100 : 0;
     });
 
-    return {
-      totals: combinedTotals,
-      quantities: combinedQuantities,
-      grandTotal,
-      grandQuantity,
-      percents,
-    };
-  }, [filteredReports]);
+    console.log("[DateFilter] filtered total sales:", grandTotal);
+
+    return { totals: combinedTotals, quantities: combinedQuantities, grandTotal, grandQuantity, percents };
+  }, [filteredReports, getEffectiveTotals]);
 
   const allBranchesBreakdown = useMemo(() => {
-    // Show breakdown only when filtering across multiple branches (or "all")
     if (!filteredReports.length) return null;
     if (filterBranches.length === 1) return null;
 
@@ -607,6 +681,7 @@ export default function SummaryPage() {
     }>();
 
     filteredReports.forEach((report) => {
+      const eff = getEffectiveTotals(report);
       const existing = byBranch.get(report.branch);
       const branchName = getBranchLabel(report.branch);
 
@@ -614,35 +689,31 @@ export default function SummaryPage() {
         const totalsInit = {} as Record<Category, number>;
         const quantitiesInit = {} as Record<Category, number>;
         CATEGORIES.forEach((cat) => {
-          totalsInit[cat] = report.summaryTotalsByCat[cat] || 0;
-          quantitiesInit[cat] = report.summaryQuantitiesByCat[cat] || 0;
+          totalsInit[cat]    = eff.totals[cat]    || 0;
+          quantitiesInit[cat]= eff.quantities[cat]|| 0;
         });
         byBranch.set(report.branch, {
           branchId: report.branch,
           branchName,
           totals: totalsInit,
           quantities: quantitiesInit,
-          grandTotal: report.grandTotal,
-          grandQuantity: report.grandQuantity,
+          grandTotal: eff.grandTotal,
+          grandQuantity: eff.grandQuantity,
         });
       } else {
         CATEGORIES.forEach((cat) => {
-          existing.totals[cat] =
-            (existing.totals[cat] || 0) +
-            (report.summaryTotalsByCat[cat] || 0);
-          existing.quantities[cat] =
-            (existing.quantities[cat] || 0) +
-            (report.summaryQuantitiesByCat[cat] || 0);
+          existing.totals[cat]    = (existing.totals[cat]    || 0) + (eff.totals[cat]    || 0);
+          existing.quantities[cat]= (existing.quantities[cat]|| 0) + (eff.quantities[cat]|| 0);
         });
-        existing.grandTotal += report.grandTotal;
-        existing.grandQuantity += report.grandQuantity;
+        existing.grandTotal    += eff.grandTotal;
+        existing.grandQuantity += eff.grandQuantity;
       }
     });
 
     return Array.from(byBranch.values()).sort((a, b) =>
       a.branchName.localeCompare(b.branchName),
     );
-  }, [filteredReports, filterBranches]);
+  }, [filteredReports, filterBranches, getEffectiveTotals, getBranchLabel]);
 
   const branchFilterLabel = useMemo(() => {
     if (filterBranches.length === 0) return "All branches";

@@ -39,6 +39,7 @@ export function dailyReportFromRow(row: DailyReportRow): DailyReport {
   return {
     id: row.id,
     date: row.report_date,
+    dateRangeEnd: row.date_range_end,
     branch: (row.branch?.name || 'greenbelt') as BranchId,
     filename: json.filename,
     uploadedAt: json.uploadedAt,
