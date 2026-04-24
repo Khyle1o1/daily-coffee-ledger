@@ -209,7 +209,8 @@ export type ReportType =
   | "RUNNING_SALES_MIX_CATEGORY"
   | "CATEGORY_PERFORMANCE"
   | "POUR_IT_FORWARD"
-  | "HQ_SYNC_PACK";
+  | "HQ_SYNC_PACK"
+  | "CHANNEL_SALES_SUMMARY";
 
 export interface GeneratedReportRow {
   id: string;

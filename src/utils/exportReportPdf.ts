@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import type { ReportCanvasData } from "@/components/reports/ReportCanvas";
 import { formatPHP } from "@/utils/format";
 import { getPercentChange } from "@/utils/percentChange";
+import type { ChannelSalesSummaryData } from "@/lib/reports/computeChannelSalesSummary";
 
 function formatPHPPdf(value: number) {
   // Use plain "PHP" text instead of the peso symbol to avoid garbled glyphs in PDFs
@@ -638,6 +639,60 @@ export async function exportReportPdf(
         3: { halign: "right", cellWidth: 80 },
         4: { halign: "right", cellWidth: 100 },
       },
+    });
+  }
+
+  else if (reportType === "CHANNEL_SALES_SUMMARY" && canvasData.channelSalesSummary) {
+    const css: ChannelSalesSummaryData = canvasData.channelSalesSummary;
+    const title = `Channel Sales Summary — ${dateRangeLabel}`;
+    let y = drawHeader(doc, title, branchLabel, dateRangeLabel, marginLeft);
+
+    const hasEvent  = css.rows.some((r) => r.event  > 0) || css.totals.event  > 0;
+    const hasDotapp = css.rows.some((r) => r.dotapp > 0) || css.totals.dotapp > 0;
+
+    const head: string[][] = [["PERIOD", "FOODPANDA", "GRAB", "WALK-IN",
+      ...(hasEvent  ? ["EVENT"]   : []),
+      ...(hasDotapp ? ["DOT APP"] : []),
+      "TOTAL",
+    ]];
+
+    const dash = (n: number) => n === 0 ? "—" : `PHP ${n.toLocaleString("en-PH")}`;
+
+    const body = css.rows.map((row) => [
+      row.periodLabel,
+      dash(row.foodpanda),
+      dash(row.grab),
+      dash(row.walkIn),
+      ...(hasEvent  ? [dash(row.event)]  : []),
+      ...(hasDotapp ? [dash(row.dotapp)] : []),
+      dash(row.total),
+    ]);
+
+    const foot = [[
+      "TOTAL",
+      dash(css.totals.foodpanda),
+      dash(css.totals.grab),
+      dash(css.totals.walkIn),
+      ...(hasEvent  ? [dash(css.totals.event)]  : []),
+      ...(hasDotapp ? [dash(css.totals.dotapp)] : []),
+      dash(css.totals.total),
+    ]];
+
+    const colCount = head[0].length;
+    const colStyle: Record<number, { halign: "left" | "right" }> = { 0: { halign: "left" } };
+    for (let i = 1; i < colCount; i++) colStyle[i] = { halign: "right" };
+
+    autoTable(doc, {
+      startY: y,
+      head,
+      body,
+      foot,
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
+      headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+      margin: { left: marginLeft, right: marginLeft },
+      columnStyles: colStyle,
     });
   }
 

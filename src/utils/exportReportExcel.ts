@@ -10,6 +10,7 @@ import type {
 } from "@/lib/reports/compute";
 import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChannel";
 import type { PourReportData } from "@/lib/reports/computePourItForward";
+import type { ChannelSalesSummaryData } from "@/lib/reports/computeChannelSalesSummary";
 import { getPercentChange } from "@/utils/percentChange";
 
 // ── Style constants ─────────────────────────────────────────────────────────
@@ -494,6 +495,66 @@ function buildPourItForwardSheets(
   return sheets;
 }
 
+// ── Channel Sales Summary sheet ─────────────────────────────────────────────
+
+function buildChannelSalesSummarySheet(
+  data: ChannelSalesSummaryData,
+  branchLabel: string,
+  dateRangeLabel: string,
+): XLSX.WorkSheet {
+  const { rows, totals } = data;
+
+  const hasEvent  = rows.some((r) => r.event  > 0) || totals.event  > 0;
+  const hasDotapp = rows.some((r) => r.dotapp > 0) || totals.dotapp > 0;
+
+  const dash = (n: number) => n === 0 ? "—" : n;
+
+  const sheetRows: XLSX.CellObject[][] = [
+    // Title rows
+    [c(`Channel Sales Summary — ${branchLabel}`, S_TITLE)],
+    [c(dateRangeLabel, S_SECTION)],
+    [blank()],
+    // Header
+    [
+      c("PERIOD",     S_HEADER_LEFT),
+      c("FOODPANDA",  S_HEADER),
+      c("GRAB",       S_HEADER),
+      c("WALK-IN",    S_HEADER),
+      ...(hasEvent  ? [c("EVENT",   S_HEADER)] : []),
+      ...(hasDotapp ? [c("DOT APP", S_HEADER)] : []),
+      c("TOTAL",      S_HEADER),
+    ],
+  ];
+
+  rows.forEach((row, i) => {
+    const s = i % 2 === 1 ? S_ALT : undefined;
+    sheetRows.push([
+      c(row.periodLabel,    { ...S_HEADER_LEFT, fill: undefined, font: { color: { rgb: "1E3A5F" } }, ...s }),
+      c(dash(row.foodpanda), { ...S_NUM, ...s }),
+      c(dash(row.grab),      { ...S_NUM, ...s }),
+      c(dash(row.walkIn),    { ...S_NUM, ...s }),
+      ...(hasEvent  ? [c(dash(row.event),  { ...S_NUM, ...s })] : []),
+      ...(hasDotapp ? [c(dash(row.dotapp), { ...S_NUM, ...s })] : []),
+      c(dash(row.total),     { ...S_NUM_BOLD, ...s }),
+    ]);
+  });
+
+  // Totals footer
+  sheetRows.push([
+    c("TOTAL",                  S_FOOTER_LEFT),
+    c(dash(totals.foodpanda),   S_FOOTER),
+    c(dash(totals.grab),        S_FOOTER),
+    c(dash(totals.walkIn),      S_FOOTER),
+    ...(hasEvent  ? [c(dash(totals.event),  S_FOOTER)] : []),
+    ...(hasDotapp ? [c(dash(totals.dotapp), S_FOOTER)] : []),
+    c(dash(totals.total),       S_FOOTER),
+  ]);
+
+  const colCount = 4 + (hasEvent ? 1 : 0) + (hasDotapp ? 1 : 0) + 1;
+  const widths = [22, ...Array(colCount - 1).fill(16)];
+  return buildSheet(sheetRows, widths);
+}
+
 // ── Public export function ──────────────────────────────────────────────────
 
 export function exportReportExcel(
@@ -515,6 +576,7 @@ export function exportReportExcel(
     categoryPerformance,
     selectedCategories,
     pourItForward,
+    channelSalesSummary,
   } = canvasData;
 
   const wb = XLSX.utils.book_new();
@@ -550,6 +612,13 @@ export function exportReportExcel(
     const sheets = buildPourItForwardSheets(pourItForward, branchLabel, dateRangeLabel);
     const names = ["Summary", "By Day", "By Item"];
     sheets.forEach((sheet, i) => XLSX.utils.book_append_sheet(wb, sheet, names[i]));
+  }
+  else if (reportType === "CHANNEL_SALES_SUMMARY" && channelSalesSummary) {
+    XLSX.utils.book_append_sheet(
+      wb,
+      buildChannelSalesSummarySheet(channelSalesSummary, branchLabel, dateRangeLabel),
+      "Channel Sales",
+    );
   }
 
   if (wb.SheetNames.length === 0) {

@@ -11,6 +11,7 @@ import type {
 import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChannel";
 import type { PourReportData } from "@/lib/reports/computePourItForward";
 import type { ComputedHQSyncPack } from "@/lib/reports/computeHQSyncPack";
+import type { ChannelSalesSummaryData } from "@/lib/reports/computeChannelSalesSummary";
 
 import SalesMixOverviewReport from "./renderers/SalesMixOverviewReport";
 import ProductMixReport from "./renderers/ProductMixReport";
@@ -21,6 +22,7 @@ import CategoryPerformanceReport from "./renderers/CategoryPerformanceReport";
 import ProductMixChannelReport from "./renderers/ProductMixChannelReport";
 import PourItForwardReport from "./renderers/PourItForwardReport";
 import HQSyncPackReport from "./renderers/HQSyncPackReport";
+import ChannelSalesSummaryReport from "./renderers/ChannelSalesSummaryReport";
 
 export interface ReportCanvasData {
   reportType: ReportType;
@@ -39,6 +41,7 @@ export interface ReportCanvasData {
   runningSalesCategory?: Category;
   pourItForward?: PourReportData;
   hqSyncPack?: ComputedHQSyncPack;
+  channelSalesSummary?: ChannelSalesSummaryData;
 }
 
 interface Props {
@@ -125,6 +128,14 @@ const ReportCanvas = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
           branchLabel={data.branchLabel}
           dateRangeLabel={data.dateRangeLabel}
           compareLabel={data.compareLabel}
+        />
+      )}
+
+      {data.reportType === "CHANNEL_SALES_SUMMARY" && data.channelSalesSummary && (
+        <ChannelSalesSummaryReport
+          data={data.channelSalesSummary}
+          branchLabel={data.branchLabel}
+          dateRangeLabel={data.dateRangeLabel}
         />
       )}
     </div>

@@ -88,6 +88,7 @@ import {
 import { computeProductMixChannel } from "@/lib/reports/computeProductMixChannel";
 import { computePourItForward } from "@/lib/reports/computePourItForward";
 import { computeHQSyncPack } from "@/lib/reports/computeHQSyncPack";
+import { computeChannelSalesSummary } from "@/lib/reports/computeChannelSalesSummary";
 
 // ============================================================================
 // Constants
@@ -133,6 +134,11 @@ const REPORT_TYPE_OPTIONS: { value: ReportType; label: string; desc: string }[] 
     value: "CATEGORY_PERFORMANCE",
     label: "Category Performance",
     desc: "Ranked categories with contribution bars",
+  },
+  {
+    value: "CHANNEL_SALES_SUMMARY",
+    label: "Channel Sales Summary",
+    desc: "Monthly sales totals by channel: FoodPanda, Grab, Walk-in, Event",
   },
 ];
 
@@ -443,6 +449,16 @@ export default function ReportsPage() {
           compareLabel,
           selectedCategories,
           hqSyncPack,
+        };
+      } else if (reportType === "CHANNEL_SALES_SUMMARY") {
+        const channelSalesSummary = computeChannelSalesSummary(dailyReports, filters);
+        canvas = {
+          reportType,
+          branchLabel,
+          dateRangeLabel,
+          compareLabel,
+          selectedCategories,
+          channelSalesSummary,
         };
       }
 
