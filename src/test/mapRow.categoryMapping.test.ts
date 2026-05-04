@@ -59,6 +59,21 @@ describe("GC / Gift Card items → PROMO", () => {
     expect(r.status).toBe("MAPPED");
     expect(r.mappedCat).toBe("PROMO");
   });
+
+  it("MERCH + GC 750 → PROMO (fallback for any GC amount)", () => {
+    const r = mapRow(row("MERCH", "GC 750"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PROMO");
+    expect(r.mappedItemName).toBe("GC 750");
+  });
+
+  it("MERCH + GC 999 still maps to PROMO even without mapping table", () => {
+    const r = mapRow(row("MERCH", "GC 999"), []);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PROMO");
+    expect(r.mappedItemName).toBe("GC 999");
+    expect(r.debugReason).toBe("fallback_gift_card_promo");
+  });
 });
 
 // ── PROMO items ───────────────────────────────────────────────────────────────

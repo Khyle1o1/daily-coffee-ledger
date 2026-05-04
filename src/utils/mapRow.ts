@@ -510,6 +510,19 @@ function inferSignatureOrAddOnFallback(
   return mapped(row, rowSales, "HOT", itemTrim, "fallback_signature_option_hot");
 }
 
+function inferGiftCardPromoFallback(row: RawRow, rowSales: number): ProcessedRow | null {
+  const rawItem = row.rawItemName.trim();
+  if (!rawItem) return null;
+
+  const itemNorm = normalizeItem(rawItem);
+  const isGenericGiftCard = itemNorm === "gift card";
+  const isGcAmount = /^gc[\s-]*\d+\b/.test(itemNorm);
+
+  if (!isGenericGiftCard && !isGcAmount) return null;
+
+  return mapped(row, rowSales, "PROMO", rawItem, "fallback_gift_card_promo");
+}
+
 // ─── Main: mapRow ─────────────────────────────────────────────────────────────
 
 /**
@@ -682,6 +695,10 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   // PASS 8: signature / delivery bucket inference when option clearly indicates temperature
   const sigFallback = inferSignatureOrAddOnFallback(row, rowSales, pass2Cats);
   if (sigFallback) return sigFallback;
+
+  // PASS 8b: Gift card fallback (any GC amount should be PROMO)
+  const gcFallback = inferGiftCardPromoFallback(row, rowSales);
+  if (gcFallback) return gcFallback;
 
   // PASS 9 (diagnostics): unmapped + diagnostic reason
   let debugReason = "no_exact_candidate_found";
