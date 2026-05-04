@@ -116,6 +116,58 @@ describe("Beverage categories", () => {
   });
 });
 
+describe("DEL - SIGNATURES and delivery category aliases", () => {
+  it("maps DEL - SIGNATURES + Cereal Milk + Iced Regular (12oz) → ICED / Cereal Milk", () => {
+    const r = mapRow(row("DEL - SIGNATURES", "Cereal Milk", "Iced Regular (12oz)"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
+    expect(r.mappedItemName).toBe("Cereal Milk");
+  });
+
+  it("maps DEL - SIGNATURES + Horchata + Iced Large (16oz) | Oat → ICED / Horchata", () => {
+    const r = mapRow(row("DEL - SIGNATURES", "Horchata", "Iced Large (16oz) | Oat"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
+    expect(r.mappedItemName).toBe("Horchata");
+  });
+
+  it("maps DEL - ADD ONS + ADD ONS MISC + Coconut Water → ADD-ONS / Coconut Water", () => {
+    const r = mapRow(row("DEL - ADD ONS", "ADD ONS MISC", "Coconut Water"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ADD-ONS");
+    expect(r.mappedItemName).toBe("Coconut Water");
+  });
+
+  it("maps Coconut Water even when the active mapping table has no ADD ONS rows (uploaded table gap)", () => {
+    const r = mapRow(row("DEL - ADD ONS", "ADD ONS MISC", "Coconut Water"), []);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ADD-ONS");
+    expect(r.mappedItemName).toBe("Coconut Water");
+    expect(r.debugReason).toBe("fallback_addon_misc_option");
+  });
+
+  it("maps ADD ONS MISC + Coconut Water with numeric category prefix", () => {
+    const r = mapRow(row("01 DEL - ADD ONS", "ADD ONS MISC", "Coconut Water"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ADD-ONS");
+    expect(r.mappedItemName).toBe("Coconut Water");
+  });
+
+  it("maps ADDONSMISC (no spaces) + Coconut Water", () => {
+    const r = mapRow(row("DEL - ADD ONS", "ADDONSMISC", "Coconut Water"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ADD-ONS");
+    expect(r.mappedItemName).toBe("Coconut Water");
+  });
+
+  it("maps DOT SIGNATURES + Creamy Coco Hojicha + Iced Regular (12oz)", () => {
+    const r = mapRow(row("DOT SIGNATURES", "Creamy Coco Hojicha", "Iced Regular (12oz)"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
+    expect(r.mappedItemName).toBe("Creamy Coco Hojicha");
+  });
+});
+
 // ── Conflict detection ────────────────────────────────────────────────────────
 
 describe("categoryConflict detection", () => {

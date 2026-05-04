@@ -144,7 +144,7 @@ export async function fetchActiveManualMappings(): Promise<ManualMapping[]> {
 export async function createManualMapping(
   payload: SaveManualMappingPayload,
 ): Promise<ManualMapping> {
-  await requireAdminUser();
+  await requireAuthUser();
 
   const sourceItem = payload.sourceItem.trim();
   if (!sourceItem) throw new Error("Source Item is required");

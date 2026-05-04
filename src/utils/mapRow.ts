@@ -34,6 +34,8 @@ function normalizeCategory(rawCategory: string): string {
 
 function normalizeCategoryCore(rawCategory: string): string {
   let t = normalizeCategory(rawCategory);
+  // Strip leading POS/menu line codes ("01 ADD ONS", "10 DEL - ADD ONS")
+  t = t.replace(/^\d{1,3}\s*[.)-]?\s+/i, "");
   t = t.replace(/^dot\s+classics$/, "classics");
   t = t.replace(/^dot\s+snacks$/, "snacks");
   t = t.replace(/^add[\s-]*ons?.*$/, "add-ons");
@@ -43,6 +45,13 @@ function normalizeCategoryCore(rawCategory: string): string {
   t = t.replace(/^del\s+dot\s+classics$/, "del - classics");
   t = t.replace(/^del\s*-\s*dot\s+classics$/, "del - classics");
   t = t.replace(/^del\s*-\s*dot\s+snacks$/, "del-snacks");
+  // Delivery / POS variants shorten "DOT" → treat as same bucket as DEL - DOT SIGNATURES / DOT SIGNATURES
+  t = t.replace(/^del\s*-\s*signatures?.*$/i, "del - dot signatures");
+  t = t.replace(/^del\s*-\s*dot\s*-\s*signatures?.*$/i, "del - dot signatures");
+  t = t.replace(/^del\s+signatures?.*$/i, "del - dot signatures");
+  t = t.replace(/^delivery\s+signatures?.*$/i, "dot signatures");
+  t = t.replace(/^delivery\s+dot\s+signatures?.*$/i, "dot signatures");
+  t = t.replace(/^signatures?$/i, "dot signatures");
   return t.trim();
 }
 
@@ -73,6 +82,12 @@ function buildCategoryCandidates(rawCategory: string): string[] {
   if (base === "dot snacks" || base === "snacks") add("snacks");
   if (base === "del dot snacks") add("del-snacks");
   if (base === "del dot signatures") add("del - dot signatures");
+  if (base === "del - dot signatures" || base === "dot signatures") {
+    add("del - dot signatures");
+    add("dot signatures");
+    add("del - signatures");
+    add("del signatures");
+  }
   if (base.includes("packaging")) add("packaging");
   if (base === "special events") {
     // Special Events exports are source buckets; validation remains in canonical categories.
@@ -103,6 +118,10 @@ function buildCategoryCandidates(rawCategory: string): string[] {
     add(base.replace(/^del\s*-\s*/, ""));
     add(base.replace(/^del-/, ""));
     add(base.replace(/^del-/, "del - "));
+  }
+  // "del - dot signatures" → also try without "dot " for older validation rows
+  if (base === "del - dot signatures") {
+    add("del - signatures");
   }
 
   // General dash/space variants.
@@ -143,18 +162,57 @@ function normalizeOption(rawOption: string): string {
   return normalizeValidationOption(t);
 }
 
-function buildOptionCandidates(rawOption: string, catNorm: string): string[] {
+function isSignatureLikeCategory(catNorm: string): boolean {
+  const c = catNorm.toLowerCase();
+  return c.includes("signatures");
+}
+
+/**
+ * Validation table often uses "Large 16 oz. (+10) | Oat" while POS exports
+ * "Iced Large (16oz) | Oat". Bridge those normalized forms for signature drinks.
+ */
+function addSignatureIcedHotOptionVariants(base: string, out: Set<string>): void {
+  const add = (s: string) => {
+    const t = normalizeValidationOption(s);
+    if (t) out.add(t);
+  };
+
+  // Strip leading iced/hot size prefix → table row style (e.g. large 16 oz | oat)
+  const icedLarge = /^iced\s+large\s+16\s+oz\b(.*)$/i.exec(base);
+  if (icedLarge) add(`large 16 oz. (+10)${icedLarge[1] ?? ""}`.trim());
+  const icedReg = /^iced\s+regular\s+12\s+oz\b(.*)$/i.exec(base);
+  if (icedReg) add(`regular 12 oz.${icedReg[1] ?? ""}`.trim());
+
+  const hotLarge = /^hot\s+large\s+16\s+oz\b(.*)$/i.exec(base);
+  if (hotLarge) add(`large 16 oz. (+10)${hotLarge[1] ?? ""}`.trim());
+  const hotReg = /^hot\s+regular\s+12\s+oz\b(.*)$/i.exec(base);
+  if (hotReg) add(`regular 12 oz.${hotReg[1] ?? ""}`.trim());
+}
+
+function buildOptionCandidates(rawOption: string, categoryCandidates: string[]): string[] {
   const base = normalizeOption(rawOption);
   const out = new Set<string>([base]);
 
-  const maybeSignatureCategory =
-    catNorm.includes("dot signatures") || catNorm.includes("del - dot signatures");
+  const maybeSignatureCategory = categoryCandidates.some(
+    (c) => isSignatureLikeCategory(c) || c.includes("dot signatures") || c.includes("del - dot signatures"),
+  );
 
-  if (maybeSignatureCategory && base.startsWith("iced ")) {
+  if (maybeSignatureCategory) {
+    addSignatureIcedHotOptionVariants(base, out);
+  }
+
+  const catNorm0 = categoryCandidates[0] ?? "";
+  if (
+    (catNorm0.includes("dot signatures") || catNorm0.includes("del - dot signatures")) &&
+    base.startsWith("iced ")
+  ) {
     out.add(base.replace(/^iced\s+/, "").trim());
   }
   // Preserve milk suffixes while trying no-leading-iced variants.
-  if (maybeSignatureCategory && /\|\s*(oat|almond|dairy)\b/.test(base)) {
+  if (
+    (catNorm0.includes("dot signatures") || catNorm0.includes("del - dot signatures")) &&
+    /\|\s*(oat|almond|dairy)\b/.test(base)
+  ) {
     out.add(base.replace(/^iced\s+/, "").trim());
   }
 
@@ -166,6 +224,20 @@ function buildOptionCandidates(rawOption: string, catNorm: string): string[] {
 
   return Array.from(out);
 }
+
+/**
+ * When the active mapping table (uploaded XLSX/CSV) omits ADD ONS MISC rows but
+ * POS still sends Option as the real product name, map here after PASS 5 lookup misses.
+ */
+const ADD_ON_MISC_OPTION_FALLBACK: Record<string, { mappedCat: Category; mappedItemName: string }> = {
+  [normalizeText("Cereal Crunch")]: { mappedCat: "ADD-ONS", mappedItemName: "Cereal Crunch" },
+  [normalizeText("Coconut Water")]: { mappedCat: "ADD-ONS", mappedItemName: "Coconut Water" },
+  [normalizeText("Espresso Shot")]: { mappedCat: "ADD-ONS", mappedItemName: "Espresso Shot" },
+  [normalizeText("Matcha Powder")]: { mappedCat: "ADD-ONS", mappedItemName: "Matcha Powder" },
+  [normalizeText("Hojicha Powder")]: { mappedCat: "ADD-ONS", mappedItemName: "Hojicha Powder" },
+  [normalizeText("Water Bottle")]: { mappedCat: "ADD-ONS", mappedItemName: "Water Bottle" },
+  [normalizeText("Whey Protein")]: { mappedCat: "ADD-ONS", mappedItemName: "Whey Protein" },
+};
 
 const ITEM_ALIASES: Record<string, string[]> = {
   [normalizeText("dirty cereal")]: [normalizeText("dirty cereal milk")],
@@ -219,7 +291,11 @@ function isAddOnsLikeCategory(catNorm: string): boolean {
 }
 
 function isAddOnsBucketItem(itemNorm: string): boolean {
-  return /^add[\s-]*ons?[\s-]+/.test(itemNorm);
+  if (/^add[\s-]*ons?[\s-]+/i.test(itemNorm)) return true;
+  const compact = itemNorm.replace(/\s+/g, "");
+  if (/^addonsmisc$/i.test(compact)) return true;
+  if (/^(addons|addon)\s*misc$/i.test(itemNorm)) return true;
+  return false;
 }
 
 function resolveAddOnBucketItem(catNorm: string, itemNorm: string, optNorm: string): string | null {
@@ -413,6 +489,27 @@ function lookupCatItemUnique(
   return idx.catItemUnique.get(makeCatItemKey(catNorm, itemNorm));
 }
 
+/**
+ * Last-resort mapping when the validation table has no row but the POS category
+ * is clearly a signature line and the option text names iced vs hot.
+ */
+function inferSignatureOrAddOnFallback(
+  row: RawRow,
+  rowSales: number,
+  pass2Cats: string[],
+): ProcessedRow | null {
+  const optRaw = row.option.trim();
+  if (!optRaw || !pass2Cats.some(isSignatureLikeCategory)) return null;
+  const lower = optRaw.toLowerCase();
+  const hasIced = /\biced\b/.test(lower);
+  const hasHot = /\bhot\b/.test(lower);
+  if (hasIced === hasHot) return null;
+  const itemTrim = row.rawItemName.trim();
+  if (!itemTrim) return null;
+  if (hasIced) return mapped(row, rowSales, "ICED", itemTrim, "fallback_signature_option_iced");
+  return mapped(row, rowSales, "HOT", itemTrim, "fallback_signature_option_hot");
+}
+
 // ─── Main: mapRow ─────────────────────────────────────────────────────────────
 
 /**
@@ -453,13 +550,18 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   const pass1Opts = [optNorm];
 
   const pass2Cats = buildCategoryCandidates(row.rawCategory);
-  const pass3Opts = buildOptionCandidates(row.option, pass2Cats[0] ?? catNorm);
+  const pass3Opts = buildOptionCandidates(row.option, pass2Cats);
   const pass4Items = buildItemCandidates(row.rawItemName, pass2Cats);
 
   const idx = getIndex(mappingTable);
   const menuRef = getMenuReferenceSnapshot();
-  const resolveMapped = (entry: MappingEntry): ProcessedRow =>
-    mapped(row, rowSales, entry.mappedName, resolveOutputItem(entry));
+  const resolveMapped = (entry: MappingEntry, reason?: string): ProcessedRow => {
+    let outName = resolveOutputItem(entry);
+    if (normalizeItem(row.rawItemName) === "dirty cereal" && normalizeItem(outName) === "dirty cereal milk") {
+      outName = "Dirty Cereal";
+    }
+    return mapped(row, rowSales, entry.mappedName, outName, reason);
+  };
 
   const findExact = (cats: string[], items: string[], opts: string[]): MappingEntry | undefined => {
     for (const c of cats) {
@@ -499,9 +601,36 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   // PASS 5: add-ons bucket resolver (option-as-item)
   const bucketItem = resolveAddOnBucketItem(catNorm, itemNorm, optNorm);
   if (bucketItem) {
-    const addOnsCats = buildCategoryCandidates("add-ons");
-    const p5 = findExact(addOnsCats, [normalizeItem(bucketItem)], [""]);
+    const addOnsCats = Array.from(
+      new Set([
+        ...buildCategoryCandidates("add-ons"),
+        ...buildCategoryCandidates("del-add-ons"),
+        ...pass2Cats.filter((c) => isAddOnsLikeCategory(c)),
+      ]),
+    );
+    const rawOptTrim = row.option.trim();
+    const addOnItemKeys = Array.from(
+      new Set(
+        [
+          normalizeItem(bucketItem),
+          normalizeText(bucketItem),
+          normalizeItem(rawOptTrim),
+          normalizeText(rawOptTrim),
+        ].filter(Boolean),
+      ),
+    );
+    const p5 = findExact(addOnsCats, addOnItemKeys, [""]);
     if (p5) return resolveMapped(p5);
+    const miscFb = ADD_ON_MISC_OPTION_FALLBACK[normalizeText(rawOptTrim)];
+    if (miscFb) {
+      return mapped(
+        row,
+        rowSales,
+        miscFb.mappedCat,
+        miscFb.mappedItemName,
+        "fallback_addon_misc_option",
+      );
+    }
   }
 
   // PASS 5b: Special Events bucket rows (Item is bucket, Option is real item)
@@ -526,7 +655,7 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
 
       const menuDrivenOptions = new Set<string>(pass3Opts);
       for (const menuOption of menuOptions) {
-        for (const candidate of buildOptionCandidates(menuOption, c)) {
+        for (const candidate of buildOptionCandidates(menuOption, [c])) {
           menuDrivenOptions.add(candidate);
           if (menuRef.validTriples.has(makeMenuReferenceTripleKey(c, i, candidate))) {
             menuDrivenOptions.add(candidate);
@@ -550,7 +679,11 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
     }
   }
 
-  // PASS 8: unmapped + diagnostic reason
+  // PASS 8: signature / delivery bucket inference when option clearly indicates temperature
+  const sigFallback = inferSignatureOrAddOnFallback(row, rowSales, pass2Cats);
+  if (sigFallback) return sigFallback;
+
+  // PASS 9 (diagnostics): unmapped + diagnostic reason
   let debugReason = "no_exact_candidate_found";
   if (bucketItem) {
     debugReason = "add_on_bucket_not_resolved";

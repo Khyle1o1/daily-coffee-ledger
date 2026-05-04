@@ -19,7 +19,7 @@ import ColumnMapperModal from "@/components/ColumnMapperModal";
 import { parseCsvFile, autoDetectColumns } from "@/utils/parseCsv";
 import { normalizeText } from "@/utils/normalize";
 import { mapRow } from "@/utils/mapRow";
-import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
+import { aggregateByCategory, getUnmappedSummary, reapplyMappingsToDailyReport } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
 import { preloadMenuReference } from "@/utils/menuReference";
@@ -42,7 +42,7 @@ export default function DailySummaryPage() {
   const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  const { manualEntries } = useManualMappings();
+  const { manualEntries, refetch: refetchManualMappings } = useManualMappings();
 
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [selectedBranch, setSelectedBranch] = useState<BranchId | "">("");
@@ -233,7 +233,43 @@ export default function DailySummaryPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [dateRange, selectedBranch, csvData, csvFile, autoMapping, mappingTable, branches, toast]);
+  }, [dateRange, selectedBranch, csvData, csvFile, autoMapping, mappingTable, manualEntries, getBranchUuid, toast]);
+
+  const handleManualMappingSaved = useCallback(async () => {
+    if (!activeReportId || viewMode !== "single") return;
+    try {
+      const fresh = await refetchManualMappings();
+      let updated: DailyReport | null = null;
+      setDailyReports((prev) =>
+        prev.map((r) => {
+          if (r.id !== activeReportId) return r;
+          const u = reapplyMappingsToDailyReport(r, mappingTable, fresh);
+          updated = u;
+          return u;
+        }),
+      );
+      if (updated?.id) {
+        const branchUuid = getBranchUuid(updated.branch);
+        if (branchUuid) {
+          await saveDailyReport({
+            branchId: branchUuid,
+            reportDate: updated.date,
+            dateRangeStart: updated.date,
+            dateRangeEnd: updated.dateRangeEnd ?? updated.date,
+            transactionsFileName: updated.filename,
+            summaryJson: dailyReportToJSON(updated),
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      toast({
+        variant: "destructive",
+        title: "Could not refresh report",
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    }
+  }, [activeReportId, getBranchUuid, mappingTable, refetchManualMappings, toast, viewMode]);
 
   const handleColumnConfirm = useCallback((colMapping: ColumnMapping) => {
     setAutoMapping({
@@ -601,7 +637,10 @@ export default function DailySummaryPage() {
                   </TabsContent>
 
                   <TabsContent value="details">
-                    <DetailsTable rows={displayReport.rowDetails} />
+                    <DetailsTable
+                      rows={displayReport.rowDetails}
+                      onManualMappingSaved={viewMode === "single" ? handleManualMappingSaved : undefined}
+                    />
                   </TabsContent>
 
                   <TabsContent value="unmapped">

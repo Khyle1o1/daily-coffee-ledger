@@ -3,18 +3,44 @@ import type { ProcessedRow, Category } from "@/utils/types";
 import { CATEGORIES } from "@/utils/types";
 import { formatNumber } from "@/utils/format";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { createManualMapping } from "@/lib/api/manualMappings";
+import { ApiAuthError } from "@/lib/api/authGuards";
 
 interface Props {
   rows: ProcessedRow[];
+  /** When set, unmapped rows can open "Add to Mapping" to persist overrides and refresh the parent report. */
+  onManualMappingSaved?: () => Promise<void>;
 }
 
 type Filter = "ALL" | "MAPPED" | "UNMAPPED" | "SKIPPED";
 
-export default function DetailsTable({ rows }: Props) {
+export default function DetailsTable({ rows, onManualMappingSaved }: Props) {
+  const { toast } = useToast();
   const [filter, setFilter] = useState<Filter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<Category | "ALL" | "COLD BREW">("ALL");
   const [search, setSearch] = useState("");
   const [visibleCount, setVisibleCount] = useState(200);
+  const [mappingDialogRow, setMappingDialogRow] = useState<ProcessedRow | null>(null);
+  const [mappedCategory, setMappedCategory] = useState<Category>("ICED");
+  const [mappedItemName, setMappedItemName] = useState("");
+  const [savingMapping, setSavingMapping] = useState(false);
 
   // Identify Cold Brew items (they're in ICED category but contain "cold brew")
   const isColdBrewItem = (r: ProcessedRow) => {
@@ -54,7 +80,58 @@ export default function DetailsTable({ rows }: Props) {
     setVisibleCount(200);
   }, [filter, categoryFilter, search, rows]);
 
+  useEffect(() => {
+    if (mappingDialogRow) {
+      setMappedItemName(mappingDialogRow.rawItemName.trim());
+      const o = (mappingDialogRow.option || "").toLowerCase();
+      if (/\bhot\b/.test(o) && !/\biced\b/.test(o)) setMappedCategory("HOT");
+      else if (/\biced\b/.test(o)) setMappedCategory("ICED");
+      else setMappedCategory("ICED");
+    }
+  }, [mappingDialogRow]);
+
   const filters: Filter[] = ["ALL", "MAPPED", "UNMAPPED", "SKIPPED"];
+  const showManualMapping = Boolean(onManualMappingSaved) && filter === "UNMAPPED";
+  const headers = showManualMapping
+    ? ["Category", "Item Name", "Option", "Qty", "Unit Price", "Sales", "Mapped Cat", "Mapped Name", "Status", "Actions"]
+    : ["Category", "Item Name", "Option", "Qty", "Unit Price", "Sales", "Mapped Cat", "Mapped Name", "Status"];
+  const lastHeaderIndex = headers.length - 1;
+
+  const handleSaveManualMapping = async () => {
+    if (!mappingDialogRow || !onManualMappingSaved) return;
+    const name = mappedItemName.trim();
+    if (!name) {
+      toast({ variant: "destructive", title: "Mapped name required", description: "Enter the display name for this item." });
+      return;
+    }
+    setSavingMapping(true);
+    try {
+      await createManualMapping({
+        sourceCategory: mappingDialogRow.rawCategory,
+        sourceItem: mappingDialogRow.rawItemName,
+        sourceOption: mappingDialogRow.option ?? "",
+        mappedCategory,
+        mappedItemName: name,
+        notes: "Added from daily report details (UNMAPPED)",
+      });
+      setMappingDialogRow(null);
+      await onManualMappingSaved();
+      toast({ title: "Mapping saved", description: "This combination will map automatically on future uploads." });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not save mapping";
+      if (e instanceof ApiAuthError && e.status === 401) {
+        toast({
+          variant: "destructive",
+          title: "Sign in required",
+          description: "Log in to save manual mappings.",
+        });
+      } else {
+        toast({ variant: "destructive", title: "Save failed", description: msg });
+      }
+    } finally {
+      setSavingMapping(false);
+    }
+  };
 
   return (
     <div>
@@ -172,11 +249,11 @@ export default function DetailsTable({ rows }: Props) {
         <table className="w-full border-collapse text-xs sm:text-sm min-w-[880px] bg-white">
           <thead className="sticky top-0 z-10">
             <tr>
-              {["Category", "Item Name", "Option", "Qty", "Unit Price", "Sales", "Mapped Cat", "Mapped Name", "Status"].map((h, i) => (
+              {headers.map((h, i) => (
                 <th
                   key={h}
                   className={`px-4 py-3 text-left font-semibold text-white bg-[#2B67B2] border-none ${
-                    i === 0 ? 'rounded-tl-2xl' : i === 8 ? 'rounded-tr-2xl' : ''
+                    i === 0 ? "rounded-tl-2xl" : i === lastHeaderIndex ? "rounded-tr-2xl" : ""
                   }`}
                 >
                   {h}
@@ -186,7 +263,10 @@ export default function DetailsTable({ rows }: Props) {
           </thead>
           <tbody>
             {displayedRows.map((r, i) => (
-              <tr key={i} className="border-b border-border hover:bg-[#EEF2F7] transition-colors even:bg-[#F7F9FC]">
+              <tr
+                key={`${r.rawCategory}|${r.rawItemName}|${r.option}|${r.quantity}|${r.unitPrice}|${i}`}
+                className="border-b border-border hover:bg-[#EEF2F7] transition-colors even:bg-[#F7F9FC]"
+              >
                 <td className="px-4 py-3 text-card-foreground">{r.rawCategory}</td>
                 <td className="px-4 py-3 text-card-foreground">{r.rawItemName}</td>
                 <td className="px-4 py-3 text-muted-foreground">{r.option || "—"}</td>
@@ -204,6 +284,23 @@ export default function DetailsTable({ rows }: Props) {
                     {r.status}
                   </span>
                 </td>
+                {showManualMapping && (
+                  <td className="px-3 py-2 align-middle">
+                    {r.status === "UNMAPPED" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-[11px] font-semibold whitespace-nowrap"
+                        onClick={() => setMappingDialogRow(r)}
+                      >
+                        Add to Mapping
+                      </Button>
+                    ) : (
+                      <span className="text-muted-foreground text-[11px]">—</span>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -214,6 +311,65 @@ export default function DetailsTable({ rows }: Props) {
           </p>
         )}
       </div>
+
+      <Dialog open={mappingDialogRow !== null} onOpenChange={(open) => !open && setMappingDialogRow(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add manual mapping</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm">
+            <p className="text-muted-foreground">
+              Map this POS line to a reporting category. The source category, item, and option are stored exactly as in your file.
+            </p>
+            <div className="rounded-lg border bg-muted/40 p-3 space-y-1 text-xs">
+              <div>
+                <span className="font-semibold text-foreground">Category: </span>
+                {mappingDialogRow?.rawCategory}
+              </div>
+              <div>
+                <span className="font-semibold text-foreground">Item: </span>
+                {mappingDialogRow?.rawItemName}
+              </div>
+              <div>
+                <span className="font-semibold text-foreground">Option: </span>
+                {mappingDialogRow?.option || "—"}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mapped-cat">Mapped category</Label>
+              <Select value={mappedCategory} onValueChange={(v) => setMappedCategory(v as Category)}>
+                <SelectTrigger id="mapped-cat" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mapped-name">Mapped name</Label>
+              <Input
+                id="mapped-name"
+                value={mappedItemName}
+                onChange={(e) => setMappedItemName(e.target.value)}
+                placeholder="e.g. Cereal Milk"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setMappingDialogRow(null)} disabled={savingMapping}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void handleSaveManualMapping()} disabled={savingMapping}>
+              {savingMapping ? "Saving…" : "Save mapping"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -79,6 +79,7 @@ const RAW: [string, string, string, string][] = [
   ["ADD-ONS","ADD-ONS","Whey Protein",""],
   ["ADD-ONS","ADD-ONS","White Chocolate Mocha Syrup",""],
   ["ADD-ONS","ADD-ONS","Yuzu Syrup",""],
+  ["ADD-ONS","ADD-ONS","Coconut Water",""],
 
   // ── DEL-ADD-ONS ───────────────────────────────────────────────────────────
   ["ADD-ONS","DEL-ADD-ONS","Almond Milk",""],
@@ -111,6 +112,7 @@ const RAW: [string, string, string, string][] = [
   ["ADD-ONS","DEL-ADD-ONS","Whey Protein",""],
   ["ADD-ONS","DEL-ADD-ONS","White Chocolate Mocha Syrup",""],
   ["ADD-ONS","DEL-ADD-ONS","Yuzu Syrup",""],
+  ["ADD-ONS","DEL-ADD-ONS","Coconut Water",""],
 
   // ── CLASSICS ──────────────────────────────────────────────────────────────
   ["ICED","CLASSICS","Americano","Iced Regular 12 oz."],
@@ -219,6 +221,8 @@ const RAW: [string, string, string, string][] = [
   ["ICED","DOT SIGNATURES","Cookie Butter Oat Latte","Large 16 oz. (+10) | Oat"],
   ["ICED","DOT SIGNATURES","Creamy Coco Matcha","Regular 12 oz."],
   ["ICED","DOT SIGNATURES","Creamy Coco Matcha","Large 16 oz. (+10)"],
+  ["ICED","DOT SIGNATURES","Creamy Coco Hojicha","Iced Regular 12 oz."],
+  ["ICED","DOT SIGNATURES","Creamy Coco Hojicha","Iced Large 16 oz. (+10)"],
   ["ICED","DOT SIGNATURES","Dirty Cereal Milk","Iced Regular 12 oz."],
   ["ICED","DOT SIGNATURES","Dirty Cereal Milk","Iced Large 16 oz. (+10)"],
   ["ICED","DOT SIGNATURES","Dirty Horchata","Regular 12 oz. | Dairy"],
@@ -282,6 +286,8 @@ const RAW: [string, string, string, string][] = [
   ["ICED","DEL - DOT SIGNATURES","Cookie Butter Oat Latte","Large 16 oz. (+10) | Oat"],
   ["ICED","DEL - DOT SIGNATURES","Creamy Coco Matcha","Regular 12 oz."],
   ["ICED","DEL - DOT SIGNATURES","Creamy Coco Matcha","Large 16 oz. (+10)"],
+  ["ICED","DEL - DOT SIGNATURES","Creamy Coco Hojicha","Iced Regular 12 oz."],
+  ["ICED","DEL - DOT SIGNATURES","Creamy Coco Hojicha","Iced Large 16 oz. (+10)"],
   ["ICED","DEL - DOT SIGNATURES","Dirty Cereal Milk","Iced Regular 12 oz."],
   ["ICED","DEL - DOT SIGNATURES","Dirty Cereal Milk","Iced Large 16 oz. (+10)"],
   ["ICED","DEL - DOT SIGNATURES","Dirty Horchata","Regular 12 oz. | Dairy"],

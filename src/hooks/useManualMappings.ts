@@ -37,18 +37,20 @@ function toMappingEntry(m: ManualMapping): MappingEntry {
 export function useManualMappings(): {
   manualEntries: MappingEntry[];
   loading: boolean;
-  refetch: () => Promise<void>;
+  refetch: () => Promise<MappingEntry[]>;
 } {
   const [raw, setRaw] = useState<ManualMapping[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = async (): Promise<MappingEntry[]> => {
     try {
       setLoading(true);
       const data = await fetchActiveManualMappings();
       setRaw(data);
+      return data.map(toMappingEntry);
     } catch {
       setRaw([]);
+      return [];
     } finally {
       setLoading(false);
     }

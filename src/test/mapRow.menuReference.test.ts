@@ -50,7 +50,7 @@ describe("mapRow menu reference coverage", () => {
     const result = mapRow(row("DOT SIGNATURES", "Dirty Cereal", "Iced Large (16oz)"), DEFAULT_MAPPING);
     expect(result.status).toBe("MAPPED");
     expect(result.mappedCat).toBe("ICED");
-    expect(result.mappedItemName).toBe("Dirty Cereal Milk");
+    expect(result.mappedItemName).toBe("Dirty Cereal");
   });
 
   it("maps C: DOT SNACKS Double Chocolate Chip Cookie via canonical snack alias", () => {
