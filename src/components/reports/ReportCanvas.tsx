@@ -119,7 +119,10 @@ const ReportCanvas = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
       )}
 
       {data.reportType === "POUR_IT_FORWARD" && data.pourItForward && (
-        <PourItForwardReport data={data.pourItForward} />
+        <PourItForwardReport
+          data={data.pourItForward}
+          dateRangeLabel={data.dateRangeLabel}
+        />
       )}
 
       {data.reportType === "HQ_SYNC_PACK" && data.hqSyncPack && (

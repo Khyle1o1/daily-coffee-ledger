@@ -2,6 +2,7 @@ import type { DailyReport, BranchId } from "@/utils/types";
 import { BRANCHES } from "@/utils/types";
 import type { ReportFilters } from "./compute";
 import { endOfDay, format, startOfDay } from "date-fns";
+import { normalizeText } from "@/utils/normalize";
 
 function defaultGetBranchLabel(slug: string): string {
   return BRANCHES.find((b) => b.id === slug)?.label ?? slug;
@@ -37,6 +38,19 @@ export type PourItemRow = {
   grandTotal: number;
 };
 
+export type ItemizedCupRow = {
+  cupType: string;
+  totalCups: number;
+};
+
+export const ITEMIZED_CUP_TYPES = [
+  "12oz Bamboo Cup",
+  "12oz Iced Dabba Cup",
+  "12oz Paper Cup",
+  "16oz Iced Dabba Cup",
+  "16oz Paper Cup",
+] as const;
+
 export type PourReportData = {
   title: string;
   rows: PourRow[];
@@ -52,6 +66,8 @@ export type PourReportData = {
   dailyBreakdown?: PourDailyRow[];
   /** Populated only when a single branch is selected */
   itemBreakdown?: PourItemRow[];
+  itemizedCupBreakdown: ItemizedCupRow[];
+  itemizedCupGrandTotal: number;
 };
 
 export function computePourItForward(
@@ -95,6 +111,12 @@ export function computePourItForward(
   // Detail accumulators — only used for single-branch view
   const perDay = new Map<string, { foodpandaQty: number; grabQty: number; walkinQty: number }>();
   const perItem = new Map<string, { foodpandaQty: number; grabQty: number; walkinQty: number }>();
+  const itemizedCupTotals = new Map<string, number>(
+    ITEMIZED_CUP_TYPES.map((cupType) => [cupType, 0]),
+  );
+  const itemizedCupLookup = new Map<string, string>(
+    ITEMIZED_CUP_TYPES.map((cupType) => [normalizeText(cupType), cupType]),
+  );
 
   const ensureDay = (date: string) => {
     if (!perDay.has(date)) perDay.set(date, { foodpandaQty: 0, grabQty: 0, walkinQty: 0 });
@@ -141,6 +163,14 @@ export function computePourItForward(
 
       const qty = Number.isFinite(row.quantity) ? row.quantity : 0;
       if (!qty) continue;
+
+      const canonicalCupType = itemizedCupLookup.get(normalizeText(name));
+      if (canonicalCupType) {
+        itemizedCupTotals.set(
+          canonicalCupType,
+          (itemizedCupTotals.get(canonicalCupType) ?? 0) + qty,
+        );
+      }
 
       const branchEntry = ensureBranch(report.branch);
       const channel = getChannelFromPaymentType(row.paymentType);
@@ -192,6 +222,24 @@ export function computePourItForward(
     },
     { foodpandaQty: 0, grabQty: 0, walkinQty: 0, grandTotal: 0 }
   );
+
+  const itemizedCupBreakdown: ItemizedCupRow[] = ITEMIZED_CUP_TYPES.map((cupType) => ({
+    cupType,
+    totalCups: itemizedCupTotals.get(cupType) ?? 0,
+  }));
+  const itemizedCupGrandTotal = itemizedCupBreakdown.reduce(
+    (sum, row) => sum + row.totalCups,
+    0,
+  );
+
+  if (itemizedCupGrandTotal !== totals.grandTotal) {
+    console.debug("[computePourItForward] Itemized cup total differs from summary total", {
+      itemizedCupGrandTotal,
+      summaryGrandTotal: totals.grandTotal,
+      dateFrom,
+      dateTo,
+    });
+  }
 
   // Build detail arrays (single branch only)
   let dailyBreakdown: PourDailyRow[] | undefined;
@@ -259,5 +307,7 @@ export function computePourItForward(
     excludedBranches: excludedBranches && excludedBranches.length > 0 ? excludedBranches : undefined,
     dailyBreakdown,
     itemBreakdown,
+    itemizedCupBreakdown,
+    itemizedCupGrandTotal,
   };
 }

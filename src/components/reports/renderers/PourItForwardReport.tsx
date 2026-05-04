@@ -3,6 +3,7 @@ import type { PourReportData } from "@/lib/reports/computePourItForward";
 
 interface Props {
   data: PourReportData;
+  dateRangeLabel: string;
 }
 
 // ── Shared column layout ────────────────────────────────────────────────────
@@ -46,8 +47,17 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function PourItForwardReport({ data }: Props) {
-  const { title, rows, totals, excludedBranches, dailyBreakdown, itemBreakdown } = data;
+export default function PourItForwardReport({ data, dateRangeLabel }: Props) {
+  const {
+    title,
+    rows,
+    totals,
+    excludedBranches,
+    dailyBreakdown,
+    itemBreakdown,
+    itemizedCupBreakdown,
+    itemizedCupGrandTotal,
+  } = data;
   const hasSingleBranch = !!(dailyBreakdown && itemBreakdown);
 
   return (
@@ -132,6 +142,54 @@ export default function PourItForwardReport({ data }: Props) {
           </div>
         </>
       )}
+
+      {/* ── Itemized cup breakdown ───────────────────────────────────────── */}
+      <SectionTitle>
+        Itemized Cup Breakdown
+        <span className="block text-[11px] font-semibold tracking-normal normal-case text-slate-500 mt-1">
+          ({dateRangeLabel})
+        </span>
+      </SectionTitle>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
+        <table className="w-full min-w-[520px] table-fixed border-collapse text-xs text-slate-900">
+          <colgroup>
+            <col style={{ width: "70%" }} />
+            <col style={{ width: "30%" }} />
+          </colgroup>
+          <thead className="bg-[#1e3a5f] text-white">
+            <tr>
+              <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-wide">
+                Cup Type
+              </th>
+              <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-wide">
+                Total Cups
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {itemizedCupBreakdown.map((row) => (
+              <tr key={row.cupType} className="odd:bg-white even:bg-[#F7F9FC]">
+                <td className="px-4 py-2 text-left text-[12px] font-medium text-slate-800">
+                  {row.cupType}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums text-[12px] text-slate-800">
+                  {row.totalCups.toLocaleString("en-PH")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-[#1e3a5f] text-white">
+              <td className="px-4 py-2 text-left text-[11px] font-bold">
+                Grand Total
+              </td>
+              <td className="px-4 py-2 text-right text-[11px] font-extrabold tabular-nums">
+                {itemizedCupGrandTotal.toLocaleString("en-PH")}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
       {/* ── Single-branch detail ─────────────────────────────────────────── */}
       {hasSingleBranch && (

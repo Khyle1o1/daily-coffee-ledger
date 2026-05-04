@@ -111,4 +111,55 @@ describe("mapRow menu reference coverage", () => {
     expect(cocochata.mappedCat).toBe("ICED");
     expect(cocochata.mappedItemName).toBe("Coco Chata");
   });
+
+  it("maps newly-seen validation item label variants", () => {
+    const dirtyCereal = mapRow(
+      row("DEL - SIGNATURES", "Dirty Cereal", "Iced Regular (12oz)"),
+      DEFAULT_MAPPING,
+    );
+    const doubleChocolateCookie = mapRow(
+      row("DOT SNACKS", "Double Chocolate Chip Cookie"),
+      DEFAULT_MAPPING,
+    );
+    const truffleSaltBread = mapRow(
+      row("DOT SNACKS", "Truffle Salt Bread"),
+      DEFAULT_MAPPING,
+    );
+    const oatmealCrunchBar = mapRow(
+      row("DOT SNACKS", "Oatmeal Crunch Protein Bar"),
+      DEFAULT_MAPPING,
+    );
+    const chocolateSaltBread = mapRow(
+      row("DOT SNACKS", "Chocolate Salt Bread"),
+      DEFAULT_MAPPING,
+    );
+    const peanutButterProtein = mapRow(
+      row("DEL - DOT SIGNATURES", "Peanut Butter Protein Latte", "Iced Large (16oz)"),
+      DEFAULT_MAPPING,
+    );
+
+    expect(dirtyCereal.status).toBe("MAPPED");
+    expect(dirtyCereal.mappedCat).toBe("ICED");
+    expect(dirtyCereal.mappedItemName).toBe("Dirty Cereal");
+
+    expect(doubleChocolateCookie.status).toBe("MAPPED");
+    expect(doubleChocolateCookie.mappedCat).toBe("SNACKS");
+    expect(doubleChocolateCookie.mappedItemName).toBe("Double Chocolate Chip Cookies");
+
+    expect(truffleSaltBread.status).toBe("MAPPED");
+    expect(truffleSaltBread.mappedCat).toBe("SNACKS");
+    expect(truffleSaltBread.mappedItemName).toBe("Truffle Cheese Salt Bread");
+
+    expect(oatmealCrunchBar.status).toBe("MAPPED");
+    expect(oatmealCrunchBar.mappedCat).toBe("SNACKS");
+    expect(oatmealCrunchBar.mappedItemName).toBe("Oatmeal Cookie Protein Bar");
+
+    expect(chocolateSaltBread.status).toBe("MAPPED");
+    expect(chocolateSaltBread.mappedCat).toBe("SNACKS");
+    expect(chocolateSaltBread.mappedItemName).toBe("Dark Chocolate Salt Bread");
+
+    expect(peanutButterProtein.status).toBe("MAPPED");
+    expect(peanutButterProtein.mappedCat).toBe("ICED");
+    expect(peanutButterProtein.mappedItemName).toBe("PB Protein Latte");
+  });
 });
