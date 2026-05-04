@@ -63,7 +63,7 @@ function SidebarNav({
   return (
     <aside
       className={cn(
-        "bg-[#0e2d49] text-primary-foreground flex flex-col border-r border-white/10 h-full",
+        "bg-[#0e2d49] text-primary-foreground flex h-full flex-col overflow-hidden border-r border-white/10",
         compact ? "w-[86px]" : "w-[86px] 2xl:w-[280px]",
       )}
     >
@@ -94,7 +94,12 @@ function SidebarNav({
       </div>
 
       {/* Navigation */}
-      <nav className={cn("flex-1 pt-4 pb-6 space-y-1", compact ? "px-2" : "px-3")}>
+      <nav
+        className={cn(
+          "flex-1 overflow-y-auto pt-4 pb-6 space-y-1",
+          compact ? "px-2" : "px-3",
+        )}
+      >
         {!compact && (
           <p
             className={cn(
@@ -147,8 +152,8 @@ export default function AppShell() {
   const roleBadgeClass = getRoleBadgeClass(role);
 
   return (
-    <div className="flex min-h-screen w-full bg-background overflow-x-hidden">
-      <div className="hidden md:block md:sticky md:top-0 md:h-screen shrink-0">
+    <div className="flex h-screen w-full overflow-hidden bg-background">
+      <div className="hidden h-screen shrink-0 overflow-hidden md:sticky md:top-0 md:block">
         <SidebarNav
           isAdmin={!!isAdmin}
           isViewer={!!isViewer}
@@ -168,9 +173,9 @@ export default function AppShell() {
         </SheetContent>
       </Sheet>
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex h-screen min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="bg-primary shadow-md">
+        <header className="shrink-0 bg-primary shadow-md">
           <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
             <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
               <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -231,7 +236,7 @@ export default function AppShell() {
           </div>
         </header>
 
-        <main className="flex-1 min-w-0 overflow-auto">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
       </div>
