@@ -30,6 +30,15 @@ export default function LoginPage() {
     return email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
   };
 
+  const withUiTimeout = async <T,>(promise: Promise<T>, timeoutMs = 15000): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error("Request timed out. Please try again.")), timeoutMs),
+      ),
+    ]);
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -52,21 +61,30 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
+    try {
+      const { error } = await withUiTimeout(signIn(email, password));
 
-    if (error) {
+      if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Sign in failed',
+          description: error.message || 'Invalid email or password.',
+        });
+      } else {
+        toast({
+          title: 'Welcome back!',
+          description: 'You have successfully signed in.',
+        });
+        navigate('/app/summary');
+      }
+    } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Sign in failed',
-        description: error.message || 'Invalid email or password.',
+        description: error instanceof Error ? error.message : 'Unable to sign in right now.',
       });
-    } else {
-      toast({
-        title: 'Welcome back!',
-        description: 'You have successfully signed in.',
-      });
-      navigate('/app/summary');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -92,22 +110,31 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password);
-    setLoading(false);
+    try {
+      const { error } = await withUiTimeout(signUp(email, password));
 
-    if (error) {
+      if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Sign up failed',
+          description: error.message || 'Could not create account.',
+        });
+      } else {
+        toast({
+          title: 'Account created!',
+          description: 'Check your email to confirm your account, then sign in.',
+        });
+        setEmail('');
+        setPassword('');
+      }
+    } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Sign up failed',
-        description: error.message || 'Could not create account.',
+        description: error instanceof Error ? error.message : 'Unable to create account right now.',
       });
-    } else {
-      toast({
-        title: 'Account created!',
-        description: 'Check your email to confirm your account, then sign in.',
-      });
-      setEmail('');
-      setPassword('');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,22 +151,31 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    const { error } = await resetPassword(resetEmail);
-    setLoading(false);
+    try {
+      const { error } = await withUiTimeout(resetPassword(resetEmail));
 
-    if (error) {
+      if (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Reset failed',
+          description: error.message || 'Could not send reset email.',
+        });
+      } else {
+        toast({
+          title: 'Reset email sent!',
+          description: 'Check your inbox for the password reset link.',
+        });
+        setShowResetForm(false);
+        setResetEmail('');
+      }
+    } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Reset failed',
-        description: error.message || 'Could not send reset email.',
+        description: error instanceof Error ? error.message : 'Unable to process reset right now.',
       });
-    } else {
-      toast({
-        title: 'Reset email sent!',
-        description: 'Check your inbox for the password reset link.',
-      });
-      setShowResetForm(false);
-      setResetEmail('');
+    } finally {
+      setLoading(false);
     }
   };
 
