@@ -44,7 +44,7 @@ const App = () => (
     persistOptions={{
       persister: localStoragePersister,
       maxAge: 24 * 60 * 60 * 1000,
-      buster: "v1",
+      buster: "v2-user-scoped-report-cache",
     }}
   >
     <TooltipProvider>

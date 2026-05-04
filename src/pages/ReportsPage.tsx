@@ -82,6 +82,7 @@ import {
 } from "@/lib/reports/compute";
 import { computeProductMixChannel } from "@/lib/reports/computeProductMixChannel";
 import { computePourItForward } from "@/lib/reports/computePourItForward";
+import type { ItemizedChannelFilter } from "@/lib/reports/computePourItForward";
 import { computeHQSyncPack } from "@/lib/reports/computeHQSyncPack";
 import { computeChannelSalesSummary } from "@/lib/reports/computeChannelSalesSummary";
 import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
@@ -181,6 +182,8 @@ export default function ReportsPage() {
   const [rankProductMixPerCategory, setRankProductMixPerCategory] = useState(false);
   const [runningCategory, setRunningCategory] = useState<Category>("ICED");
   const [channelCategory, setChannelCategory] = useState<Category | "ALL">("ALL");
+  const [itemizedChannel, setItemizedChannel] =
+    useState<ItemizedChannelFilter>("ALL");
 
   // ── Generation state ──────────────────────────────────────────────────────
   const [canvasData, setCanvasData] = useState<ReportCanvasData | null>(null);
@@ -409,6 +412,7 @@ export default function ReportsPage() {
           filters,
           title,
           getBranchLabel,
+          { itemizedChannel },
         );
         canvas = {
           reportType,
@@ -480,7 +484,7 @@ export default function ReportsPage() {
       });
 
       setHistory((prev) => [saved, ...prev]);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generated });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generatedRoot });
 
       void logEvent({
         action: 'generate_report',
@@ -522,6 +526,7 @@ export default function ReportsPage() {
     selectedCategories,
     runningCategory,
     channelCategory,
+    itemizedChannel,
     getBranchUuid,
     filterBranches,
     queryClient,
@@ -542,7 +547,7 @@ export default function ReportsPage() {
         await deleteGeneratedReport(id);
         setHistory((prev) => prev.filter((r) => r.id !== id));
         setHistorySelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generated });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generatedRoot });
         toast({ title: "Report deleted." });
       } catch (err) {
         toast({
@@ -567,7 +572,7 @@ export default function ReportsPage() {
         setHistorySelectedIds(new Set());
         setHistorySelectMode(false);
         setDeleteAllConfirm(false);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generated });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generatedRoot });
         toast({ title: `${ids.length} report${ids.length !== 1 ? "s" : ""} deleted.` });
       } catch (err) {
         toast({
@@ -674,6 +679,7 @@ export default function ReportsPage() {
     setRankProductMixPerCategory(false);
     setRunningCategory("ICED");
     setChannelCategory("ALL");
+    setItemizedChannel("ALL");
     setCanvasData(null);
   }, []);
 
@@ -1022,6 +1028,30 @@ export default function ReportsPage() {
                             {cat}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {reportType === "POUR_IT_FORWARD" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-slate-500 uppercase tracking-wider">
+                      Itemized Channel
+                    </Label>
+                    <Select
+                      value={itemizedChannel}
+                      onValueChange={(v) =>
+                        setItemizedChannel(v as ItemizedChannelFilter)
+                      }
+                    >
+                      <SelectTrigger className="w-[200px] rounded-xl text-sm border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All Channels</SelectItem>
+                        <SelectItem value="WALK_IN">Walk-in</SelectItem>
+                        <SelectItem value="FOODPANDA">Foodpanda</SelectItem>
+                        <SelectItem value="GRAB">Grab</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

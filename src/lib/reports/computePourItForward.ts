@@ -77,6 +77,12 @@ export type PourMonthlyRow = {
   grandTotal: number;
 };
 
+export type ItemizedChannelFilter =
+  | "ALL"
+  | "WALK_IN"
+  | "FOODPANDA"
+  | "GRAB";
+
 export const ITEMIZED_CUP_TYPES = [
   "12oz Bamboo Cup",
   "12oz Iced Dabba Cup",
@@ -103,6 +109,8 @@ export type PourReportData = {
   itemizedCupBreakdown: ItemizedCupRow[];
   itemizedCupGrandTotal: number;
   itemizedCupPivot: ItemizedCupPivot;
+  itemizedChannel: ItemizedChannelFilter;
+  itemizedChannelLabel: string;
   monthlySummary?: PourMonthlyRow[];
 };
 
@@ -126,6 +134,7 @@ export function computePourItForward(
   filters: ReportFilters,
   title: string,
   getBranchLabel?: (slug: string) => string,
+  options?: { itemizedChannel?: ItemizedChannelFilter },
 ): PourReportData {
   const { dateFrom, dateTo, branchId } = filters;
 
@@ -141,6 +150,15 @@ export function computePourItForward(
     ? [...selectedBranchIds]
     : BRANCHES.map((b) => b.id as BranchId);
   const selectedBranchSet = selectedBranchIds ? new Set(selectedBranchIds) : null;
+  const itemizedChannel: ItemizedChannelFilter = options?.itemizedChannel ?? "ALL";
+  const itemizedChannelLabel =
+    itemizedChannel === "ALL"
+      ? "All Channels"
+      : itemizedChannel === "WALK_IN"
+        ? "Walk-in"
+        : itemizedChannel === "FOODPANDA"
+          ? "Foodpanda"
+          : "Grab";
 
   const perBranch = new Map<
     BranchId,
@@ -223,7 +241,12 @@ export function computePourItForward(
       filteredRowsCount += 1;
 
       const canonicalCupType = normalizeCupTypeLabel(name);
-      if (canonicalCupType) {
+      const branchEntry = ensureBranch(report.branch);
+      const channel = getChannelFromPaymentType(row.paymentType);
+      const includeInItemized =
+        itemizedChannel === "ALL" || channel === itemizedChannel;
+
+      if (canonicalCupType && includeInItemized) {
         itemizedCupTotals.set(
           canonicalCupType,
           (itemizedCupTotals.get(canonicalCupType) ?? 0) + qty,
@@ -238,9 +261,6 @@ export function computePourItForward(
         );
         perBranchItemizedTotals.set(report.branch, branchMap);
       }
-
-      const branchEntry = ensureBranch(report.branch);
-      const channel = getChannelFromPaymentType(row.paymentType);
 
       if (channel === "FOODPANDA") {
         branchEntry.foodpandaQty += qty;
@@ -457,6 +477,8 @@ export function computePourItForward(
     itemizedCupBreakdown,
     itemizedCupGrandTotal,
     itemizedCupPivot,
+    itemizedChannel,
+    itemizedChannelLabel,
     monthlySummary,
   };
 }

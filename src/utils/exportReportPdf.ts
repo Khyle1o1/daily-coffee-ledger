@@ -647,7 +647,11 @@ export async function exportReportPdf(
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...HEADER_COLOR);
-    doc.text(`ITEMIZED CUP BREAKDOWN (${dateRangeLabel})`, marginLeft, y);
+    doc.text(
+      `ITEMIZED CUP BREAKDOWN (${dateRangeLabel}) — ${pourItForward.itemizedChannelLabel}`,
+      marginLeft,
+      y,
+    );
     y += 8;
 
     const pivot = pourItForward.itemizedCupPivot;
@@ -673,7 +677,11 @@ export async function exportReportPdf(
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(...HEADER_COLOR);
-      doc.text(`ITEMIZED CUP BREAKDOWN (${dateRangeLabel})`, marginLeft, y);
+      doc.text(
+        `ITEMIZED CUP BREAKDOWN (${dateRangeLabel}) — ${pourItForward.itemizedChannelLabel}`,
+        marginLeft,
+        y,
+      );
       y += 8;
     }
 

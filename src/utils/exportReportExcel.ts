@@ -472,7 +472,7 @@ function buildPourItForwardSheets(
   // ── Combined itemized cups sheet ────────────────────────────────────────
   const combinedItemizedRows: XLSX.CellObject[][] = [
     ...meta,
-    [c("Itemized Cup Breakdown", S_TITLE)],
+    [c(`Itemized Cup Breakdown — ${data.itemizedChannelLabel}`, S_TITLE)],
     [blank()],
     [
       c("Cup Type", S_HEADER_LEFT),

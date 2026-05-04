@@ -56,6 +56,7 @@ export default function PourItForwardReport({ data, dateRangeLabel }: Props) {
     dailyBreakdown,
     itemBreakdown,
     itemizedCupPivot,
+    itemizedChannelLabel,
     monthlySummary,
   } = data;
   const hasSingleBranch = !!(dailyBreakdown && itemBreakdown);
@@ -147,7 +148,7 @@ export default function PourItForwardReport({ data, dateRangeLabel }: Props) {
       <SectionTitle>
         Itemized Cup Breakdown
         <span className="block text-[11px] font-semibold tracking-normal normal-case text-slate-500 mt-1">
-          ({dateRangeLabel})
+          ({dateRangeLabel}) • {itemizedChannelLabel}
         </span>
       </SectionTitle>
       <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">

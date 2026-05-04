@@ -1,8 +1,12 @@
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
   reports: {
-    dailyAll: ["reports", "daily", "all"] as const,
-    generated: ["reports", "generated"] as const,
+    dailyRoot: ["reports", "daily"] as const,
+    generatedRoot: ["reports", "generated"] as const,
+    dailyAll: (userId?: string) =>
+      ["reports", "daily", "all", userId ?? "anon"] as const,
+    generated: (userId?: string) =>
+      ["reports", "generated", userId ?? "anon"] as const,
   },
   branches: {
     live: ["branches", "live"] as const,

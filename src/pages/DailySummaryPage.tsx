@@ -215,7 +215,7 @@ export default function DailySummaryPage() {
       setActiveReportId(savedReportWithData.id);
       setViewMode("single");
       setShowMapper(false);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyAll });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyRoot });
 
       toast({
         title: "Report saved",

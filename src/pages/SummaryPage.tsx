@@ -427,7 +427,7 @@ export default function SummaryPage() {
       setActiveReportId(savedReportWithId.id);
       setIsPreviewOpen(false);
       resetAddModal();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyAll });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyRoot });
 
       void logEvent({
         action: 'add_data',

@@ -8,7 +8,7 @@ export function useGeneratedReportsQuery() {
   const { user, loading } = useAuth();
 
   return useQuery<GeneratedReportRow[]>({
-    queryKey: queryKeys.reports.generated,
+    queryKey: queryKeys.reports.generated(user?.id),
     queryFn: listGeneratedReports,
     enabled: !loading && !!user,
     staleTime: Infinity,

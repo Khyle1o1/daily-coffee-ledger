@@ -9,7 +9,7 @@ export function useDailyReportsQuery() {
   const { user, loading } = useAuth();
 
   return useQuery<DailyReport[]>({
-    queryKey: queryKeys.reports.dailyAll,
+    queryKey: queryKeys.reports.dailyAll(user?.id),
     queryFn: async () => {
       await seedBranchesIfEmpty().catch(() => undefined);
       const rows = await listAllDailyReports();
