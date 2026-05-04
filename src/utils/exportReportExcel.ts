@@ -435,8 +435,15 @@ function buildPourItForwardSheets(
   data: PourReportData,
   branchLabel: string,
   dateRangeLabel: string,
-): XLSX.WorkSheet[] {
-  const { rows, totals, dailyBreakdown, itemBreakdown } = data;
+): { name: string; sheet: XLSX.WorkSheet }[] {
+  const {
+    rows,
+    totals,
+    dailyBreakdown,
+    itemBreakdown,
+    itemizedCupPivot,
+    monthlySummary,
+  } = data;
 
   const meta: XLSX.CellObject[][] = [
     [c("HQ Weekly Sync", S_ACCENT)],
@@ -458,7 +465,75 @@ function buildPourItForwardSheets(
   });
   summaryRows.push([c("Grand Total", S_FOOTER_LEFT), c(fmt(totals.foodpandaQty), S_FOOTER), c(fmt(totals.grabQty), S_FOOTER), c(fmt(totals.walkinQty), S_FOOTER), c(fmt(totals.grandTotal), S_FOOTER)]);
 
-  const sheets: XLSX.WorkSheet[] = [buildSheet(summaryRows, [30, 14, 12, 14, 16])];
+  const sheets: { name: string; sheet: XLSX.WorkSheet }[] = [
+    { name: "Branch Summary", sheet: buildSheet(summaryRows, [30, 14, 12, 14, 16]) },
+  ];
+
+  // ── Combined itemized cups sheet ────────────────────────────────────────
+  const combinedItemizedRows: XLSX.CellObject[][] = [
+    ...meta,
+    [c("Itemized Cup Breakdown", S_TITLE)],
+    [blank()],
+    [
+      c("Cup Type", S_HEADER_LEFT),
+      ...itemizedCupPivot.branches.map((branch) => c(branch.branchName, S_HEADER)),
+      c("Grand Total", S_HEADER),
+    ],
+  ];
+  itemizedCupPivot.rows.forEach((row, i) => {
+    const s = i % 2 === 1 ? S_ALT : undefined;
+    const branchCells = itemizedCupPivot.branches.map((branch) =>
+      c(row.byBranch[branch.branchId] ?? 0, { ...S_NUM, ...s }),
+    );
+    combinedItemizedRows.push([
+      c(row.cupType, s),
+      ...branchCells,
+      c(row.grandTotal, { ...S_NUM_BOLD, ...s }),
+    ]);
+  });
+  const totalsRow = [
+    c("Grand Total", S_FOOTER_LEFT),
+    ...itemizedCupPivot.branches.map((branch) =>
+      c(itemizedCupPivot.totalsByBranch[branch.branchId] ?? 0, S_FOOTER),
+    ),
+    c(itemizedCupPivot.grandTotal, S_FOOTER),
+  ];
+  combinedItemizedRows.push(totalsRow);
+  sheets.push({
+    name: "Itemized Cups Pivot",
+    sheet: buildSheet(
+      combinedItemizedRows,
+      [30, ...itemizedCupPivot.branches.map(() => 12), 14],
+    ),
+  });
+
+  // ── Monthly summary sheet (2+ months only) ─────────────────────────────
+  if (monthlySummary && monthlySummary.length >= 2) {
+    const monthlyRows: XLSX.CellObject[][] = [
+      ...meta,
+      [c("Monthly Summary", S_TITLE)],
+      [blank()],
+      [c("Month", S_HEADER_LEFT), c("Foodpanda", S_HEADER), c("Grab", S_HEADER), c("Walk-in", S_HEADER), c("Month Total", S_HEADER)],
+    ];
+    monthlySummary.forEach((row, i) => {
+      const s = i % 2 === 1 ? S_ALT : undefined;
+      monthlyRows.push([
+        c(row.monthLabel, s),
+        c(row.foodpandaQty, { ...S_NUM, ...s }),
+        c(row.grabQty, { ...S_NUM, ...s }),
+        c(row.walkinQty, { ...S_NUM, ...s }),
+        c(row.grandTotal, { ...S_NUM_BOLD, ...s }),
+      ]);
+    });
+    monthlyRows.push([
+      c("Grand Total", S_FOOTER_LEFT),
+      c(monthlySummary.reduce((sum, row) => sum + row.foodpandaQty, 0), S_FOOTER),
+      c(monthlySummary.reduce((sum, row) => sum + row.grabQty, 0), S_FOOTER),
+      c(monthlySummary.reduce((sum, row) => sum + row.walkinQty, 0), S_FOOTER),
+      c(monthlySummary.reduce((sum, row) => sum + row.grandTotal, 0), S_FOOTER),
+    ]);
+    sheets.push({ name: "Monthly Summary", sheet: buildSheet(monthlyRows, [18, 12, 12, 12, 14]) });
+  }
 
   // ── Day-by-Day sheet (single branch only) ───────────────────────────────
   if (dailyBreakdown && dailyBreakdown.length > 0) {
@@ -473,7 +548,7 @@ function buildPourItForwardSheets(
       dayRows.push([c(row.date, s), c(row.foodpandaQty, { ...S_NUM, ...s }), c(row.grabQty, { ...S_NUM, ...s }), c(row.walkinQty, { ...S_NUM, ...s }), c(row.grandTotal, { ...S_NUM_BOLD, ...s })]);
     });
     dayRows.push([c("Total", S_FOOTER_LEFT), c(fmt(totals.foodpandaQty), S_FOOTER), c(fmt(totals.grabQty), S_FOOTER), c(fmt(totals.walkinQty), S_FOOTER), c(fmt(totals.grandTotal), S_FOOTER)]);
-    sheets.push(buildSheet(dayRows, [14, 14, 12, 14, 14]));
+    sheets.push({ name: "By Day", sheet: buildSheet(dayRows, [14, 14, 12, 14, 14]) });
   }
 
   // ── Items sheet (single branch only) ────────────────────────────────────
@@ -489,7 +564,7 @@ function buildPourItForwardSheets(
       itemRows.push([c(row.itemName, s), c(row.foodpandaQty, { ...S_NUM, ...s }), c(row.grabQty, { ...S_NUM, ...s }), c(row.walkinQty, { ...S_NUM, ...s }), c(row.grandTotal, { ...S_NUM_BOLD, ...s })]);
     });
     itemRows.push([c("Total", S_FOOTER_LEFT), c(fmt(totals.foodpandaQty), S_FOOTER), c(fmt(totals.grabQty), S_FOOTER), c(fmt(totals.walkinQty), S_FOOTER), c(fmt(totals.grandTotal), S_FOOTER)]);
-    sheets.push(buildSheet(itemRows, [30, 14, 12, 14, 14]));
+    sheets.push({ name: "By Item", sheet: buildSheet(itemRows, [30, 14, 12, 14, 14]) });
   }
 
   return sheets;
@@ -610,8 +685,7 @@ export function exportReportExcel(
   }
   else if (reportType === "POUR_IT_FORWARD" && pourItForward) {
     const sheets = buildPourItForwardSheets(pourItForward, branchLabel, dateRangeLabel);
-    const names = ["Summary", "By Day", "By Item"];
-    sheets.forEach((sheet, i) => XLSX.utils.book_append_sheet(wb, sheet, names[i]));
+    sheets.forEach(({ name, sheet }) => XLSX.utils.book_append_sheet(wb, sheet, name));
   }
   else if (reportType === "CHANNEL_SALES_SUMMARY" && channelSalesSummary) {
     XLSX.utils.book_append_sheet(

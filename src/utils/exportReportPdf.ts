@@ -640,6 +640,105 @@ export async function exportReportPdf(
         4: { halign: "right", cellWidth: 100 },
       },
     });
+
+    y = (doc as any).lastAutoTable?.finalY ?? y;
+    y += 16;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...HEADER_COLOR);
+    doc.text(`ITEMIZED CUP BREAKDOWN (${dateRangeLabel})`, marginLeft, y);
+    y += 8;
+
+    const pivot = pourItForward.itemizedCupPivot;
+    const pivotHead = [
+      "Cup Type",
+      ...pivot.branches.map((branch) => branch.branchName),
+      "Grand Total",
+    ];
+    const pivotBody = pivot.rows.map((row) => [
+      row.cupType,
+      ...pivot.branches.map((branch) => (row.byBranch[branch.branchId] ?? 0).toLocaleString("en-PH")),
+      row.grandTotal.toLocaleString("en-PH"),
+    ]);
+    const pivotFoot = [[
+      "Grand Total",
+      ...pivot.branches.map((branch) => (pivot.totalsByBranch[branch.branchId] ?? 0).toLocaleString("en-PH")),
+      pivot.grandTotal.toLocaleString("en-PH"),
+    ]];
+
+    if (pivot.branches.length > 4) {
+      doc.addPage("a4", "landscape");
+      y = 60;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...HEADER_COLOR);
+      doc.text(`ITEMIZED CUP BREAKDOWN (${dateRangeLabel})`, marginLeft, y);
+      y += 8;
+    }
+
+    autoTable(doc, {
+      startY: y,
+      head: [pivotHead],
+      body: pivotBody,
+      foot: pivotFoot,
+      styles: { font: "helvetica", fontSize: pivot.branches.length > 6 ? 6 : 8, cellPadding: 3 },
+      headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+      margin: { left: marginLeft, right: marginLeft },
+      columnStyles: Object.fromEntries(
+        pivotHead.map((_, idx) => [idx, { halign: idx === 0 ? "left" : "right" }]),
+      ),
+    });
+
+    y = (doc as any).lastAutoTable?.finalY ?? y;
+
+    if (pourItForward.monthlySummary?.length && pourItForward.monthlySummary.length >= 2) {
+      y += 12;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      if (y > pageHeight - 140) {
+        doc.addPage();
+        y = 60;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...HEADER_COLOR);
+      doc.text("MONTHLY SUMMARY", marginLeft, y);
+      y += 8;
+
+      autoTable(doc, {
+        startY: y,
+        head: [["Month", "Foodpanda", "Grab", "Walk-in", "Month Total"]],
+        body: pourItForward.monthlySummary.map((row) => [
+          row.monthLabel,
+          row.foodpandaQty.toLocaleString("en-PH"),
+          row.grabQty.toLocaleString("en-PH"),
+          row.walkinQty.toLocaleString("en-PH"),
+          row.grandTotal.toLocaleString("en-PH"),
+        ]),
+        foot: [[
+          "Grand Total",
+          pourItForward.monthlySummary.reduce((sum, row) => sum + row.foodpandaQty, 0).toLocaleString("en-PH"),
+          pourItForward.monthlySummary.reduce((sum, row) => sum + row.grabQty, 0).toLocaleString("en-PH"),
+          pourItForward.monthlySummary.reduce((sum, row) => sum + row.walkinQty, 0).toLocaleString("en-PH"),
+          pourItForward.monthlySummary.reduce((sum, row) => sum + row.grandTotal, 0).toLocaleString("en-PH"),
+        ]],
+        styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
+        headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+        footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+        margin: { left: marginLeft, right: marginLeft },
+        columnStyles: {
+          0: { halign: "left" },
+          1: { halign: "right" },
+          2: { halign: "right" },
+          3: { halign: "right" },
+          4: { halign: "right" },
+        },
+      });
+    }
   }
 
   else if (reportType === "CHANNEL_SALES_SUMMARY" && canvasData.channelSalesSummary) {

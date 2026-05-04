@@ -55,8 +55,8 @@ export default function PourItForwardReport({ data, dateRangeLabel }: Props) {
     excludedBranches,
     dailyBreakdown,
     itemBreakdown,
-    itemizedCupBreakdown,
-    itemizedCupGrandTotal,
+    itemizedCupPivot,
+    monthlySummary,
   } = data;
   const hasSingleBranch = !!(dailyBreakdown && itemBreakdown);
 
@@ -151,45 +151,131 @@ export default function PourItForwardReport({ data, dateRangeLabel }: Props) {
         </span>
       </SectionTitle>
       <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
-        <table className="w-full min-w-[520px] table-fixed border-collapse text-xs text-slate-900">
+        <table className="w-full min-w-[860px] border-collapse text-[11px] text-slate-900">
           <colgroup>
-            <col style={{ width: "70%" }} />
-            <col style={{ width: "30%" }} />
+            <col style={{ width: "220px" }} />
+            {itemizedCupPivot.branches.map((branch) => (
+              <col key={branch.branchId} style={{ width: "110px" }} />
+            ))}
+            <col style={{ width: "130px" }} />
           </colgroup>
-          <thead className="bg-[#1e3a5f] text-white">
+          <thead className="bg-[#1e3a5f] text-white sticky top-0 z-20">
             <tr>
-              <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-wide">
+              <th className="px-3 py-2 text-left text-[10px] uppercase tracking-wide sticky left-0 z-30 bg-[#1e3a5f]">
                 Cup Type
               </th>
-              <th className="px-4 py-2.5 text-right text-[11px] uppercase tracking-wide">
-                Total Cups
+              {itemizedCupPivot.branches.map((branch) => (
+                <th
+                  key={`head-${branch.branchId}`}
+                  className="px-2 py-2 text-right text-[10px] uppercase tracking-wide whitespace-nowrap"
+                >
+                  {branch.branchName}
+                </th>
+              ))}
+              <th className="px-3 py-2 text-right text-[10px] uppercase tracking-wide whitespace-nowrap">
+                Grand Total
               </th>
             </tr>
           </thead>
           <tbody>
-            {itemizedCupBreakdown.map((row) => (
+            {itemizedCupPivot.rows.map((row) => (
               <tr key={row.cupType} className="odd:bg-white even:bg-[#F7F9FC]">
-                <td className="px-4 py-2 text-left text-[12px] font-medium text-slate-800">
+                <td className="px-3 py-1.5 text-left text-[11px] font-medium text-slate-800 sticky left-0 z-10 bg-inherit">
                   {row.cupType}
                 </td>
-                <td className="px-4 py-2 text-right tabular-nums text-[12px] text-slate-800">
-                  {row.totalCups.toLocaleString("en-PH")}
+                {itemizedCupPivot.branches.map((branch) => (
+                  <td
+                    key={`${row.cupType}-${branch.branchId}`}
+                    className="px-2 py-1.5 text-right tabular-nums text-[11px] text-slate-800"
+                  >
+                    {(row.byBranch[branch.branchId] ?? 0).toLocaleString("en-PH")}
+                  </td>
+                ))}
+                <td className="px-3 py-1.5 text-right tabular-nums text-[11px] font-semibold text-slate-900">
+                  {row.grandTotal.toLocaleString("en-PH")}
                 </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="bg-[#1e3a5f] text-white">
-              <td className="px-4 py-2 text-left text-[11px] font-bold">
+              <td className="px-3 py-2 text-left text-[10px] font-bold sticky left-0 z-30 bg-[#1e3a5f]">
                 Grand Total
               </td>
-              <td className="px-4 py-2 text-right text-[11px] font-extrabold tabular-nums">
-                {itemizedCupGrandTotal.toLocaleString("en-PH")}
+              {itemizedCupPivot.branches.map((branch) => (
+                <td
+                  key={`foot-${branch.branchId}`}
+                  className="px-2 py-2 text-right text-[10px] font-bold tabular-nums"
+                >
+                  {(itemizedCupPivot.totalsByBranch[branch.branchId] ?? 0).toLocaleString("en-PH")}
+                </td>
+              ))}
+              <td className="px-3 py-2 text-right text-[10px] font-extrabold tabular-nums">
+                {itemizedCupPivot.grandTotal.toLocaleString("en-PH")}
               </td>
             </tr>
           </tfoot>
         </table>
       </div>
+
+      {/* ── Monthly summary (2+ months only) ─────────────────────────────── */}
+      {monthlySummary && monthlySummary.length >= 2 && (
+        <>
+          <SectionTitle>Monthly Summary</SectionTitle>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
+            <table className="w-full min-w-[760px] table-fixed border-collapse text-xs text-slate-900">
+              <colgroup>
+                <col style={{ width: COL_LABEL_W }} />
+                <col style={{ width: COL_NUM_W }} />
+                <col style={{ width: COL_NUM_W }} />
+                <col style={{ width: COL_NUM_W }} />
+                <col style={{ width: "160px" }} />
+              </colgroup>
+              <thead className="bg-[#1e3a5f] text-white">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-wide">
+                    Month
+                  </th>
+                  <ChannelHead label="Foodpanda" />
+                  <ChannelHead label="Grab" />
+                  <ChannelHead label="Walk-in" />
+                  <ChannelHead label="Month Total" />
+                </tr>
+              </thead>
+              <tbody>
+                {monthlySummary.map((row) => (
+                  <tr key={row.monthKey} className="odd:bg-white even:bg-[#F7F9FC]">
+                    <td className="px-4 py-2 text-left text-[12px] font-medium text-slate-800">
+                      {row.monthLabel}
+                    </td>
+                    <NumCell value={row.foodpandaQty} />
+                    <NumCell value={row.grabQty} />
+                    <NumCell value={row.walkinQty} />
+                    <TotalCell value={row.grandTotal} />
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-[#1e3a5f] text-white">
+                  <td className="px-4 py-2 text-left text-[11px] font-bold">Grand Total</td>
+                  <td className="px-4 py-2 text-right text-[11px] font-bold tabular-nums">
+                    {monthlySummary.reduce((sum, row) => sum + row.foodpandaQty, 0).toLocaleString("en-PH")}
+                  </td>
+                  <td className="px-4 py-2 text-right text-[11px] font-bold tabular-nums">
+                    {monthlySummary.reduce((sum, row) => sum + row.grabQty, 0).toLocaleString("en-PH")}
+                  </td>
+                  <td className="px-4 py-2 text-right text-[11px] font-bold tabular-nums">
+                    {monthlySummary.reduce((sum, row) => sum + row.walkinQty, 0).toLocaleString("en-PH")}
+                  </td>
+                  <td className="px-4 py-2 text-right text-[11px] font-extrabold tabular-nums">
+                    {monthlySummary.reduce((sum, row) => sum + row.grandTotal, 0).toLocaleString("en-PH")}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
 
       {/* ── Single-branch detail ─────────────────────────────────────────── */}
       {hasSingleBranch && (

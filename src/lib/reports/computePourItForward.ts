@@ -43,6 +43,40 @@ export type ItemizedCupRow = {
   totalCups: number;
 };
 
+export type PerBranchItemizedCupBreakdown = {
+  branchId: BranchId;
+  branchName: string;
+  rows: ItemizedCupRow[];
+  grandTotal: number;
+};
+
+export type ItemizedCupPivotBranch = {
+  branchId: BranchId;
+  branchName: string;
+};
+
+export type ItemizedCupPivotRow = {
+  cupType: string;
+  byBranch: Record<string, number>;
+  grandTotal: number;
+};
+
+export type ItemizedCupPivot = {
+  branches: ItemizedCupPivotBranch[];
+  rows: ItemizedCupPivotRow[];
+  totalsByBranch: Record<string, number>;
+  grandTotal: number;
+};
+
+export type PourMonthlyRow = {
+  monthKey: string;
+  monthLabel: string;
+  foodpandaQty: number;
+  grabQty: number;
+  walkinQty: number;
+  grandTotal: number;
+};
+
 export const ITEMIZED_CUP_TYPES = [
   "12oz Bamboo Cup",
   "12oz Iced Dabba Cup",
@@ -68,7 +102,24 @@ export type PourReportData = {
   itemBreakdown?: PourItemRow[];
   itemizedCupBreakdown: ItemizedCupRow[];
   itemizedCupGrandTotal: number;
+  itemizedCupPivot: ItemizedCupPivot;
+  monthlySummary?: PourMonthlyRow[];
 };
+
+function normalizeCupTypeLabel(itemName: string): string | null {
+  const n = normalizeText(itemName);
+  const has12oz = /\b12\s*oz\b|\b12oz\b/.test(n);
+  const has16oz = /\b16\s*oz\b|\b16oz\b/.test(n);
+
+  if (has12oz && n.includes("bamboo") && n.includes("cup")) return "12oz Bamboo Cup";
+  if (has12oz && n.includes("paper") && n.includes("cup")) return "12oz Paper Cup";
+  if (has12oz && n.includes("dabba") && n.includes("cup")) return "12oz Iced Dabba Cup";
+
+  if (has16oz && n.includes("paper") && n.includes("cup")) return "16oz Paper Cup";
+  if (has16oz && n.includes("dabba") && n.includes("cup")) return "16oz Iced Dabba Cup";
+
+  return null;
+}
 
 export function computePourItForward(
   reports: DailyReport[],
@@ -86,6 +137,9 @@ export function computePourItForward(
     : typeof branchId === "string" && branchId !== "all"
       ? ([branchId as BranchId] as BranchId[])
       : null;
+  const selectedBranchIdsForBreakdown: BranchId[] = selectedBranchIds
+    ? [...selectedBranchIds]
+    : BRANCHES.map((b) => b.id as BranchId);
   const selectedBranchSet = selectedBranchIds ? new Set(selectedBranchIds) : null;
 
   const perBranch = new Map<
@@ -111,12 +165,15 @@ export function computePourItForward(
   // Detail accumulators — only used for single-branch view
   const perDay = new Map<string, { foodpandaQty: number; grabQty: number; walkinQty: number }>();
   const perItem = new Map<string, { foodpandaQty: number; grabQty: number; walkinQty: number }>();
+  const perMonth = new Map<string, { monthLabel: string; foodpandaQty: number; grabQty: number; walkinQty: number }>();
   const itemizedCupTotals = new Map<string, number>(
     ITEMIZED_CUP_TYPES.map((cupType) => [cupType, 0]),
   );
-  const itemizedCupLookup = new Map<string, string>(
-    ITEMIZED_CUP_TYPES.map((cupType) => [normalizeText(cupType), cupType]),
-  );
+  const perBranchItemizedTotals = new Map<
+    BranchId,
+    Map<string, number>
+  >();
+  let filteredRowsCount = 0;
 
   const ensureDay = (date: string) => {
     if (!perDay.has(date)) perDay.set(date, { foodpandaQty: 0, grabQty: 0, walkinQty: 0 });
@@ -163,13 +220,23 @@ export function computePourItForward(
 
       const qty = Number.isFinite(row.quantity) ? row.quantity : 0;
       if (!qty) continue;
+      filteredRowsCount += 1;
 
-      const canonicalCupType = itemizedCupLookup.get(normalizeText(name));
+      const canonicalCupType = normalizeCupTypeLabel(name);
       if (canonicalCupType) {
         itemizedCupTotals.set(
           canonicalCupType,
           (itemizedCupTotals.get(canonicalCupType) ?? 0) + qty,
         );
+
+        const branchMap =
+          perBranchItemizedTotals.get(report.branch) ??
+          new Map<string, number>(ITEMIZED_CUP_TYPES.map((cupType) => [cupType, 0]));
+        branchMap.set(
+          canonicalCupType,
+          (branchMap.get(canonicalCupType) ?? 0) + qty,
+        );
+        perBranchItemizedTotals.set(report.branch, branchMap);
       }
 
       const branchEntry = ensureBranch(report.branch);
@@ -181,6 +248,21 @@ export function computePourItForward(
         branchEntry.grabQty += qty;
       } else {
         branchEntry.walkinQty += qty;
+      }
+
+      if (row.transactionDate instanceof Date) {
+        const monthKey = format(row.transactionDate, "yyyy-MM");
+        const monthLabel = format(row.transactionDate, "MMM yyyy");
+        const monthEntry = perMonth.get(monthKey) ?? {
+          monthLabel,
+          foodpandaQty: 0,
+          grabQty: 0,
+          walkinQty: 0,
+        };
+        if (channel === "FOODPANDA") monthEntry.foodpandaQty += qty;
+        else if (channel === "GRAB") monthEntry.grabQty += qty;
+        else monthEntry.walkinQty += qty;
+        perMonth.set(monthKey, monthEntry);
       }
 
       // Per-day and per-item detail (single branch only)
@@ -231,6 +313,56 @@ export function computePourItForward(
     (sum, row) => sum + row.totalCups,
     0,
   );
+  const perBranchItemizedCupBreakdown: PerBranchItemizedCupBreakdown[] =
+    selectedBranchIdsForBreakdown
+      .map((branchId) => {
+        const branchName = resolveBranchLabel(branchId);
+        const branchRowsMap =
+          perBranchItemizedTotals.get(branchId) ??
+          new Map<string, number>(ITEMIZED_CUP_TYPES.map((cupType) => [cupType, 0]));
+        const rows = ITEMIZED_CUP_TYPES.map((cupType) => ({
+          cupType,
+          totalCups: branchRowsMap.get(cupType) ?? 0,
+        }));
+        const grandTotal = rows.reduce((sum, row) => sum + row.totalCups, 0);
+        return { branchId, branchName, rows, grandTotal };
+      })
+      .sort((a, b) => b.grandTotal - a.grandTotal);
+  const pivotBranches: ItemizedCupPivotBranch[] = perBranchItemizedCupBreakdown.map((branch) => ({
+    branchId: branch.branchId,
+    branchName: branch.branchName,
+  }));
+  const pivotRows: ItemizedCupPivotRow[] = ITEMIZED_CUP_TYPES.map((cupType) => {
+    const byBranch: Record<string, number> = {};
+    for (const branch of perBranchItemizedCupBreakdown) {
+      byBranch[branch.branchId] =
+        branch.rows.find((row) => row.cupType === cupType)?.totalCups ?? 0;
+    }
+    const grandTotal = Object.values(byBranch).reduce((sum, v) => sum + v, 0);
+    return { cupType, byBranch, grandTotal };
+  });
+  const totalsByBranch: Record<string, number> = {};
+  for (const branch of perBranchItemizedCupBreakdown) {
+    totalsByBranch[branch.branchId] = branch.grandTotal;
+  }
+  const itemizedCupPivot: ItemizedCupPivot = {
+    branches: pivotBranches,
+    rows: pivotRows,
+    totalsByBranch,
+    grandTotal: Object.values(totalsByBranch).reduce((sum, v) => sum + v, 0),
+  };
+  const monthlySummaryRows: PourMonthlyRow[] = Array.from(perMonth.entries())
+    .map(([monthKey, v]) => ({
+      monthKey,
+      monthLabel: v.monthLabel,
+      foodpandaQty: v.foodpandaQty,
+      grabQty: v.grabQty,
+      walkinQty: v.walkinQty,
+      grandTotal: v.foodpandaQty + v.grabQty + v.walkinQty,
+    }))
+    .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+  const monthlySummary =
+    monthlySummaryRows.length >= 2 ? monthlySummaryRows : undefined;
 
   if (itemizedCupGrandTotal !== totals.grandTotal) {
     console.debug("[computePourItForward] Itemized cup total differs from summary total", {
@@ -240,6 +372,21 @@ export function computePourItForward(
       dateTo,
     });
   }
+  console.log("Selected branches:", selectedBranchIds ?? "all");
+  console.log("Selected branches (resolved):", selectedBranchIdsForBreakdown);
+  console.log("Filtered rows:", filteredRowsCount);
+  console.log(
+    "Per branch cup breakdown:",
+    perBranchItemizedCupBreakdown.reduce<Record<string, Record<string, number>>>(
+      (acc, branch) => {
+        acc[branch.branchName] = Object.fromEntries(
+          branch.rows.map((row) => [row.cupType, row.totalCups]),
+        );
+        return acc;
+      },
+      {},
+    ),
+  );
 
   // Build detail arrays (single branch only)
   let dailyBreakdown: PourDailyRow[] | undefined;
@@ -309,5 +456,7 @@ export function computePourItForward(
     itemBreakdown,
     itemizedCupBreakdown,
     itemizedCupGrandTotal,
+    itemizedCupPivot,
+    monthlySummary,
   };
 }
