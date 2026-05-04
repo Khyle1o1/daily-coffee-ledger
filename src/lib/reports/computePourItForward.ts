@@ -1,6 +1,7 @@
 import type { DailyReport, BranchId } from "@/utils/types";
 import { BRANCHES } from "@/utils/types";
 import type { ReportFilters } from "./compute";
+import { endOfDay, format, startOfDay } from "date-fns";
 
 function defaultGetBranchLabel(slug: string): string {
   return BRANCHES.find((b) => b.id === slug)?.label ?? slug;
@@ -105,16 +106,32 @@ export function computePourItForward(
     return perItem.get(name)!;
   };
 
-  const start = new Date(dateFrom);
-  const end = new Date(dateTo);
+  const toLocalDateKey = (d: Date): number =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const parseLocalYmd = (ymd: string): Date => {
+    const [year, month, day] = ymd.split("-").map((part) => Number(part));
+    return new Date(year, month - 1, day);
+  };
+
+  const selectedStart = startOfDay(parseLocalYmd(dateFrom));
+  const selectedEnd = endOfDay(parseLocalYmd(dateTo));
+  const startKey = toLocalDateKey(selectedStart);
+  const endKey = toLocalDateKey(selectedEnd);
+
+  const isInSelectedLocalRange = (date: Date): boolean => {
+    const txKey = toLocalDateKey(date);
+    return txKey >= startKey && txKey <= endKey;
+  };
+
+  const toLocalDateString = (date: Date): string => format(date, "yyyy-MM-dd");
 
   for (const report of reports) {
     if (selectedBranchSet && !selectedBranchSet.has(report.branch)) continue;
 
     const rowsInRange = filterRowsByDateRange(
       report.rowDetails.filter((row) => row.transactionDate instanceof Date) as any,
-      start,
-      end,
+      selectedStart,
+      selectedEnd,
     );
 
     for (const row of rowsInRange) {
@@ -138,7 +155,9 @@ export function computePourItForward(
 
       // Per-day and per-item detail (single branch only)
       if (isSingleBranch && row.transactionDate instanceof Date) {
-        const dateStr = row.transactionDate.toISOString().slice(0, 10);
+        if (!isInSelectedLocalRange(row.transactionDate)) continue;
+
+        const dateStr = toLocalDateString(row.transactionDate);
         const dayEntry = ensureDay(dateStr);
         const itemEntry = ensureItem(name);
 
@@ -185,7 +204,37 @@ export function computePourItForward(
         ...v,
         grandTotal: v.foodpandaQty + v.grabQty + v.walkinQty,
       }))
+      .filter((row) => {
+        const d = parseLocalYmd(row.date);
+        return isInSelectedLocalRange(d);
+      })
       .sort((a, b) => a.date.localeCompare(b.date));
+
+    const outOfRangeRows = dailyBreakdown.filter((row) => {
+      const d = parseLocalYmd(row.date);
+      return !isInSelectedLocalRange(d);
+    });
+    if (outOfRangeRows.length > 0) {
+      console.debug("[computePourItForward] Dropping out-of-range day rows", {
+        dateFrom,
+        dateTo,
+        outOfRangeDates: outOfRangeRows.map((r) => r.date),
+      });
+      dailyBreakdown = dailyBreakdown.filter(
+        (row) => !outOfRangeRows.some((bad) => bad.date === row.date),
+      );
+    }
+
+    const hasOutOfRangeAfterFilter = dailyBreakdown.some((row) => {
+      const d = parseLocalYmd(row.date);
+      return !isInSelectedLocalRange(d);
+    });
+    if (hasOutOfRangeAfterFilter) {
+      console.warn("[computePourItForward] Out-of-range day row remained after safety filter", {
+        dateFrom,
+        dateTo,
+      });
+    }
 
     itemBreakdown = Array.from(perItem.entries())
       .map(([itemName, v]) => ({

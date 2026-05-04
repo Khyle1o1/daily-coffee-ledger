@@ -3,14 +3,24 @@ export function parseTransactionDate(raw: any): Date | null {
   const s = String(raw).trim();
   if (!s) return null;
 
-  // 1) ISO / YYYY-MM-DD or YYYY-MM-DD HH:mm(:ss)
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const iso = s.includes("T") ? s : s.replace(" ", "T");
-    const d = new Date(iso);
+  // 1) YYYY-MM-DD (date only) -> parse as local date to avoid TZ shifts
+  const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const yyyy = Number(ymd[1]);
+    const mm = Number(ymd[2]);
+    const dd = Number(ymd[3]);
+    const d = new Date(yyyy, mm - 1, dd, 0, 0, 0, 0);
     if (!Number.isNaN(d.getTime())) return d;
   }
 
-  // 2) MM/DD/YYYY or MM/DD/YYYY HH:mm(:ss)
+  // 2) ISO / YYYY-MM-DD HH:mm(:ss)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const normalized = s.includes("T") ? s : s.replace(" ", "T");
+    const d = new Date(normalized);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  // 3) MM/DD/YYYY or MM/DD/YYYY HH:mm(:ss)
   const m = s.match(
     /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
   );
@@ -26,7 +36,7 @@ export function parseTransactionDate(raw: any): Date | null {
     if (!Number.isNaN(d.getTime())) return d;
   }
 
-  // 3) Fallback: Date.parse
+  // 4) Fallback: Date.parse
   const d = new Date(s);
   if (!Number.isNaN(d.getTime())) return d;
 

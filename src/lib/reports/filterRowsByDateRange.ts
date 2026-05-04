@@ -3,29 +3,19 @@ export function filterRowsByDateRange<T extends { transactionDate: Date }>(
   start: Date,
   end: Date,
 ): T[] {
-  const startTime = new Date(
-    start.getFullYear(),
-    start.getMonth(),
-    start.getDate(),
-    0,
-    0,
-    0,
-    0,
-  ).getTime();
-  const endTime = new Date(
-    end.getFullYear(),
-    end.getMonth(),
-    end.getDate(),
-    23,
-    59,
-    59,
-    999,
-  ).getTime();
+  const toLocalDateKey = (d: Date): number =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+  const startKey = toLocalDateKey(start);
+  const endKey = toLocalDateKey(end);
 
   return rows.filter((r) => {
-    const t = r.transactionDate?.getTime?.();
-    if (!t || Number.isNaN(t)) return false;
-    return t >= startTime && t <= endTime;
+    const transactionDate = r.transactionDate;
+    if (!(transactionDate instanceof Date)) return false;
+    const t = transactionDate.getTime();
+    if (Number.isNaN(t)) return false;
+    const txKey = toLocalDateKey(transactionDate);
+    return txKey >= startKey && txKey <= endKey;
   });
 }
 
