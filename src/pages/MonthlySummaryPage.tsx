@@ -19,17 +19,12 @@ import { formatNumber } from "@/utils/format";
 import type { DailyReport, MappingEntry, BranchId } from "@/utils/types";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
 
-import { 
-  seedBranchesIfEmpty, 
-  listAllDailyReports 
-} from "@/services/reportsService";
-import { dailyReportsFromRows } from "@/services/reportConverter";
+import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
 
 export default function MonthlySummaryPage() {
   const { toast } = useToast();
   const { branchOptions, getBranchLabel } = useLiveBranches();
 
-  const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [mappingTable, setMappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
   
@@ -38,31 +33,29 @@ export default function MonthlySummaryPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [monthlyBranchFilter, setMonthlyBranchFilter] = useState<BranchId | "all">("all");
+  const { data: cachedDailyReports, error: dailyReportsError } = useDailyReportsQuery();
 
   useEffect(() => {
-    const initializeData = async () => {
-      try {
-        void seedBranchesIfEmpty();
-        void preloadMenuReference();
+    void preloadMenuReference();
+  }, []);
 
-        setIsLoadingReports(true);
-        const reportRows = await listAllDailyReports();
-        const reports = dailyReportsFromRows(reportRows);
-        setDailyReports(reports);
-      } catch (error) {
-        console.error('Failed to initialize data:', error);
-        toast({
-          variant: "destructive",
-          title: "Supabase Connection Error",
-          description: error instanceof Error ? error.message : "Failed to connect to Supabase",
-        });
-      } finally {
-        setIsLoadingReports(false);
-      }
-    };
+  useEffect(() => {
+    if (cachedDailyReports) {
+      setDailyReports(cachedDailyReports);
+    }
+  }, [cachedDailyReports]);
 
-    initializeData();
-  }, [toast]);
+  useEffect(() => {
+    if (!dailyReportsError) return;
+    toast({
+      variant: "destructive",
+      title: "Supabase Connection Error",
+      description:
+        dailyReportsError instanceof Error
+          ? dailyReportsError.message
+          : "Failed to connect to Supabase",
+    });
+  }, [dailyReportsError, toast]);
 
   const handleMappingUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

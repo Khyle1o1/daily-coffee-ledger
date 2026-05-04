@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Link2,
   Plus,
@@ -43,19 +44,18 @@ import DirectoryModal from '@/components/directory/DirectoryModal';
 import DeleteDirectoryModal from '@/components/directory/DeleteDirectoryModal';
 import type { DirectoryLink, CreateDirectoryLinkPayload } from '@/lib/supabase-types';
 import { format } from 'date-fns';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 
 export default function DirectoryPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { isAdmin, loading } = useAuth();
 
-  const [links, setLinks] = useState<DirectoryLink[]>([]);
-  const [total, setTotal] = useState(0);
-  const [linksLoading, setLinksLoading] = useState(true);
-  const [categories, setCategories] = useState<string[]>([]);
-
   // Filters
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [activeOnly, setActiveOnly] = useState(false);
 
@@ -68,34 +68,40 @@ export default function DirectoryPage() {
   // Copy state per link id
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const loadLinks = useCallback(async () => {
-    try {
-      setLinksLoading(true);
-      const result = await listDirectoryLinks({
-        q: search || undefined,
+  const {
+    data: linksResult,
+    isLoading: linksLoading,
+    error: linksError,
+  } = useQuery({
+    queryKey: queryKeys.directory.links({
+      q: debouncedSearch || undefined,
+      category: categoryFilter || undefined,
+      active: activeOnly ? true : undefined,
+      sort: 'updatedAt',
+      order: 'desc',
+    }),
+    queryFn: () =>
+      listDirectoryLinks({
+        q: debouncedSearch || undefined,
         category: categoryFilter || undefined,
         active: activeOnly ? true : undefined,
         sort: 'updatedAt',
         order: 'desc',
-      });
-      setLinks(result.items);
-      setTotal(result.total);
-    } catch (error) {
-      console.error('Failed to load directory links:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Failed to load links',
-        description: error instanceof Error ? error.message : 'An error occurred',
-      });
-    } finally {
-      setLinksLoading(false);
-    }
-  }, [search, categoryFilter, activeOnly, toast]);
+      }),
+    enabled: isAdmin,
+  });
 
-  const loadCategories = useCallback(async () => {
-    const cats = await getDirectoryCategories();
-    setCategories(cats);
-  }, []);
+  const {
+    data: categories = [],
+    error: categoriesError,
+  } = useQuery({
+    queryKey: queryKeys.directory.categories,
+    queryFn: getDirectoryCategories,
+    enabled: isAdmin,
+  });
+
+  const links = linksResult?.items ?? [];
+  const total = linksResult?.total ?? 0;
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -109,16 +115,22 @@ export default function DirectoryPage() {
   }, [loading, isAdmin, navigate, toast]);
 
   useEffect(() => {
-    if (isAdmin) {
-      loadLinks();
-    }
-  }, [isAdmin, loadLinks]);
+    if (!linksError) return;
+    toast({
+      variant: 'destructive',
+      title: 'Failed to load links',
+      description: linksError instanceof Error ? linksError.message : 'An error occurred',
+    });
+  }, [linksError, toast]);
 
   useEffect(() => {
-    if (isAdmin) {
-      loadCategories();
-    }
-  }, [isAdmin, loadCategories]);
+    if (!categoriesError) return;
+    toast({
+      variant: 'destructive',
+      title: 'Failed to load categories',
+      description: categoriesError instanceof Error ? categoriesError.message : 'An error occurred',
+    });
+  }, [categoriesError, toast]);
 
   const handleSave = async (payload: CreateDirectoryLinkPayload) => {
     try {
@@ -131,8 +143,16 @@ export default function DirectoryPage() {
       }
       setShowLinkModal(false);
       setEditingLink(null);
-      await loadLinks();
-      await loadCategories();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.directory.categories });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.directory.links({
+          q: debouncedSearch || undefined,
+          category: categoryFilter || undefined,
+          active: activeOnly ? true : undefined,
+          sort: 'updatedAt',
+          order: 'desc',
+        }),
+      });
     } catch (error) {
       console.error('Failed to save link:', error);
       toast({
@@ -150,8 +170,16 @@ export default function DirectoryPage() {
       toast({ title: 'Link deleted' });
       setShowDeleteModal(false);
       setDeletingLink(null);
-      await loadLinks();
-      await loadCategories();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.directory.categories });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.directory.links({
+          q: debouncedSearch || undefined,
+          category: categoryFilter || undefined,
+          active: activeOnly ? true : undefined,
+          sort: 'updatedAt',
+          order: 'desc',
+        }),
+      });
     } catch (error) {
       console.error('Failed to delete link:', error);
       toast({

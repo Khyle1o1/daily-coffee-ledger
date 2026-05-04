@@ -8,7 +8,7 @@ export async function listGeneratedReports(): Promise<GeneratedReportRow[]> {
   try {
     const { data, error } = await supabase
       .from('generated_reports')
-      .select('*')
+      .select('id, user_id, title, report_type, branch_id, branch_name, date_from, date_to, compare_from, compare_to, selected_categories, filters, computed_data, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(`Failed to list generated reports: ${error.message}`);
@@ -23,7 +23,7 @@ export async function getGeneratedReport(id: string): Promise<GeneratedReportRow
   try {
     const { data, error } = await supabase
       .from('generated_reports')
-      .select('*')
+      .select('id, user_id, title, report_type, branch_id, branch_name, date_from, date_to, compare_from, compare_to, selected_categories, filters, computed_data, created_at, updated_at')
       .eq('id', id)
       .single();
 
@@ -61,7 +61,7 @@ export async function saveGeneratedReport(
         filters: payload.filters,
         computed_data: payload.computedData,
       })
-      .select('*')
+      .select('id, user_id, title, report_type, branch_id, branch_name, date_from, date_to, compare_from, compare_to, selected_categories, filters, computed_data, created_at, updated_at')
       .single();
 
     if (error) throw new Error(`Failed to save generated report: ${error.message}`);

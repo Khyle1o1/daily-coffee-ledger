@@ -23,7 +23,7 @@ export async function getBranches(): Promise<Branch[]> {
   try {
     const { data, error } = await supabase
       .from('branches')
-      .select('*')
+      .select('id, name, label, created_at, updated_at')
       .order('name');
 
     if (error) {
@@ -44,7 +44,7 @@ export async function getBranchByName(name: BranchId): Promise<Branch | null> {
   try {
     const { data, error } = await supabase
       .from('branches')
-      .select('*')
+      .select('id, name, label, created_at, updated_at')
       .eq('name', name)
       .single();
 
@@ -77,7 +77,7 @@ export async function ensureBranchExists(name: BranchId): Promise<Branch> {
     const { data, error } = await supabase
       .from("branches")
       .insert({ name, label })
-      .select("*")
+      .select('id, name, label, created_at, updated_at')
       .single();
 
     if (error) {
@@ -175,7 +175,7 @@ export async function saveDailyReport(
           onConflict: 'branch_id,report_date',
         }
       )
-      .select('*, branch:branches(*)')
+      .select('id, branch_id, report_date, date_range_start, date_range_end, transactions_file_name, mapping_file_name, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
       .single();
 
     if (error) {
@@ -204,7 +204,7 @@ export async function listDailyReports(
   try {
     let query = supabase
       .from('reports_daily')
-      .select('*, branch:branches(*)')
+      .select('id, branch_id, report_date, date_range_start, date_range_end, transactions_file_name, mapping_file_name, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
       .eq('branch_id', branchId)
       .order('report_date', { ascending: false });
 
@@ -238,7 +238,7 @@ export async function listAllDailyReports(
   try {
     let query = supabase
       .from('reports_daily')
-      .select('*, branch:branches(*)')
+      .select('id, branch_id, report_date, date_range_start, date_range_end, transactions_file_name, mapping_file_name, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
       .order('report_date', { ascending: false })
       .order('branch_id', { ascending: true });
 
@@ -269,7 +269,7 @@ export async function getDailyReport(id: string): Promise<DailyReportRow | null>
   try {
     const { data, error } = await supabase
       .from('reports_daily')
-      .select('*, branch:branches(*)')
+      .select('id, branch_id, report_date, date_range_start, date_range_end, transactions_file_name, mapping_file_name, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
       .eq('id', id)
       .single();
 
@@ -339,7 +339,7 @@ export async function saveMonthlyReport(
           onConflict: 'branch_id,month_key',
         }
       )
-      .select('*, branch:branches(*)')
+      .select('id, branch_id, month_key, date_range_start, date_range_end, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
       .single();
 
     if (error) {
@@ -368,7 +368,7 @@ export async function listMonthlyReports(
   try {
     let query = supabase
       .from('reports_monthly')
-      .select('*, branch:branches(*)')
+      .select('id, branch_id, month_key, date_range_start, date_range_end, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
       .order('month_key', { ascending: false });
 
     if (branchId !== null) {
@@ -404,7 +404,7 @@ export async function getMonthlyReport(id: string): Promise<MonthlyReportRow | n
   try {
     const { data, error } = await supabase
       .from('reports_monthly')
-      .select('*, branch:branches(*)')
+      .select('id, branch_id, month_key, date_range_start, date_range_end, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
       .eq('id', id)
       .single();
 

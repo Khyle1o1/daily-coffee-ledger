@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, Search } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,18 +16,18 @@ import { MappingManagementSection } from '@/components/settings/MappingManagemen
 import { listBranches, createBranch, updateBranch } from '@/lib/api/branches';
 import { useManualMappings } from '@/hooks/useManualMappings';
 import { useInvalidateBranches } from '@/hooks/useLiveBranches';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { isAdmin, loading } = useAuth();
   const invalidateBranches = useInvalidateBranches();
 
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [total, setTotal] = useState(0);
-  const [branchesLoading, setBranchesLoading] = useState(true);
-
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [activeOnly, setActiveOnly] = useState(true);
 
   const [showBranchModal, setShowBranchModal] = useState(false);
@@ -34,26 +35,25 @@ export default function SettingsPage() {
 
   const { manualEntries, refetch: refetchManual } = useManualMappings();
 
-  const loadBranches = useCallback(async () => {
-    try {
-      setBranchesLoading(true);
-      const result = await listBranches({
-        q: search || undefined,
+  const {
+    data: branchesResult,
+    isLoading: branchesLoading,
+    error: branchesError,
+  } = useQuery({
+    queryKey: queryKeys.branches.adminList({
+      q: debouncedSearch || undefined,
+      active: activeOnly ? true : undefined,
+    }),
+    queryFn: () =>
+      listBranches({
+        q: debouncedSearch || undefined,
         active: activeOnly ? true : undefined,
-      });
-      setBranches(result.items);
-      setTotal(result.total);
-    } catch (error) {
-      console.error('Failed to load branches:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Failed to load branches',
-        description: error instanceof Error ? error.message : 'An error occurred',
-      });
-    } finally {
-      setBranchesLoading(false);
-    }
-  }, [search, activeOnly, toast]);
+      }),
+    enabled: isAdmin,
+  });
+
+  const branches = (branchesResult?.items ?? []) as Branch[];
+  const total = branchesResult?.total ?? 0;
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -67,10 +67,13 @@ export default function SettingsPage() {
   }, [loading, isAdmin, navigate, toast]);
 
   useEffect(() => {
-    if (isAdmin) {
-      void loadBranches();
-    }
-  }, [isAdmin, loadBranches]);
+    if (!branchesError) return;
+    toast({
+      variant: 'destructive',
+      title: 'Failed to load branches',
+      description: branchesError instanceof Error ? branchesError.message : 'An error occurred',
+    });
+  }, [branchesError, toast]);
 
   const handleSaveBranch = async (payload: {
     code: string;
@@ -96,7 +99,12 @@ export default function SettingsPage() {
       setEditingBranch(null);
       // Refresh both the Settings list and the shared cache used by all pages.
       invalidateBranches();
-      await loadBranches();
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.branches.adminList({
+          q: debouncedSearch || undefined,
+          active: activeOnly ? true : undefined,
+        }),
+      });
     } catch (error) {
       console.error('Failed to save branch:', error);
       toast({

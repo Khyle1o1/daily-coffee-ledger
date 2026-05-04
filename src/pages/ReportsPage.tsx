@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   BarChart3,
@@ -62,16 +63,10 @@ import type { BranchId, Category, DailyReport } from "@/utils/types";
 import { CATEGORIES } from "@/utils/types";
 
 import {
-  listGeneratedReports,
   saveGeneratedReport,
   deleteGeneratedReport,
   deleteManyGeneratedReports,
 } from "@/services/generatedReportsService";
-import {
-  listAllDailyReports,
-  seedBranchesIfEmpty,
-} from "@/services/reportsService";
-import { dailyReportsFromRows } from "@/services/reportConverter";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
 import { useAuth } from "@/auth/useAuth";
 import { canDeleteData } from "@/lib/permissions";
@@ -89,6 +84,9 @@ import { computeProductMixChannel } from "@/lib/reports/computeProductMixChannel
 import { computePourItForward } from "@/lib/reports/computePourItForward";
 import { computeHQSyncPack } from "@/lib/reports/computeHQSyncPack";
 import { computeChannelSalesSummary } from "@/lib/reports/computeChannelSalesSummary";
+import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
+import { useGeneratedReportsQuery } from "@/hooks/queries/useGeneratedReportsQuery";
+import { queryKeys } from "@/hooks/queries/queryKeys";
 
 // ============================================================================
 // Constants
@@ -153,6 +151,7 @@ interface DateRange {
 
 export default function ReportsPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { role } = useAuth();
   const canvasRef = useRef<HTMLDivElement>(null);
   const { branchOptions, getBranchLabel, getBranchUuid } = useLiveBranches();
@@ -160,7 +159,9 @@ export default function ReportsPage() {
   // ── Data loading ──────────────────────────────────────────────────────────
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
   const [history, setHistory] = useState<GeneratedReportRow[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const { data: cachedDailyReports, isLoading: isLoadingDailyReports } = useDailyReportsQuery();
+  const { data: cachedGeneratedReports, isLoading: isLoadingGeneratedReports } = useGeneratedReportsQuery();
+  const isLoadingData = isLoadingDailyReports || isLoadingGeneratedReports;
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const [reportType, setReportType] = useState<ReportType>("HQ_SYNC_PACK");
@@ -193,36 +194,13 @@ export default function ReportsPage() {
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
   const [isDeletingMany, setIsDeletingMany] = useState(false);
 
-  // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const init = async () => {
-      try {
-        setIsLoadingData(true);
-        // Run seed first, then load data — avoids 3-way concurrent auth-lock
-        // contention that was causing NavigatorLockAcquireTimeoutError at startup.
-        await seedBranchesIfEmpty().catch((err) => {
-          console.warn("seedBranchesIfEmpty warning (non-fatal):", err);
-        });
-        const [reportRows, historyRows] = await Promise.all([
-          listAllDailyReports(),
-          listGeneratedReports(),
-        ]);
-        setDailyReports(dailyReportsFromRows(reportRows));
-        setHistory(historyRows);
-      } catch (err) {
-        console.error("ReportsPage init error:", err);
-        toast({
-          variant: "destructive",
-          title: "Failed to load data",
-          description:
-            err instanceof Error ? err.message : "Unexpected error loading data.",
-        });
-      } finally {
-        setIsLoadingData(false);
-      }
-    };
-    init();
-  }, [toast]);
+    if (cachedDailyReports) setDailyReports(cachedDailyReports);
+  }, [cachedDailyReports]);
+
+  useEffect(() => {
+    if (cachedGeneratedReports) setHistory(cachedGeneratedReports);
+  }, [cachedGeneratedReports]);
 
   // ── Derived labels ────────────────────────────────────────────────────────
   const selectedBranchNamesLabel = useMemo(() => {
@@ -502,6 +480,7 @@ export default function ReportsPage() {
       });
 
       setHistory((prev) => [saved, ...prev]);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generated });
 
       void logEvent({
         action: 'generate_report',
@@ -545,6 +524,7 @@ export default function ReportsPage() {
     channelCategory,
     getBranchUuid,
     filterBranches,
+    queryClient,
     toast,
   ]);
 
@@ -562,6 +542,7 @@ export default function ReportsPage() {
         await deleteGeneratedReport(id);
         setHistory((prev) => prev.filter((r) => r.id !== id));
         setHistorySelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generated });
         toast({ title: "Report deleted." });
       } catch (err) {
         toast({
@@ -573,7 +554,7 @@ export default function ReportsPage() {
         setDeleteConfirmId(null);
       }
     },
-    [toast]
+    [queryClient, toast]
   );
 
   // ── Delete many / all ─────────────────────────────────────────────────────
@@ -586,6 +567,7 @@ export default function ReportsPage() {
         setHistorySelectedIds(new Set());
         setHistorySelectMode(false);
         setDeleteAllConfirm(false);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generated });
         toast({ title: `${ids.length} report${ids.length !== 1 ? "s" : ""} deleted.` });
       } catch (err) {
         toast({
@@ -597,7 +579,7 @@ export default function ReportsPage() {
         setIsDeletingMany(false);
       }
     },
-    [toast]
+    [queryClient, toast]
   );
 
   // ── PDF export ────────────────────────────────────────────────────────────

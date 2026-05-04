@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format } from "date-fns";
 import {
   Building2,
@@ -66,24 +67,21 @@ import { parseTransactionDate } from "@/lib/csv/parseTransactionDate";
 import { formatMonthDisplay, getMonthRange } from "@/utils/aggregateMonthly";
 import type { DateRange } from "react-day-picker";
 
-import {
-  listAllDailyReports,
-  saveDailyReport,
-  seedBranchesIfEmpty,
-  deleteDailyReport,
-} from "@/services/reportsService";
-import { dailyReportToJSON, dailyReportsFromRows } from "@/services/reportConverter";
+import { saveDailyReport, deleteDailyReport } from "@/services/reportsService";
+import { dailyReportToJSON } from "@/services/reportConverter";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
 import { useAuth } from "@/auth/useAuth";
 import { canAddData, canEditData, canDeleteData } from "@/lib/permissions";
 import { logEvent } from "@/services/auditService";
+import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
+import { queryKeys } from "@/hooks/queries/queryKeys";
 
 export default function SummaryPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { role } = useAuth();
   const { branchOptions, isLoading: isLoadingBranches, getBranchLabel, getBranchUuid } = useLiveBranches();
 
-  const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
@@ -122,32 +120,29 @@ export default function SummaryPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredTotalsRef = useRef<HTMLDivElement | null>(null);
+  const { data: cachedDailyReports, error: dailyReportsError } = useDailyReportsQuery();
 
   useEffect(() => {
-    const initializeData = async () => {
-      try {
-        // Seed default branches on first run (no-op if branches already exist).
-        void seedBranchesIfEmpty();
-        void preloadMenuReference();
+    void preloadMenuReference();
+  }, []);
 
-        setIsLoadingReports(true);
-        const reportRows = await listAllDailyReports();
-        const reports = dailyReportsFromRows(reportRows);
-        setDailyReports(reports);
-      } catch (error) {
-        console.error("Failed to initialize data:", error);
-        toast({
-          variant: "destructive",
-          title: "Supabase Connection Error",
-          description: error instanceof Error ? error.message : "Failed to connect to Supabase",
-        });
-      } finally {
-        setIsLoadingReports(false);
-      }
-    };
+  useEffect(() => {
+    if (cachedDailyReports) {
+      setDailyReports(cachedDailyReports);
+    }
+  }, [cachedDailyReports]);
 
-    initializeData();
-  }, [toast]);
+  useEffect(() => {
+    if (!dailyReportsError) return;
+    toast({
+      variant: "destructive",
+      title: "Supabase Connection Error",
+      description:
+        dailyReportsError instanceof Error
+          ? dailyReportsError.message
+          : "Failed to connect to Supabase",
+    });
+  }, [dailyReportsError, toast]);
 
   useEffect(() => {
     const loadValidation = async () => {
@@ -432,6 +427,7 @@ export default function SummaryPage() {
       setActiveReportId(savedReportWithId.id);
       setIsPreviewOpen(false);
       resetAddModal();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyAll });
 
       void logEvent({
         action: 'add_data',
@@ -514,7 +510,7 @@ export default function SummaryPage() {
     } finally {
       setIsDeleting(false);
     }
-  }, [reportPendingDelete, activeReportId, toast]);
+  }, [reportPendingDelete, activeReportId, getBranchLabel, queryClient, toast]);
 
   /**
    * Derive plain YYYY-MM-DD filter bounds from the calendar-picker Dates.

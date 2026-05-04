@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   ScrollText, Search, ChevronLeft, ChevronRight,
@@ -17,6 +18,8 @@ import { useLiveBranches } from '@/hooks/useLiveBranches';
 import type { AuditLog, AuditAction, AuditModule } from '@/lib/supabase-types';
 import { getRoleBadgeClass, getRoleLabel } from '@/lib/permissions';
 import { format, parseISO } from 'date-fns';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -174,11 +177,11 @@ export default function ActivityLogsPage() {
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
-  const [loadingLogs, setLoadingLogs] = useState(true);
   const [page, setPage] = useState(1);
 
   // Filters
   const [search, setSearch]         = useState('');
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [filterAction, setFilterAction] = useState<AuditAction | 'all'>('all');
   const [filterModule, setFilterModule] = useState<AuditModule | 'all'>('all');
   const [filterBranch, setFilterBranch] = useState('all');
@@ -192,39 +195,56 @@ export default function ActivityLogsPage() {
     }
   }, [loading, isAdmin, navigate, toast]);
 
-  const load = useCallback(async (p = 1) => {
-    if (!isAdmin) return;
-    setLoadingLogs(true);
-    try {
-      const branchUuid = filterBranch !== 'all'
-        ? branchOptions.find(b => b.name === filterBranch)?.id
-        : undefined;
+  const branchUuid = filterBranch !== 'all'
+    ? branchOptions.find((b) => b.slug === filterBranch)?.uuid
+    : undefined;
 
-      const { logs: rows, total: count } = await listAuditLogs({
-        search:   search || undefined,
-        action:   filterAction !== 'all' ? filterAction : undefined,
-        module:   filterModule !== 'all' ? filterModule : undefined,
+  const {
+    data: logsResult,
+    isLoading: loadingLogs,
+    error: logsError,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.audit.logs({
+      search: debouncedSearch || undefined,
+      action: filterAction !== 'all' ? filterAction : undefined,
+      module: filterModule !== 'all' ? filterModule : undefined,
+      branchId: branchUuid,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      page,
+      pageSize: PAGE_SIZE,
+    }),
+    queryFn: () =>
+      listAuditLogs({
+        search: debouncedSearch || undefined,
+        action: filterAction !== 'all' ? filterAction : undefined,
+        module: filterModule !== 'all' ? filterModule : undefined,
         branchId: branchUuid,
         dateFrom: dateFrom || undefined,
-        dateTo:   dateTo   || undefined,
-        page:     p,
+        dateTo: dateTo || undefined,
+        page,
         pageSize: PAGE_SIZE,
-      });
-      setLogs(rows);
-      setTotal(count);
-      setPage(p);
-    } catch (err) {
-      toast({ variant: 'destructive', title: 'Failed to load logs', description: String(err) });
-    } finally {
-      setLoadingLogs(false);
-    }
-  }, [isAdmin, search, filterAction, filterModule, filterBranch, dateFrom, dateTo, branchOptions, toast]);
+      }),
+    enabled: isAdmin,
+  });
 
   useEffect(() => {
-    if (isAdmin) void load(1);
-  }, [isAdmin, filterAction, filterModule, filterBranch, dateFrom, dateTo]);
+    if (!logsResult) return;
+    setLogs(logsResult.logs);
+    setTotal(logsResult.total);
+  }, [logsResult]);
 
-  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); void load(1); };
+  useEffect(() => {
+    if (!logsError) return;
+    toast({ variant: 'destructive', title: 'Failed to load logs', description: String(logsError) });
+  }, [logsError, toast]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterAction, filterModule, filterBranch, dateFrom, dateTo, debouncedSearch]);
+
+  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); void refetch(); };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -250,7 +270,10 @@ export default function ActivityLogsPage() {
             variant="outline"
             size="sm"
             className="rounded-full"
-            onClick={() => void load(1)}
+            onClick={() => {
+              setPage(1);
+              void refetch();
+            }}
             disabled={loadingLogs}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${loadingLogs ? 'animate-spin' : ''}`} />
@@ -310,7 +333,7 @@ export default function ActivityLogsPage() {
               <SelectContent>
                 <SelectItem value="all">All branches</SelectItem>
                 {branchOptions.map(b => (
-                  <SelectItem key={b.name} value={b.name}>{b.label}</SelectItem>
+                  <SelectItem key={b.slug} value={b.slug}>{b.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -395,7 +418,7 @@ export default function ActivityLogsPage() {
                 size="sm"
                 className="rounded-full"
                 disabled={page <= 1 || loadingLogs}
-                onClick={() => void load(page - 1)}
+                onClick={() => setPage((p) => p - 1)}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -404,7 +427,7 @@ export default function ActivityLogsPage() {
                 size="sm"
                 className="rounded-full"
                 disabled={page >= totalPages || loadingLogs}
-                onClick={() => void load(page + 1)}
+                onClick={() => setPage((p) => p + 1)}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>

@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Calendar, Upload, FileSpreadsheet, Trash2, Coffee, MapPin, AlertCircle, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,22 +35,22 @@ import { useManualMappings } from "@/hooks/useManualMappings";
 
 // Supabase integration
 import { 
-  seedBranchesIfEmpty, 
-  saveDailyReport, 
-  listAllDailyReports 
+  saveDailyReport
 } from "@/services/reportsService";
-import { dailyReportToJSON, dailyReportsFromRows } from "@/services/reportConverter";
+import { dailyReportToJSON } from "@/services/reportConverter";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
+import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
+import { queryKeys } from "@/hooks/queries/queryKeys";
 
 const Index = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { branchOptions, isLoading: isLoadingBranches, getBranchLabel, getBranchUuid } = useLiveBranches();
   
   // Main view mode: Daily or Monthly
   const [mainViewMode, setMainViewMode] = useState<ViewMode>("daily");
   
   // Supabase state
-  const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
   // Manual mapping overrides (from DB, always highest priority)
@@ -77,6 +78,7 @@ const Index = () => {
   const [csvData, setCsvData] = useState<Record<string, string>[]>([]);
   const [showMapper, setShowMapper] = useState(false);
   const [autoMapping, setAutoMapping] = useState<Partial<Record<string, string>>>({});
+  const { data: cachedDailyReports, error: dailyReportsError } = useDailyReportsQuery();
 
   const activeReport = dailyReports.find(r => r.id === activeReportId) || null;
 
@@ -84,30 +86,26 @@ const Index = () => {
   // SUPABASE INTEGRATION: Load reports on mount
   // ============================================================================
   useEffect(() => {
-    const initializeData = async () => {
-      try {
-        void seedBranchesIfEmpty();
-        void preloadMenuReference();
+    void preloadMenuReference();
+  }, []);
 
-        // Load all existing reports from Supabase
-        setIsLoadingReports(true);
-        const reportRows = await listAllDailyReports();
-        const reports = dailyReportsFromRows(reportRows);
-        setDailyReports(reports);
-      } catch (error) {
-        console.error('Failed to initialize data:', error);
-        toast({
-          variant: "destructive",
-          title: "Supabase Connection Error",
-          description: error instanceof Error ? error.message : "Failed to connect to Supabase",
-        });
-      } finally {
-        setIsLoadingReports(false);
-      }
-    };
+  useEffect(() => {
+    if (cachedDailyReports) {
+      setDailyReports(cachedDailyReports);
+    }
+  }, [cachedDailyReports]);
 
-    initializeData();
-  }, [toast]);
+  useEffect(() => {
+    if (!dailyReportsError) return;
+    toast({
+      variant: "destructive",
+      title: "Supabase Connection Error",
+      description:
+        dailyReportsError instanceof Error
+          ? dailyReportsError.message
+          : "Failed to connect to Supabase",
+    });
+  }, [dailyReportsError, toast]);
 
   const handleCsvUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -255,6 +253,7 @@ const Index = () => {
       setActiveReportId(savedReportWithData.id);
       setViewMode("single");
       setShowMapper(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyAll });
 
       toast({
         title: "Report saved",
@@ -270,7 +269,7 @@ const Index = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [dateRange, selectedBranch, csvData, csvFile, autoMapping, mappingTable, manualEntries, getBranchUuid, toast]);
+  }, [dateRange, selectedBranch, csvData, csvFile, autoMapping, mappingTable, manualEntries, getBranchUuid, queryClient, toast]);
 
   const handleManualMappingSaved = useCallback(async () => {
     if (!activeReportId || viewMode !== "single") return;
