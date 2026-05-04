@@ -26,12 +26,16 @@ import { logEvent } from '@/services/auditService';
 function SidebarNav({
   isAdmin,
   isViewer,
+  appVersion,
+  badgeTitle,
   collapsed = false,
   responsiveCompact = true,
   onNavigate,
 }: {
   isAdmin: boolean;
   isViewer: boolean;
+  appVersion: string;
+  badgeTitle?: string;
   collapsed?: boolean;
   responsiveCompact?: boolean;
   onNavigate?: () => void;
@@ -82,13 +86,13 @@ function SidebarNav({
         </div>
         {!compact && (
           <span
+            title={badgeTitle}
             className={cn(
-              "items-center gap-1 mt-3 text-[10px] px-2.5 py-1 rounded-full bg-white/10 text-primary-foreground/90 font-semibold tracking-wide",
+              "items-center mt-3 text-[10px] px-2.5 py-1 rounded-full bg-white/10 text-primary-foreground/90 font-semibold tracking-wide",
               responsiveCompact ? "hidden 2xl:inline-flex" : "inline-flex",
             )}
           >
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            MVP
+            {`Build v${appVersion}`}
           </span>
         )}
       </div>
@@ -130,6 +134,11 @@ export default function AppShell() {
   const { toast } = useToast();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const appVersion =
+    import.meta.env.VITE_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
+    import.meta.env.VITE_APP_VERSION ||
+    "local";
+  const appBranch = import.meta.env.VITE_VERCEL_GIT_COMMIT_REF || "local";
 
   const handleLogout = async () => {
     void logEvent({ action: 'logout', module: 'auth', details: `${user?.email} signed out` });
@@ -157,6 +166,8 @@ export default function AppShell() {
         <SidebarNav
           isAdmin={!!isAdmin}
           isViewer={!!isViewer}
+          appVersion={appVersion}
+          badgeTitle={`Branch: ${appBranch}`}
           collapsed={isSidebarCollapsed}
         />
       </div>
@@ -166,6 +177,8 @@ export default function AppShell() {
           <SidebarNav
             isAdmin={!!isAdmin}
             isViewer={!!isViewer}
+            appVersion={appVersion}
+            badgeTitle={`Branch: ${appBranch}`}
             collapsed={false}
             responsiveCompact={false}
             onNavigate={() => setIsMobileNavOpen(false)}
@@ -236,7 +249,7 @@ export default function AppShell() {
           </div>
         </header>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <main className="scrollbar-none min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
       </div>

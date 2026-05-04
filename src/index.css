@@ -146,4 +146,16 @@
   .bg-white {
     background-color: hsl(var(--surface-base)) !important;
   }
+
+  /* Hide scrollbar while keeping scroll behavior */
+  .scrollbar-none {
+    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none; /* Chrome/Safari/Opera */
+  }
 }
