@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/auth/useAuth';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function LoginPage() {
     return email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
   };
 
-  const withUiTimeout = async <T,>(promise: Promise<T>, timeoutMs = 15000): Promise<T> => {
+  const withUiTimeout = async <T,>(promise: Promise<T>, timeoutMs = 30000): Promise<T> => {
     return Promise.race([
       promise,
       new Promise<T>((_, reject) =>
@@ -38,6 +39,9 @@ export default function LoginPage() {
       ),
     ]);
   };
+
+  const isTimeoutError = (error: unknown): boolean =>
+    error instanceof Error && error.message.toLowerCase().includes("timed out");
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +82,24 @@ export default function LoginPage() {
         navigate('/app/summary');
       }
     } catch (error) {
+      // If the request timed out, check whether auth succeeded in the background
+      // before showing a failure toast.
+      if (isTimeoutError(error)) {
+        try {
+          const { data } = await withUiTimeout(supabase.auth.getSession(), 5000);
+          if (data.session?.user) {
+            toast({
+              title: 'Welcome back!',
+              description: 'Signed in successfully.',
+            });
+            navigate('/app/summary');
+            return;
+          }
+        } catch {
+          // Ignore fallback check errors and show the original timeout message.
+        }
+      }
+
       toast({
         variant: 'destructive',
         title: 'Sign in failed',

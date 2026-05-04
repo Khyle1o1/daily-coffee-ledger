@@ -1,19 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   BarChart3,
   Calendar,
-  CheckSquare,
   ChevronDown,
-  Clock,
   Download,
-  FileText,
   Loader2,
   MapPin,
   RefreshCw,
-  Square,
-  Trash2,
   X,
 } from "lucide-react";
 
@@ -34,42 +28,19 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 import ReportCanvas, { type ReportCanvasData } from "@/components/reports/ReportCanvas";
 import { exportReportPdf } from "@/utils/exportReportPdf";
 import { exportReportExcel } from "@/utils/exportReportExcel";
 import { exportRenderedReportPdf } from "@/utils/exportRenderedReportPdf";
 
-import type { ReportType, GeneratedReportRow } from "@/lib/supabase-types";
+import type { ReportType } from "@/lib/supabase-types";
 import type { BranchId, Category, DailyReport } from "@/utils/types";
 import { CATEGORIES } from "@/utils/types";
 
-import {
-  saveGeneratedReport,
-  deleteGeneratedReport,
-  deleteManyGeneratedReports,
-} from "@/services/generatedReportsService";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
-import { useAuth } from "@/auth/useAuth";
-import { canDeleteData } from "@/lib/permissions";
 import { logEvent } from "@/services/auditService";
 
 import {
@@ -86,8 +57,6 @@ import type { ItemizedChannelFilter } from "@/lib/reports/computePourItForward";
 import { computeHQSyncPack } from "@/lib/reports/computeHQSyncPack";
 import { computeChannelSalesSummary } from "@/lib/reports/computeChannelSalesSummary";
 import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
-import { useGeneratedReportsQuery } from "@/hooks/queries/useGeneratedReportsQuery";
-import { queryKeys } from "@/hooks/queries/queryKeys";
 
 // ============================================================================
 // Constants
@@ -152,17 +121,13 @@ interface DateRange {
 
 export default function ReportsPage() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { role } = useAuth();
   const canvasRef = useRef<HTMLDivElement>(null);
   const { branchOptions, getBranchLabel, getBranchUuid } = useLiveBranches();
 
   // ── Data loading ──────────────────────────────────────────────────────────
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
-  const [history, setHistory] = useState<GeneratedReportRow[]>([]);
   const { data: cachedDailyReports, isLoading: isLoadingDailyReports } = useDailyReportsQuery();
-  const { data: cachedGeneratedReports, isLoading: isLoadingGeneratedReports } = useGeneratedReportsQuery();
-  const isLoadingData = isLoadingDailyReports || isLoadingGeneratedReports;
+  const isLoadingData = isLoadingDailyReports;
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const [reportType, setReportType] = useState<ReportType>("HQ_SYNC_PACK");
@@ -190,20 +155,10 @@ export default function ReportsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [historySelectMode, setHistorySelectMode] = useState(false);
-  const [historySelectedIds, setHistorySelectedIds] = useState<Set<string>>(new Set());
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
-  const [isDeletingMany, setIsDeletingMany] = useState(false);
 
   useEffect(() => {
     if (cachedDailyReports) setDailyReports(cachedDailyReports);
   }, [cachedDailyReports]);
-
-  useEffect(() => {
-    if (cachedGeneratedReports) setHistory(cachedGeneratedReports);
-  }, [cachedGeneratedReports]);
 
   // ── Derived labels ────────────────────────────────────────────────────────
   const selectedBranchNamesLabel = useMemo(() => {
@@ -446,50 +401,15 @@ export default function ReportsPage() {
 
       if (!canvas) return;
       setCanvasData(canvas);
-
-      // Auto-save to DB
-      const typeOption = REPORT_TYPE_OPTIONS.find((o) => o.value === reportType);
-      const typeLabel =
-        reportType === "PRODUCT_MIX" && rankProductMixPerCategory
-          ? "Product Mix (Ranked per Category)"
-          : typeOption?.label ?? reportType;
-      const title = `${typeLabel} • ${branchLabel} • ${dateRangeLabel}`;
       const branchId =
         filterBranches.length === 1 ? (getBranchUuid(filterBranches[0]) ?? null) : null;
-
-      const saved = await saveGeneratedReport({
-        title,
-        reportType,
-        branchId,
-        branchName: branchLabel,
-        dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo,
-        compareFrom: filters.compareFrom ?? null,
-        compareTo: filters.compareTo ?? null,
-        selectedCategories: selectedCategories.map(String),
-        filters: {
-          branchId:
-            filterBranches.length === 0
-              ? "all"
-              : filterBranches.length === 1
-                ? filterBranches[0]
-                : [...filterBranches],
-          dateFrom: filters.dateFrom,
-          dateTo: filters.dateTo,
-          compareFrom: filters.compareFrom,
-          compareTo: filters.compareTo,
-          selectedCategories,
-        },
-        computedData: canvas as unknown as Record<string, unknown>,
-      });
-
-      setHistory((prev) => [saved, ...prev]);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generatedRoot });
+      const typeLabel = REPORT_TYPE_OPTIONS.find((o) => o.value === reportType)?.label ?? reportType;
+      const title = `${typeLabel} • ${branchLabel} • ${dateRangeLabel}`;
 
       void logEvent({
         action: 'generate_report',
         module: 'reports',
-        targetId: saved.id,
+        targetId: undefined,
         targetName: title,
         details: `Generated ${REPORT_TYPE_OPTIONS.find(o => o.value === reportType)?.label ?? reportType} for ${branchLabel}`,
         reportType,
@@ -504,7 +424,7 @@ export default function ReportsPage() {
         },
       });
 
-      toast({ title: "Report generated and saved." });
+      toast({ title: "Report generated." });
     } catch (err) {
       console.error("Generate error:", err);
       toast({
@@ -529,63 +449,8 @@ export default function ReportsPage() {
     itemizedChannel,
     getBranchUuid,
     filterBranches,
-    queryClient,
     toast,
   ]);
-
-  // ── Load from history ─────────────────────────────────────────────────────
-  const handleLoadHistory = useCallback((row: GeneratedReportRow) => {
-    const d = row.computed_data as unknown as ReportCanvasData;
-    setCanvasData(d);
-    toast({ title: "Report loaded from history." });
-  }, [toast]);
-
-  // ── Delete history item (after confirmation) ─────────────────────────────
-  const handleDeleteHistory = useCallback(
-    async (id: string) => {
-      try {
-        await deleteGeneratedReport(id);
-        setHistory((prev) => prev.filter((r) => r.id !== id));
-        setHistorySelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generatedRoot });
-        toast({ title: "Report deleted." });
-      } catch (err) {
-        toast({
-          variant: "destructive",
-          title: "Failed to delete report",
-          description: err instanceof Error ? err.message : "Unexpected error.",
-        });
-      } finally {
-        setDeleteConfirmId(null);
-      }
-    },
-    [queryClient, toast]
-  );
-
-  // ── Delete many / all ─────────────────────────────────────────────────────
-  const handleDeleteMany = useCallback(
-    async (ids: string[]) => {
-      setIsDeletingMany(true);
-      try {
-        await deleteManyGeneratedReports(ids);
-        setHistory((prev) => prev.filter((r) => !ids.includes(r.id)));
-        setHistorySelectedIds(new Set());
-        setHistorySelectMode(false);
-        setDeleteAllConfirm(false);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generatedRoot });
-        toast({ title: `${ids.length} report${ids.length !== 1 ? "s" : ""} deleted.` });
-      } catch (err) {
-        toast({
-          variant: "destructive",
-          title: "Failed to delete reports",
-          description: err instanceof Error ? err.message : "Unexpected error.",
-        });
-      } finally {
-        setIsDeletingMany(false);
-      }
-    },
-    [queryClient, toast]
-  );
 
   // ── PDF export ────────────────────────────────────────────────────────────
   const handleExportPdf = useCallback(async () => {
@@ -710,22 +575,6 @@ export default function ReportsPage() {
               </p>
             </div>
           </div>
-
-          {/* History button */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="relative rounded-full border-primary-foreground/60 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20 flex items-center gap-2"
-            onClick={() => setIsHistoryOpen(true)}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            History
-            {history.length > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary-foreground text-primary text-[10px] font-bold">
-                {history.length}
-              </span>
-            )}
-          </Button>
         </div>
       </div>
 
@@ -1235,260 +1084,6 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* ── History drawer ────────────────────────────────────────────────── */}
-      <Sheet
-        open={isHistoryOpen}
-        onOpenChange={(open) => {
-          setIsHistoryOpen(open);
-          if (!open) {
-            setHistorySelectMode(false);
-            setHistorySelectedIds(new Set());
-          }
-        }}
-      >
-        <SheetContent
-          side="right"
-          className="w-full sm:max-w-[420px] p-0 flex flex-col bg-white"
-        >
-          {/* Header */}
-          <SheetHeader className="px-5 pt-5 pb-3 border-b border-slate-100 shrink-0 bg-white">
-            <SheetTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
-              <Clock className="h-4 w-4 text-[#1e3a5f]" />
-              Report History
-              {history.length > 0 && (
-                <span className="ml-1 text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-                  {history.length}
-                </span>
-              )}
-            </SheetTitle>
-
-            {/* Action toolbar */}
-            {canDeleteData(role) && history.length > 0 && (
-              <div className="flex items-center gap-2 pt-2">
-                {/* Select / Cancel toggle */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHistorySelectMode((v) => !v);
-                    setHistorySelectedIds(new Set());
-                  }}
-                  className={`text-xs px-3 py-1.5 rounded-lg font-semibold border transition-colors flex items-center gap-1.5 ${
-                    historySelectMode
-                      ? "bg-slate-100 border-slate-300 text-slate-700"
-                      : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-slate-400"
-                  }`}
-                >
-                  {historySelectMode ? (
-                    <><X className="h-3 w-3" /> Cancel</>
-                  ) : (
-                    <><CheckSquare className="h-3 w-3" /> Select</>
-                  )}
-                </button>
-
-                {/* Select-all toggle (only in select mode) */}
-                {historySelectMode && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (historySelectedIds.size === history.length) {
-                        setHistorySelectedIds(new Set());
-                      } else {
-                        setHistorySelectedIds(new Set(history.map((r) => r.id)));
-                      }
-                    }}
-                    className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-                  >
-                    {historySelectedIds.size === history.length ? (
-                      <><Square className="h-3 w-3" /> None</>
-                    ) : (
-                      <><CheckSquare className="h-3 w-3" /> All</>
-                    )}
-                  </button>
-                )}
-
-                <div className="flex-1" />
-
-                {/* Delete selected (select mode) */}
-                {historySelectMode && historySelectedIds.size > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setDeleteAllConfirm(true)}
-                    disabled={isDeletingMany}
-                    className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Delete ({historySelectedIds.size})
-                  </button>
-                )}
-
-                {/* Delete all (normal mode) */}
-                {!historySelectMode && (
-                  <button
-                    type="button"
-                    onClick={() => setDeleteAllConfirm(true)}
-                    disabled={isDeletingMany}
-                    className="text-xs px-3 py-1.5 rounded-lg font-semibold border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Delete All
-                  </button>
-                )}
-              </div>
-            )}
-          </SheetHeader>
-
-          {/* List */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50">
-            {history.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                <FileText className="h-10 w-10 mb-3 text-slate-300" />
-                <p className="text-sm font-medium text-slate-500">No generated reports yet</p>
-                <p className="text-xs text-slate-400 mt-1">Generate a report to see it here</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {history.map((row) => {
-                  const isSelected = historySelectedIds.has(row.id);
-                  return (
-                    <div
-                      key={row.id}
-                      onClick={() => {
-                        if (!historySelectMode) return;
-                        setHistorySelectedIds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(row.id)) next.delete(row.id);
-                          else next.add(row.id);
-                          return next;
-                        });
-                      }}
-                      className={`rounded-xl border p-3 transition-colors ${
-                        historySelectMode ? "cursor-pointer" : ""
-                      } ${
-                        isSelected
-                          ? "border-red-300 bg-red-50"
-                          : "border-slate-100 bg-slate-50 hover:border-[#1e3a5f]/30"
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        {/* Checkbox in select mode */}
-                        {historySelectMode && (
-                          <div className="mt-0.5 shrink-0">
-                            {isSelected ? (
-                              <CheckSquare className="h-4 w-4 text-red-500" />
-                            ) : (
-                              <Square className="h-4 w-4 text-slate-300" />
-                            )}
-                          </div>
-                        )}
-
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-slate-800 truncate leading-tight">
-                            {row.title}
-                          </p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
-                            {format(new Date(row.created_at), "MMM dd, yyyy HH:mm")}
-                          </p>
-                        </div>
-
-                        {/* Single-delete button (normal mode only) */}
-                        {!historySelectMode && canDeleteData(role) && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(row.id); }}
-                            className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* View + badge (hidden in select mode) */}
-                      {!historySelectMode && (
-                        <div className="flex gap-1.5 mt-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleLoadHistory(row);
-                              setIsHistoryOpen(false);
-                            }}
-                            className="text-[10px] px-2.5 py-1 rounded-full bg-[#1e3a5f] text-white font-semibold hover:bg-[#0e2d49] transition-colors flex items-center gap-1"
-                          >
-                            <FileText className="h-2.5 w-2.5" />
-                            View
-                          </button>
-                          <span className="text-[10px] px-2 py-1 rounded-full bg-slate-100 text-slate-500 font-medium">
-                            {row.report_type.replace(/_/g, " ")}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* ── Confirm single delete ──────────────────────────────────────────── */}
-      <AlertDialog open={!!deleteConfirmId} onOpenChange={(o) => { if (!o) setDeleteConfirmId(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this report?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove the report from history. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-500 hover:bg-red-600 text-white"
-              onClick={() => { if (deleteConfirmId) handleDeleteHistory(deleteConfirmId); }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* ── Confirm bulk / delete-all ──────────────────────────────────────── */}
-      <AlertDialog open={deleteAllConfirm} onOpenChange={(o) => { if (!o) setDeleteAllConfirm(false); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {historySelectMode && historySelectedIds.size > 0
-                ? `Delete ${historySelectedIds.size} selected report${historySelectedIds.size !== 1 ? "s" : ""}?`
-                : `Delete all ${history.length} reports?`}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {historySelectMode && historySelectedIds.size > 0
-                ? "The selected reports will be permanently removed from history."
-                : "All reports in your history will be permanently removed."}
-              {" "}This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingMany}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isDeletingMany}
-              className="bg-red-500 hover:bg-red-600 text-white"
-              onClick={() => {
-                const ids =
-                  historySelectMode && historySelectedIds.size > 0
-                    ? [...historySelectedIds]
-                    : history.map((r) => r.id);
-                handleDeleteMany(ids);
-              }}
-            >
-              {isDeletingMany ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Deleting…</>
-              ) : (
-                "Delete"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
