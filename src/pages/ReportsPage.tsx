@@ -481,13 +481,18 @@ export default function ReportsPage() {
       const filename = `${reportSlug}-${branchSlug}-${slug(fromStr)}-to-${slug(toStr)}.pdf`;
 
       if (canvasRef.current) {
-        const isPackReport = canvasData.reportType === "HQ_SYNC_PACK";
-        await exportRenderedReportPdf(canvasRef.current, {
-          filename,
-          backgroundColor: isPackReport ? "#EDE7D6" : "#F4F0E5",
-          contentWidthPx: isPackReport ? 1500 : 1400,
-          marginPt: isPackReport ? 16 : 20,
-        });
+        if (canvasData.reportType === "HQ_SYNC_PACK") {
+          // Use structured PDF generation for HQ pack so each section
+          // gets predictable pagination and layout.
+          await exportReportPdf(canvasData, filename);
+        } else {
+          await exportRenderedReportPdf(canvasRef.current, {
+            filename,
+            backgroundColor: "#F4F0E5",
+            contentWidthPx: 1400,
+            marginPt: 20,
+          });
+        }
       } else {
         // Fallback for safety if canvas ref is unavailable.
         await exportReportPdf(canvasData, filename);

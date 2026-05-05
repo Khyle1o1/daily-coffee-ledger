@@ -398,11 +398,10 @@ function ProductMixCategoryDetailPage({
           No data available for this category in the selected range.
         </div>
       ) : (
-        /* Table + floating % column */
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
+        <div>
           <table
             style={{
-              flex: 1,
+              width: "100%",
               borderCollapse: "collapse",
               fontSize: 12,
               minWidth: 0,
@@ -424,6 +423,11 @@ function ProductMixCategoryDetailPage({
                 <th style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
                   {hasCompare ? currCol : "QTY"}
                 </th>
+                {hasCompare && (
+                  <th style={{ padding: "7px 8px", textAlign: "right", width: 56, fontWeight: 700 }}>
+                    %
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -479,36 +483,23 @@ function ProductMixCategoryDetailPage({
                   >
                     {item.qty.toLocaleString("en-PH")}
                   </td>
+                  {hasCompare && (
+                    <td
+                      style={{
+                        padding: "5px 8px",
+                        textAlign: "right",
+                        fontVariantNumeric: "tabular-nums",
+                        width: 56,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <PctTag prev={item.compareQty} curr={item.qty} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
-
-          {/* % change column outside the table */}
-          {hasCompare && (
-            <div
-              style={{
-                flexShrink: 0,
-                width: 52,
-                paddingTop: 31, // align with first data row (skip header)
-              }}
-            >
-              {data.products.map((item) => (
-                <div
-                  key={item.name}
-                  style={{
-                    height: 27,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "flex-end",
-                    paddingRight: 4,
-                  }}
-                >
-                  <PctTag prev={item.compareQty} curr={item.qty} />
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </Page>

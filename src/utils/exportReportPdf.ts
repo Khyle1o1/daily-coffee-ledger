@@ -4,6 +4,7 @@ import type { ReportCanvasData } from "@/components/reports/ReportCanvas";
 import { formatPHP } from "@/utils/format";
 import { getPercentChange } from "@/utils/percentChange";
 import type { ChannelSalesSummaryData } from "@/lib/reports/computeChannelSalesSummary";
+import type { ComputedHQSyncPack, HQTop5ByChannel } from "@/lib/reports/computeHQSyncPack";
 
 function formatPHPPdf(value: number) {
   // Use plain "PHP" text instead of the peso symbol to avoid garbled glyphs in PDFs
@@ -54,6 +55,119 @@ function drawHeader(
   return y + 12;
 }
 
+function drawHqSectionHeader(
+  doc: jsPDF,
+  title: string,
+  branchLabel: string,
+  dateRangeLabel: string,
+  marginLeft: number,
+) {
+  let y = 44;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...ACCENT_COLOR);
+  doc.text("HQ Weekly Sync", marginLeft, y);
+
+  y += 16;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(...HEADER_COLOR);
+  doc.text(title, marginLeft, y);
+
+  y += 13;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`${branchLabel}   •   ${dateRangeLabel}`, marginLeft, y);
+
+  y += 8;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.6);
+  doc.line(marginLeft, y, doc.internal.pageSize.getWidth() - marginLeft, y);
+
+  return y + 14;
+}
+
+function drawHqPageFooterMeta(
+  doc: jsPDF,
+  marginLeft: number,
+  pageWidth: number,
+  label: string,
+) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(148, 163, 184);
+  doc.text(label, marginLeft, pageHeight - 40);
+  doc.text(
+    "DOT Coffee Daily Ledger",
+    pageWidth - marginLeft,
+    pageHeight - 40,
+    { align: "right" },
+  );
+}
+
+function renderHqTop5Section(
+  doc: jsPDF,
+  marginLeft: number,
+  pageWidth: number,
+  dateRangeLabel: string,
+  branchLabel: string,
+  label: string,
+  section: HQTop5ByChannel,
+) {
+  const sectionTitle = `Running Sales Mix (${label})`;
+  let y = drawHqSectionHeader(doc, sectionTitle, branchLabel, dateRangeLabel, marginLeft);
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Channel", "Share %", "Top Item", "Qty", "Sales"]],
+    body: section.channels.flatMap((channel) => {
+      if (!channel.items.length) {
+        return [[
+          channel.key,
+          `${channel.share.toFixed(1)}%`,
+          "No data",
+          "0",
+          formatPHPPdf(0),
+        ]];
+      }
+      return channel.items.map((item, idx) => [
+        idx === 0 ? channel.key : "",
+        idx === 0 ? `${channel.share.toFixed(1)}%` : "",
+        item.name,
+        item.qty.toLocaleString("en-PH"),
+        formatPHPPdf(item.sales),
+      ]);
+    }),
+    foot: [[
+      "TOTAL",
+      "100%",
+      "",
+      section.channels.reduce((sum, c) => sum + c.totalQty, 0).toLocaleString("en-PH"),
+      formatPHPPdf(section.grandTotal),
+    ]],
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 6, overflow: "linebreak", valign: "middle" },
+    headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+    footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+    margin: { left: marginLeft, right: marginLeft, top: 60 },
+    tableWidth: pageWidth - marginLeft * 2,
+    columnStyles: {
+      0: { halign: "left", cellWidth: 90 },
+      1: { halign: "right", cellWidth: 70 },
+      2: { halign: "left", cellWidth: 280 },
+      3: { halign: "right", cellWidth: 90 },
+      4: { halign: "right", cellWidth: 120 },
+    },
+    didDrawPage: () => {
+      drawHqSectionHeader(doc, sectionTitle, branchLabel, dateRangeLabel, marginLeft);
+      drawHqPageFooterMeta(doc, marginLeft, pageWidth, `Section: ${sectionTitle}`);
+    },
+    showHead: "everyPage",
+  });
+}
+
 export async function exportReportPdf(
   canvasData: ReportCanvasData,
   filename: string
@@ -76,7 +190,9 @@ export async function exportReportPdf(
   } = canvasData;
 
   const orientation: "portrait" | "landscape" =
-    reportType === "PRODUCT_MIX_CHANNEL" ? "landscape" : "portrait";
+    reportType === "PRODUCT_MIX_CHANNEL" || reportType === "HQ_SYNC_PACK"
+      ? "landscape"
+      : "portrait";
 
   const doc = new jsPDF({ orientation, unit: "pt", format: "a4" });
   const marginLeft = 48;
@@ -120,7 +236,7 @@ export async function exportReportPdf(
       styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
       headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
       footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
-      alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+      alternateRowStyles: { fillColor: [253, 246, 238] },
       margin: { left: marginLeft, right: marginLeft },
     });
 
@@ -186,6 +302,154 @@ export async function exportReportPdf(
       y = (doc as any).lastAutoTable?.finalY ?? y;
       y += 12;
     }
+  }
+
+  else if (reportType === "HQ_SYNC_PACK" && canvasData.hqSyncPack) {
+    const hq: ComputedHQSyncPack = canvasData.hqSyncPack;
+
+    // Page 1: Product Mix Summary
+    let y = drawHqSectionHeader(
+      doc,
+      `Product Mix Summary`,
+      branchLabel,
+      dateRangeLabel,
+      marginLeft,
+    );
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...HEADER_COLOR);
+    doc.text(`Gross Sales: ${formatPHPPdf(hq.overview.grandTotal)}`, marginLeft, y);
+    y += 12;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Category", "Sales", "% Mix"]],
+      body: hq.overview.categoryTotals.map((row) => [
+        row.category,
+        formatPHPPdf(row.sales),
+        `${row.percent.toFixed(1)}%`,
+      ]),
+      foot: [["TOTAL", formatPHPPdf(hq.overview.grandTotal), "100%"]],
+      styles: { font: "helvetica", fontSize: 10, cellPadding: 7, valign: "middle" },
+      headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [253, 246, 238] },
+      margin: { left: marginLeft, right: marginLeft, top: 60 },
+      tableWidth: pageWidth - marginLeft * 2,
+      columnStyles: {
+        0: { halign: "left", cellWidth: 260 },
+        1: { halign: "right", cellWidth: 170 },
+        2: { halign: "right", cellWidth: 120 },
+      },
+      didDrawPage: () => {
+        drawHqSectionHeader(doc, "Product Mix Summary", branchLabel, dateRangeLabel, marginLeft);
+        drawHqPageFooterMeta(doc, marginLeft, pageWidth, "Section: Product Mix Summary");
+      },
+      showHead: "everyPage",
+    });
+
+    // Add cups sold block to summary page
+    const summaryEndY = (doc as any).lastAutoTable?.finalY ?? y;
+    autoTable(doc, {
+      startY: summaryEndY + 12,
+      head: [["Cup Size", "Qty"]],
+      body: hq.cupsData.map((cup) => [cup.name, cup.qty.toLocaleString("en-PH")]),
+      foot: [[
+        "TOTAL",
+        hq.cupsData.reduce((sum, cup) => sum + cup.qty, 0).toLocaleString("en-PH"),
+      ]],
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 6, valign: "middle" },
+      headStyles: { fillColor: [100, 116, 139], textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: [100, 116, 139], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [253, 246, 238] },
+      margin: { left: marginLeft, right: marginLeft },
+      tableWidth: pageWidth - marginLeft * 2,
+      columnStyles: {
+        0: { halign: "left", cellWidth: 260 },
+        1: { halign: "right", cellWidth: 120 },
+      },
+      showHead: "everyPage",
+    });
+
+    const detailSections: Array<{
+      label: string;
+      data: ComputedHQSyncPack["icedDetail"];
+    }> = [
+      { label: "Product Mix_ICED", data: hq.icedDetail },
+      { label: "Product Mix_HOT", data: hq.hotDetail },
+      { label: "Product Mix_PASTRIES", data: hq.pastriesDetail },
+      { label: "Product Mix_ADD-ON", data: hq.addOnsDetail },
+    ];
+
+    // Pages 2-5: each category section on a new page
+    for (const section of detailSections) {
+      doc.addPage("a4", "landscape");
+      const hasCompare = section.data.products.some((p) => p.compareQty !== undefined);
+      const sectionTitle = `${section.label}   ${formatPHPPdf(section.data.totalSales)}`;
+      const startY = drawHqSectionHeader(doc, sectionTitle, branchLabel, dateRangeLabel, marginLeft);
+
+      autoTable(doc, {
+        startY,
+        head: hasCompare
+          ? [["#", "Menu", compareLabel ?? "Previous", "Current", "% Change"]]
+          : [["#", "Menu", "Qty", "Sales"]],
+        body: section.data.products.map((row, idx) => {
+          if (hasCompare) {
+            return [
+              String(idx + 1).padStart(2, "0"),
+              row.name,
+              row.compareQty !== undefined ? row.compareQty.toLocaleString("en-PH") : "—",
+              row.qty.toLocaleString("en-PH"),
+              row.compareQty !== undefined ? getPercentChange(row.compareQty, row.qty).label : "—",
+            ];
+          }
+          return [
+            String(idx + 1).padStart(2, "0"),
+            row.name,
+            row.qty.toLocaleString("en-PH"),
+            formatPHPPdf(row.sales),
+          ];
+        }),
+        styles: {
+          font: "helvetica",
+          fontSize: 9,
+          cellPadding: 6,
+          overflow: "linebreak",
+          valign: "middle",
+        },
+        headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [253, 246, 238] },
+        margin: { left: marginLeft, right: marginLeft, top: 60 },
+        tableWidth: pageWidth - marginLeft * 2,
+        columnStyles: hasCompare
+          ? {
+              0: { halign: "left", cellWidth: 40 },
+              1: { halign: "left", cellWidth: 360 },
+              2: { halign: "right", cellWidth: 90 },
+              3: { halign: "right", cellWidth: 90 },
+              4: { halign: "right", cellWidth: 100 },
+            }
+          : {
+              0: { halign: "left", cellWidth: 40 },
+              1: { halign: "left", cellWidth: 380 },
+              2: { halign: "right", cellWidth: 90 },
+              3: { halign: "right", cellWidth: 120 },
+            },
+        didDrawPage: () => {
+          drawHqSectionHeader(doc, sectionTitle, branchLabel, dateRangeLabel, marginLeft);
+          drawHqPageFooterMeta(doc, marginLeft, pageWidth, `Section: ${section.label}`);
+        },
+        showHead: "everyPage",
+      });
+    }
+
+    // Pages 6-8: Running Sales Mix (by channel section)
+    doc.addPage("a4", "landscape");
+    renderHqTop5Section(doc, marginLeft, pageWidth, dateRangeLabel, branchLabel, "Drinks", hq.top5Drinks);
+    doc.addPage("a4", "landscape");
+    renderHqTop5Section(doc, marginLeft, pageWidth, dateRangeLabel, branchLabel, "Pastry", hq.top5Pastry);
+    doc.addPage("a4", "landscape");
+    renderHqTop5Section(doc, marginLeft, pageWidth, dateRangeLabel, branchLabel, "Add-On", hq.top5AddOn);
   }
 
   else if (reportType === "PRODUCT_MIX" && productMixByCategory) {
