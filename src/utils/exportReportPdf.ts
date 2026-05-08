@@ -190,7 +190,9 @@ export async function exportReportPdf(
   } = canvasData;
 
   const orientation: "portrait" | "landscape" =
-    reportType === "PRODUCT_MIX_CHANNEL" || reportType === "HQ_SYNC_PACK"
+    reportType === "PRODUCT_MIX_CHANNEL" ||
+    reportType === "HQ_SYNC_PACK" ||
+    reportType === "CHANNEL_SALES_SUMMARY"
       ? "landscape"
       : "portrait";
 
@@ -1015,55 +1017,98 @@ export async function exportReportPdf(
 
   else if (reportType === "CHANNEL_SALES_SUMMARY" && canvasData.channelSalesSummary) {
     const css: ChannelSalesSummaryData = canvasData.channelSalesSummary;
-    const title = `Channel Sales Summary — ${dateRangeLabel}`;
+    const title = "Channel Sales Summary";
     let y = drawHeader(doc, title, branchLabel, dateRangeLabel, marginLeft);
+    const pdf = (n: number) => `PHP ${n.toLocaleString("en-PH")}`;
+    const mix = (n: number) => `${n.toFixed(1)}%`;
 
-    const hasEvent  = css.rows.some((r) => r.event  > 0) || css.totals.event  > 0;
-    const hasDotapp = css.rows.some((r) => r.dotapp > 0) || css.totals.dotapp > 0;
+    for (const branch of css.branches) {
+      const pageHeight = doc.internal.pageSize.getHeight();
+      if (y > pageHeight - 220) {
+        doc.addPage("a4", "landscape");
+        y = drawHeader(doc, title, branchLabel, dateRangeLabel, marginLeft);
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...HEADER_COLOR);
+      doc.text(`BRANCH: ${branch.branchName}`, marginLeft, y);
+      y += 8;
 
-    const head: string[][] = [["PERIOD", "FOODPANDA", "GRAB", "WALK-IN",
-      ...(hasEvent  ? ["EVENT"]   : []),
-      ...(hasDotapp ? ["DOT APP"] : []),
-      "TOTAL",
-    ]];
+      autoTable(doc, {
+        startY: y,
+        head: [["Category", "FoodPanda", "Grab", "Walk-in", "Total"]],
+        body: branch.rows.map((row) => [
+          row.category,
+          `${pdf(row.foodpanda)} (${mix(row.foodpandaPct)})`,
+          `${pdf(row.grab)} (${mix(row.grabPct)})`,
+          `${pdf(row.walkIn)} (${mix(row.walkInPct)})`,
+          pdf(row.total),
+        ]),
+        foot: [[
+          "TOTAL",
+          pdf(branch.totals.foodpanda),
+          pdf(branch.totals.grab),
+          pdf(branch.totals.walkIn),
+          pdf(branch.totals.total),
+        ]],
+        styles: { font: "helvetica", fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+        footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: ALT_ROW_COLOR },
+        margin: { left: marginLeft, right: marginLeft },
+        columnStyles: {
+          0: { halign: "left", cellWidth: 170 },
+          1: { halign: "right", cellWidth: 120 },
+          2: { halign: "right", cellWidth: 120 },
+          3: { halign: "right", cellWidth: 120 },
+          4: { halign: "right", cellWidth: 120 },
+        },
+        showHead: "everyPage",
+      });
+      y = ((doc as any).lastAutoTable?.finalY ?? y) + 10;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Branch Channel Mix: Walk-in ${mix(branch.channelMixPct.walkIn)} | Grab ${mix(branch.channelMixPct.grab)} | FoodPanda ${mix(branch.channelMixPct.foodpanda)}`,
+        marginLeft,
+        y,
+      );
+      y += 14;
+    }
 
-    const dash = (n: number) => n === 0 ? "—" : `PHP ${n.toLocaleString("en-PH")}`;
-
-    const body = css.rows.map((row) => [
-      row.periodLabel,
-      dash(row.foodpanda),
-      dash(row.grab),
-      dash(row.walkIn),
-      ...(hasEvent  ? [dash(row.event)]  : []),
-      ...(hasDotapp ? [dash(row.dotapp)] : []),
-      dash(row.total),
-    ]);
-
-    const foot = [[
-      "TOTAL",
-      dash(css.totals.foodpanda),
-      dash(css.totals.grab),
-      dash(css.totals.walkIn),
-      ...(hasEvent  ? [dash(css.totals.event)]  : []),
-      ...(hasDotapp ? [dash(css.totals.dotapp)] : []),
-      dash(css.totals.total),
-    ]];
-
-    const colCount = head[0].length;
-    const colStyle: Record<number, { halign: "left" | "right" }> = { 0: { halign: "left" } };
-    for (let i = 1; i < colCount; i++) colStyle[i] = { halign: "right" };
-
+    doc.addPage("a4", "landscape");
+    y = drawHeader(doc, `${title} — Overall`, branchLabel, dateRangeLabel, marginLeft);
     autoTable(doc, {
       startY: y,
-      head,
-      body,
-      foot,
+      head: [["Category", "FoodPanda", "Grab", "Walk-in", "Total"]],
+      body: css.overall.rows.map((row) => [
+        row.category,
+        pdf(row.foodpanda),
+        pdf(row.grab),
+        pdf(row.walkIn),
+        pdf(row.total),
+      ]),
+      foot: [[
+        "TOTAL",
+        pdf(css.overall.totals.foodpanda),
+        pdf(css.overall.totals.grab),
+        pdf(css.overall.totals.walkIn),
+        pdf(css.overall.totals.total),
+      ]],
       styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
       headStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
       footStyles: { fillColor: HEADER_COLOR, textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: ALT_ROW_COLOR },
       margin: { left: marginLeft, right: marginLeft },
-      columnStyles: colStyle,
+      columnStyles: {
+        0: { halign: "left", cellWidth: 190 },
+        1: { halign: "right", cellWidth: 110 },
+        2: { halign: "right", cellWidth: 110 },
+        3: { halign: "right", cellWidth: 110 },
+        4: { halign: "right", cellWidth: 110 },
+      },
+      showHead: "everyPage",
     });
   }
 

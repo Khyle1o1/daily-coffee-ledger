@@ -1,155 +1,233 @@
 import type { DailyReport } from "@/utils/types";
-import { CATEGORIES } from "@/utils/types";
+import { BRANCHES, CATEGORIES, type Category } from "@/utils/types";
 import type { ReportFilters } from "./compute";
-import { getRowsForFilters } from "./compute";
 import { getChannelFromPaymentType } from "./channel";
-
-// ── Month name lookup ────────────────────────────────────────────────────────
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-] as const;
+import { filterRowsByDateRange } from "./filterRowsByDateRange";
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
-export interface ChannelPeriodRow {
-  /** Human-readable label, e.g. "March" or "April 1–11" */
-  periodLabel: string;
-  /** ISO-style sort key, e.g. "2026-03" */
-  periodKey: string;
+export interface CategoryChannelBreakdownRow {
+  category: string;
   foodpanda: number;
   grab: number;
   walkIn: number;
-  event: number;
-  dotapp: number;
+  total: number;
+  foodpandaPct: number;
+  grabPct: number;
+  walkInPct: number;
+}
+
+export interface ChannelTotals {
+  foodpanda: number;
+  grab: number;
+  walkIn: number;
   total: number;
 }
 
-export interface ChannelSalesSummaryData {
-  rows: ChannelPeriodRow[];
-  totals: {
+export interface BranchChannelSection {
+  branchId: string;
+  branchName: string;
+  rows: CategoryChannelBreakdownRow[];
+  totals: ChannelTotals;
+  channelMixPct: {
     foodpanda: number;
     grab: number;
     walkIn: number;
-    event: number;
-    dotapp: number;
-    total: number;
+  };
+}
+
+export interface ChannelSalesSummaryData {
+  branches: BranchChannelSection[];
+  overall: {
+    rows: CategoryChannelBreakdownRow[];
+    totals: ChannelTotals;
+    channelMixPct: {
+      foodpanda: number;
+      grab: number;
+      walkIn: number;
+    };
   };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Strip the time from a Date so we compare calendar days only. */
-function calendarDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+function normalizeCategoryName(raw: string): string {
+  return String(raw ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
 }
 
-// ── Main compute ─────────────────────────────────────────────────────────────
+function toDisplayCategory(cat: string): string {
+  const c = cat.trim().toUpperCase();
+  if (c === "SNACKS") return "Pastries";
+  if (c === "MERCH") return "Merchandise";
+  if (c === "ICED" || c === "HOT") return "Coffee";
+  if (c === "CANNED" || c === "COLD BREW" || c === "DOT TEA LINE" || c === "DEHUSK LINE") return "Non-Coffee";
+  if (c === "ADD-ONS") return "Non-Coffee";
+  return c
+    .toLowerCase()
+    .split(" ")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" ");
+}
 
-/**
- * Build the Channel Sales Summary report.
- *
- * Groups all transaction rows (across every category) by calendar month and by
- * sales channel (FoodPanda, Grab, Walk-in, Event, Dot App).
- *
- * Period labels:
- *   - Full month within the date range  → "March"
- *   - Partial month at either end       → "April 1–11"
- */
-export function computeChannelSalesSummary(
-  reports: DailyReport[],
-  filters: ReportFilters,
-): ChannelSalesSummaryData {
-  // Include ALL mapped categories (channel report is not category-filtered)
-  const allCatFilters: ReportFilters = {
-    ...filters,
-    selectedCategories: [...CATEGORIES],
-  };
+function emptyTotals(): ChannelTotals {
+  return { foodpanda: 0, grab: 0, walkIn: 0, total: 0 };
+}
 
-  const rows = getRowsForFilters(reports, allCatFilters);
+function toPct(part: number, total: number): number {
+  if (!total) return 0;
+  return (part / total) * 100;
+}
 
-  const start = calendarDay(new Date(filters.dateFrom));
-  const end   = calendarDay(new Date(filters.dateTo));
+export function computeChannelSalesSummary(reports: DailyReport[], filters: ReportFilters): ChannelSalesSummaryData {
+  const activeCategories =
+    filters.selectedCategories && filters.selectedCategories.length > 0
+      ? new Set(filters.selectedCategories)
+      : new Set([...CATEGORIES]);
 
-  // ── Bucket rows by year-month ───────────────────────────────────────────────
-  type Bucket = { foodpanda: number; grab: number; walkIn: number; event: number; dotapp: number };
-  const byMonth = new Map<string, Bucket>();
+  const selectedBranchIds = Array.isArray(filters.branchId)
+    ? filters.branchId
+    : filters.branchId === "all"
+      ? BRANCHES.map((b) => b.id)
+      : [filters.branchId];
+  const selectedBranchSet = new Set(selectedBranchIds);
+  const selectedReports = reports.filter((report) => selectedBranchSet.has(report.branch));
+  const start = new Date(filters.dateFrom);
+  const end = new Date(filters.dateTo);
 
-  for (const row of rows) {
-    if (!(row.transactionDate instanceof Date)) continue;
-    const d = row.transactionDate;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const branchCategoryChannel = new Map<string, Map<string, ChannelTotals>>();
+  let filteredRowsCount = 0;
 
-    let bucket = byMonth.get(key);
-    if (!bucket) {
-      bucket = { foodpanda: 0, grab: 0, walkIn: 0, event: 0, dotapp: 0 };
-      byMonth.set(key, bucket);
+  for (const report of selectedReports) {
+    const reportRows = report.rowDetails.filter(
+      (row) =>
+        row.transactionDate instanceof Date &&
+        row.status === "MAPPED" &&
+        row.mappedCat &&
+        activeCategories.has(row.mappedCat as Category),
+    );
+    const rowsInRange = filterRowsByDateRange(reportRows as any, start, end);
+
+    for (const row of rowsInRange) {
+      filteredRowsCount += 1;
+      const branchId = report.branch;
+      const rawCategory = String((row.mappedCat as Category | null) ?? "");
+      if (!rawCategory) continue;
+      const category = normalizeCategoryName(toDisplayCategory(rawCategory));
+
+      const sales = Number.isFinite(row.rowSales) ? row.rowSales : 0;
+      if (!sales) continue;
+
+      const channel = getChannelFromPaymentType(row.paymentType);
+      let branchMap = branchCategoryChannel.get(branchId);
+      if (!branchMap) {
+        branchMap = new Map();
+        branchCategoryChannel.set(branchId, branchMap);
+      }
+      let totals = branchMap.get(category);
+      if (!totals) {
+        totals = emptyTotals();
+        branchMap.set(category, totals);
+      }
+
+      if (channel === "FOODPANDA") totals.foodpanda += sales;
+      else if (channel === "GRAB") totals.grab += sales;
+      else totals.walkIn += sales;
+      totals.total = totals.foodpanda + totals.grab + totals.walkIn;
     }
-
-    const channel = getChannelFromPaymentType(row.paymentType);
-    const sales = Number.isFinite(row.rowSales) ? row.rowSales : 0;
-
-    if      (channel === "GRAB")      bucket.grab      += sales;
-    else if (channel === "FOODPANDA") bucket.foodpanda += sales;
-    else if (channel === "DOTAPP")    bucket.dotapp    += sales;
-    else if (channel === "EVENT")     bucket.event     += sales;
-    else                              bucket.walkIn    += sales;
   }
 
-  // ── Build period rows (sorted oldest → newest) ────────────────────────────
-  const periodRows: ChannelPeriodRow[] = Array.from(byMonth.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([monthKey, bucket]) => {
-      const [yearStr, monthStr] = monthKey.split("-");
-      const year     = Number(yearStr);
-      const monthIdx = Number(monthStr) - 1; // 0-based
+  const buildBranchSection = (branchId: string): BranchChannelSection => {
+    const branchName = BRANCHES.find((b) => b.id === branchId)?.label ?? branchId;
+    const branchMap = branchCategoryChannel.get(branchId) ?? new Map<string, ChannelTotals>();
+    const rows = Array.from(branchMap.entries())
+      .map(([category, totals]) => ({
+        category,
+        foodpanda: totals.foodpanda,
+        grab: totals.grab,
+        walkIn: totals.walkIn,
+        total: totals.total,
+        foodpandaPct: toPct(totals.foodpanda, totals.total),
+        grabPct: toPct(totals.grab, totals.total),
+        walkInPct: toPct(totals.walkIn, totals.total),
+      }))
+      .sort((a, b) => b.total - a.total);
 
-      const firstOfMonth = new Date(year, monthIdx, 1);
-      const lastOfMonth  = new Date(year, monthIdx + 1, 0);
+    const totals = rows.reduce(
+      (acc, row) => ({
+        foodpanda: acc.foodpanda + row.foodpanda,
+        grab: acc.grab + row.grab,
+        walkIn: acc.walkIn + row.walkIn,
+        total: acc.total + row.total,
+      }),
+      emptyTotals(),
+    );
 
-      // Clamp the period to the selected date range
-      const periodStart = firstOfMonth < start ? start : firstOfMonth;
-      const periodEnd   = lastOfMonth  > end   ? end   : lastOfMonth;
+    return {
+      branchId,
+      branchName,
+      rows,
+      totals,
+      channelMixPct: {
+        foodpanda: toPct(totals.foodpanda, totals.total),
+        grab: toPct(totals.grab, totals.total),
+        walkIn: toPct(totals.walkIn, totals.total),
+      },
+    };
+  };
 
-      // Full month when we cover the entire calendar month within the filter
-      const isFullMonth =
-        periodStart.getDate() === 1 &&
-        periodEnd.getDate()   === lastOfMonth.getDate();
+  const branches = selectedBranchIds.map(buildBranchSection);
 
-      const periodLabel = isFullMonth
-        ? MONTH_NAMES[monthIdx]
-        : `${MONTH_NAMES[monthIdx]} ${periodStart.getDate()}–${periodEnd.getDate()}`;
+  const overallCategoryMap = new Map<string, ChannelTotals>();
+  for (const branch of branches) {
+    for (const row of branch.rows) {
+      const totals = overallCategoryMap.get(row.category) ?? emptyTotals();
+      totals.foodpanda += row.foodpanda;
+      totals.grab += row.grab;
+      totals.walkIn += row.walkIn;
+      totals.total = totals.foodpanda + totals.grab + totals.walkIn;
+      overallCategoryMap.set(row.category, totals);
+    }
+  }
 
-      const total =
-        bucket.foodpanda + bucket.grab + bucket.walkIn +
-        bucket.event     + bucket.dotapp;
+  const overallRows = Array.from(overallCategoryMap.entries())
+    .map(([category, totals]) => ({
+      category,
+      foodpanda: totals.foodpanda,
+      grab: totals.grab,
+      walkIn: totals.walkIn,
+      total: totals.total,
+      foodpandaPct: toPct(totals.foodpanda, totals.total),
+      grabPct: toPct(totals.grab, totals.total),
+      walkInPct: toPct(totals.walkIn, totals.total),
+    }))
+    .sort((a, b) => b.total - a.total);
 
-      return {
-        periodLabel,
-        periodKey: monthKey,
-        foodpanda: bucket.foodpanda,
-        grab:      bucket.grab,
-        walkIn:    bucket.walkIn,
-        event:     bucket.event,
-        dotapp:    bucket.dotapp,
-        total,
-      };
-    });
-
-  // ── Grand totals ─────────────────────────────────────────────────────────
-  const totals = periodRows.reduce(
-    (acc, r) => ({
-      foodpanda: acc.foodpanda + r.foodpanda,
-      grab:      acc.grab      + r.grab,
-      walkIn:    acc.walkIn    + r.walkIn,
-      event:     acc.event     + r.event,
-      dotapp:    acc.dotapp    + r.dotapp,
-      total:     acc.total     + r.total,
+  const overallTotals = overallRows.reduce(
+    (acc, row) => ({
+      foodpanda: acc.foodpanda + row.foodpanda,
+      grab: acc.grab + row.grab,
+      walkIn: acc.walkIn + row.walkIn,
+      total: acc.total + row.total,
     }),
-    { foodpanda: 0, grab: 0, walkIn: 0, event: 0, dotapp: 0, total: 0 },
+    emptyTotals(),
   );
 
-  console.log("[ChannelSalesSummary] periods:", periodRows.length, "total:", totals.total);
+  console.log("[ChannelSalesSummary] Selected branches:", selectedBranchIds);
+  console.log("[ChannelSalesSummary] Filtered rows:", filteredRowsCount);
 
-  return { rows: periodRows, totals };
+  return {
+    branches,
+    overall: {
+      rows: overallRows,
+      totals: overallTotals,
+      channelMixPct: {
+        foodpanda: toPct(overallTotals.foodpanda, overallTotals.total),
+        grab: toPct(overallTotals.grab, overallTotals.total),
+        walkIn: toPct(overallTotals.walkIn, overallTotals.total),
+      },
+    },
+  };
 }

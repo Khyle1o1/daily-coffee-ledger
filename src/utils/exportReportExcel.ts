@@ -577,56 +577,76 @@ function buildChannelSalesSummarySheet(
   branchLabel: string,
   dateRangeLabel: string,
 ): XLSX.WorkSheet {
-  const { rows, totals } = data;
-
-  const hasEvent  = rows.some((r) => r.event  > 0) || totals.event  > 0;
-  const hasDotapp = rows.some((r) => r.dotapp > 0) || totals.dotapp > 0;
-
-  const dash = (n: number) => n === 0 ? "—" : n;
+  const { branches, overall } = data;
 
   const sheetRows: XLSX.CellObject[][] = [
-    // Title rows
     [c(`Channel Sales Summary — ${branchLabel}`, S_TITLE)],
     [c(dateRangeLabel, S_SECTION)],
     [blank()],
-    // Header
-    [
-      c("PERIOD",     S_HEADER_LEFT),
-      c("FOODPANDA",  S_HEADER),
-      c("GRAB",       S_HEADER),
-      c("WALK-IN",    S_HEADER),
-      ...(hasEvent  ? [c("EVENT",   S_HEADER)] : []),
-      ...(hasDotapp ? [c("DOT APP", S_HEADER)] : []),
-      c("TOTAL",      S_HEADER),
-    ],
   ];
 
-  rows.forEach((row, i) => {
-    const s = i % 2 === 1 ? S_ALT : undefined;
+  branches.forEach((branch) => {
+    sheetRows.push([c(`BRANCH: ${branch.branchName}`, S_SECTION)]);
     sheetRows.push([
-      c(row.periodLabel,    { ...S_HEADER_LEFT, fill: undefined, font: { color: { rgb: "1E3A5F" } }, ...s }),
-      c(dash(row.foodpanda), { ...S_NUM, ...s }),
-      c(dash(row.grab),      { ...S_NUM, ...s }),
-      c(dash(row.walkIn),    { ...S_NUM, ...s }),
-      ...(hasEvent  ? [c(dash(row.event),  { ...S_NUM, ...s })] : []),
-      ...(hasDotapp ? [c(dash(row.dotapp), { ...S_NUM, ...s })] : []),
-      c(dash(row.total),     { ...S_NUM_BOLD, ...s }),
+      c("Category", S_HEADER_LEFT),
+      c("FoodPanda", S_HEADER),
+      c("Grab", S_HEADER),
+      c("Walk-in", S_HEADER),
+      c("Total", S_HEADER),
     ]);
+    branch.rows.forEach((row, idx) => {
+      const s = idx % 2 === 1 ? S_ALT : undefined;
+      sheetRows.push([
+        c(row.category, s),
+        c(row.foodpanda, { ...S_NUM, ...s }),
+        c(row.grab, { ...S_NUM, ...s }),
+        c(row.walkIn, { ...S_NUM, ...s }),
+        c(row.total, { ...S_NUM_BOLD, ...s }),
+      ]);
+    });
+    sheetRows.push([
+      c("TOTAL", S_FOOTER_LEFT),
+      c(branch.totals.foodpanda, S_FOOTER),
+      c(branch.totals.grab, S_FOOTER),
+      c(branch.totals.walkIn, S_FOOTER),
+      c(branch.totals.total, S_FOOTER),
+    ]);
+    sheetRows.push([
+      c(
+        `Branch Channel Mix: Walk-in ${branch.channelMixPct.walkIn.toFixed(1)}% | Grab ${branch.channelMixPct.grab.toFixed(1)}% | FoodPanda ${branch.channelMixPct.foodpanda.toFixed(1)}%`,
+        S_SECTION,
+      ),
+    ]);
+    sheetRows.push([blank()]);
   });
 
-  // Totals footer
+  sheetRows.push([c("OVERALL CATEGORY SALES BY CHANNEL", S_TITLE)]);
   sheetRows.push([
-    c("TOTAL",                  S_FOOTER_LEFT),
-    c(dash(totals.foodpanda),   S_FOOTER),
-    c(dash(totals.grab),        S_FOOTER),
-    c(dash(totals.walkIn),      S_FOOTER),
-    ...(hasEvent  ? [c(dash(totals.event),  S_FOOTER)] : []),
-    ...(hasDotapp ? [c(dash(totals.dotapp), S_FOOTER)] : []),
-    c(dash(totals.total),       S_FOOTER),
+    c("Category", S_HEADER_LEFT),
+    c("FoodPanda", S_HEADER),
+    c("Grab", S_HEADER),
+    c("Walk-in", S_HEADER),
+    c("Total", S_HEADER),
+  ]);
+  overall.rows.forEach((row, idx) => {
+    const s = idx % 2 === 1 ? S_ALT : undefined;
+    sheetRows.push([
+      c(row.category, s),
+      c(row.foodpanda, { ...S_NUM, ...s }),
+      c(row.grab, { ...S_NUM, ...s }),
+      c(row.walkIn, { ...S_NUM, ...s }),
+      c(row.total, { ...S_NUM_BOLD, ...s }),
+    ]);
+  });
+  sheetRows.push([
+    c("TOTAL", S_FOOTER_LEFT),
+    c(overall.totals.foodpanda, S_FOOTER),
+    c(overall.totals.grab, S_FOOTER),
+    c(overall.totals.walkIn, S_FOOTER),
+    c(overall.totals.total, S_FOOTER),
   ]);
 
-  const colCount = 4 + (hasEvent ? 1 : 0) + (hasDotapp ? 1 : 0) + 1;
-  const widths = [22, ...Array(colCount - 1).fill(16)];
+  const widths = [26, 16, 16, 16, 16];
   return buildSheet(sheetRows, widths);
 }
 
