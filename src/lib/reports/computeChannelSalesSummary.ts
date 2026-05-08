@@ -60,11 +60,14 @@ function normalizeCategoryName(raw: string): string {
 
 function toDisplayCategory(cat: string): string {
   const c = cat.trim().toUpperCase();
-  if (c === "SNACKS") return "Pastries";
-  if (c === "MERCH") return "Merchandise";
-  if (c === "ICED" || c === "HOT") return "Coffee";
-  if (c === "CANNED" || c === "COLD BREW" || c === "DOT TEA LINE" || c === "DEHUSK LINE") return "Non-Coffee";
-  if (c === "ADD-ONS") return "Non-Coffee";
+  if (c === "ICED") return "Iced";
+  if (c === "HOT") return "Hot";
+  if (c === "SNACKS") return "Snacks";
+  if (c === "ADD-ONS") return "Add-Ons";
+  if (c === "MERCH") return "Merch";
+  if (c === "PROMO") return "Promo";
+  if (c === "LOYALTY CARD") return "Loyalty Card";
+  if (c === "PACKAGING") return "Packaging";
   return c
     .toLowerCase()
     .split(" ")
