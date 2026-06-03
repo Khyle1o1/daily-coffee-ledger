@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchActiveManualMappings, type ManualMapping } from "@/lib/api/manualMappings";
 import { normalizeText } from "@/utils/normalize";
-import { normalizeOption } from "@/utils/defaultMapping";
+import { normalizeCategoryCore, normalizeRowOption } from "@/utils/mapRow";
 import type { MappingEntry } from "@/utils/types";
 
 /**
@@ -9,8 +9,11 @@ import type { MappingEntry } from "@/utils/types";
  * with the existing mapRow() index.
  *
  * Key points:
- *  - `item`       = sourceItem  → used as the normalized lookup key
- *  - `outputItem` = mappedItemName → overrides the output (may differ from source)
+ *  - `catNorm`    uses normalizeCategoryCore (same as PASS 1 lookup key) so
+ *                 categories like "DOT CLASSICS" → "classics" are handled correctly.
+ *  - `optionNorm` uses normalizeRowOption (the full mapRow normalizer) so options
+ *                 with "l" separators and size phrases match the lookup key exactly.
+ *  - `outputItem` = mappedItemName → overrides the output (may differ from source).
  *  - Manual entries are prepended before the validation table, so they win
  *    whenever the same Category + Item + Option is hit.
  */
@@ -18,12 +21,12 @@ function toMappingEntry(m: ManualMapping): MappingEntry {
   return {
     mappedName: m.mappedCategory,
     category:   m.sourceCategory,
-    item:        m.sourceItem,         // lookup key
+    item:        m.sourceItem,
     option:      m.sourceOption,
-    catNorm:     normalizeText(m.sourceCategory),
+    catNorm:     normalizeCategoryCore(m.sourceCategory),
     itemNorm:    normalizeText(m.sourceItem),
-    optionNorm:  normalizeOption(m.sourceOption),
-    outputItem:  m.mappedItemName,     // output override
+    optionNorm:  normalizeRowOption(m.sourceOption),
+    outputItem:  m.mappedItemName,
   };
 }
 

@@ -378,6 +378,9 @@ const RAW: [string, string, string, string][] = [
   ["HOT","DEL - DOT TEA LINE","Signature Tea Latte","Hot Large 16 oz. (+10)"],
 
   // ── SNACKS ────────────────────────────────────────────────────────────────
+  ["SNACKS","SNACKS","Blitz Bar","Matcha Latte"],
+  ["SNACKS","SNACKS","Blitz Bar","Dark Chocolate Dream"],
+  ["SNACKS","SNACKS","Blitz Bar","Classic Vanilla"],
   ["SNACKS","SNACKS","Black & White Bar",""],
   ["SNACKS","SNACKS","Calamansi Protein Bar",""],
   ["SNACKS","SNACKS","Corned Beef Pandesal",""],
@@ -395,6 +398,9 @@ const RAW: [string, string, string, string][] = [
   ["SNACKS","SNACKS","Roni Pizza Dagel",""],
 
   // ── DEL-SNACKS ────────────────────────────────────────────────────────────
+  ["SNACKS","DEL-SNACKS","Blitz Bar","Matcha Latte"],
+  ["SNACKS","DEL-SNACKS","Blitz Bar","Dark Chocolate Dream"],
+  ["SNACKS","DEL-SNACKS","Blitz Bar","Classic Vanilla"],
   ["SNACKS","DEL-SNACKS","Black & White Bar",""],
   ["SNACKS","DEL-SNACKS","Calamansi Protein Bar",""],
   ["SNACKS","DEL-SNACKS","Corned Beef Pandesal",""],

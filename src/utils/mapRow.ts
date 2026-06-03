@@ -32,7 +32,8 @@ function normalizeCategory(rawCategory: string): string {
   return t;
 }
 
-function normalizeCategoryCore(rawCategory: string): string {
+/** Exported so manual-mapping creation can produce the same catNorm as mapRow lookups. */
+export function normalizeCategoryCore(rawCategory: string): string {
   let t = normalizeCategory(rawCategory);
   // Strip leading POS/menu line codes ("01 ADD ONS", "10 DEL - ADD ONS")
   t = t.replace(/^\d{1,3}\s*[.)-]?\s+/i, "");
@@ -75,11 +76,13 @@ function buildCategoryCandidates(rawCategory: string): string[] {
   };
 
   // Direct aliases observed in March exports.
-  if (base === "dot classics" || base === "classics") add("classics");
+  // Include both the canonical form AND the "dot" prefix form so that manual mapping
+  // entries (stored before this normalization existed) remain findable.
+  if (base === "dot classics" || base === "classics") { add("classics"); add("dot classics"); }
   if (base === "del dot classics") add("del - classics");
   if (base === "add ons" || base === "add-on" || base === "add-ons") add("add-ons");
   if (base === "del add ons" || base === "del add-on" || base === "del add ons") add("del-add-ons");
-  if (base === "dot snacks" || base === "snacks") add("snacks");
+  if (base === "dot snacks" || base === "snacks") { add("snacks"); add("dot snacks"); }
   if (base === "del dot snacks") add("del-snacks");
   if (base === "del dot signatures") add("del - dot signatures");
   if (base === "del - dot signatures" || base === "dot signatures") {
@@ -729,4 +732,15 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
     status: "UNMAPPED",
     debugReason,
   };
+}
+
+/**
+ * Exported so manual-mapping entries can store an optionNorm that is identical
+ * to what mapRow uses for PASS 1 lookups.  Using the simpler defaultMapping
+ * normalizeOption produced different results for options containing the "l"
+ * milk-type separator (e.g. "Iced Regular (12oz) l Oat") and for size-phrase
+ * standardisation, causing manual-mapping lookups to always miss.
+ */
+export function normalizeRowOption(rawOption: string): string {
+  return normalizeOption(rawOption);
 }

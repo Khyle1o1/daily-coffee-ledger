@@ -5,10 +5,11 @@
  * GC / Gift Card items are classified as PROMO.
  */
 import { describe, it, expect, beforeAll, vi } from "vitest";
-import { mapRow } from "@/utils/mapRow";
+import { mapRow, normalizeCategoryCore, normalizeRowOption } from "@/utils/mapRow";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
 import { preloadMenuReference } from "@/utils/menuReference";
-import type { RawRow } from "@/utils/types";
+import { normalizeText } from "@/utils/normalize";
+import type { RawRow, MappingEntry, Category } from "@/utils/types";
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 
@@ -180,6 +181,110 @@ describe("DEL - SIGNATURES and delivery category aliases", () => {
     expect(r.status).toBe("MAPPED");
     expect(r.mappedCat).toBe("ICED");
     expect(r.mappedItemName).toBe("Creamy Coco Hojicha");
+  });
+
+  it("maps DOT SNACKS + Blitz Bar + Matcha Latte → SNACKS", () => {
+    const r = mapRow(row("DOT SNACKS", "Blitz Bar", "Matcha Latte"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("SNACKS");
+    expect(r.mappedItemName).toBe("Blitz Bar");
+  });
+
+  it("maps DOT SNACKS + Blitz Bar + Dark Chocolate Dream → SNACKS", () => {
+    const r = mapRow(row("DOT SNACKS", "Blitz Bar", "Dark Chocolate Dream"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("SNACKS");
+  });
+
+  it("maps DOT SNACKS + Blitz Bar + Classic Vanilla → SNACKS", () => {
+    const r = mapRow(row("DOT SNACKS", "Blitz Bar", "Classic Vanilla"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("SNACKS");
+  });
+
+  it("maps DOT SNACKS + Blitz Bar with unknown future flavor via catItemUnique fallback", () => {
+    const r = mapRow(row("DOT SNACKS", "Blitz Bar", "Strawberry Cheesecake"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("SNACKS");
+    expect(r.mappedItemName).toBe("Blitz Bar");
+  });
+});
+
+// ── Manual mapping lookup correctness ─────────────────────────────────────────
+//
+// Simulates what useManualMappings.toMappingEntry produces for a manual entry
+// saved from the Details table UI, and asserts that mapRow finds it.
+
+function makeManualEntry(
+  sourceCategory: string,
+  sourceItem: string,
+  sourceOption: string,
+  mappedCategory: Category,
+  mappedItemName: string,
+): MappingEntry {
+  return {
+    mappedName: mappedCategory,
+    category:   sourceCategory,
+    item:       sourceItem,
+    option:     sourceOption,
+    // ── USE THE SAME NORMALIZERS AS toMappingEntry / mapRow ──
+    catNorm:    normalizeCategoryCore(sourceCategory),
+    itemNorm:   normalizeText(sourceItem),
+    optionNorm: normalizeRowOption(sourceOption),
+    outputItem: mappedItemName,
+  };
+}
+
+describe("manual mapping lookup — catNorm uses normalizeCategoryCore", () => {
+  it("DOT CLASSICS item: manual entry is found and overrides output", () => {
+    const manual = makeManualEntry("DOT CLASSICS", "New Classic Drink", "Iced Regular (12oz)", "ICED", "New Classic Drink");
+    const r = mapRow(row("DOT CLASSICS", "New Classic Drink", "Iced Regular (12oz)"), [manual]);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
+    expect(r.mappedItemName).toBe("New Classic Drink");
+  });
+
+  it("DOT SNACKS item: manual entry is found", () => {
+    const manual = makeManualEntry("DOT SNACKS", "New Snack Item", "", "SNACKS", "New Snack Item");
+    const r = mapRow(row("DOT SNACKS", "New Snack Item", ""), [manual]);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("SNACKS");
+    expect(r.mappedItemName).toBe("New Snack Item");
+  });
+
+  it("DOT SIGNATURES item: manual entry is found", () => {
+    const manual = makeManualEntry("DOT SIGNATURES", "New Signature", "Iced Regular (12oz)", "ICED", "New Signature");
+    const r = mapRow(row("DOT SIGNATURES", "New Signature", "Iced Regular (12oz)"), [manual]);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
+    expect(r.mappedItemName).toBe("New Signature");
+  });
+
+  it("manual entry takes priority over DEFAULT_MAPPING when prepended", () => {
+    // "Americano" in DOT CLASSICS is in DEFAULT_MAPPING → ICED; manual entry overrides to HOT
+    const manual = makeManualEntry("DOT CLASSICS", "Americano", "Iced Regular (12oz)", "HOT", "Americano Override");
+    const r = mapRow(row("DOT CLASSICS", "Americano", "Iced Regular (12oz)"), [manual, ...DEFAULT_MAPPING]);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("HOT");
+    expect(r.mappedItemName).toBe("Americano Override");
+  });
+});
+
+describe("manual mapping lookup — optionNorm uses normalizeRowOption", () => {
+  it("option with 'l' milk separator is found via normalizeRowOption", () => {
+    // Raw POS option: "Iced Regular (12oz) l Oat" (old-style 'l' separator)
+    const manual = makeManualEntry("DOT SIGNATURES", "Horchata", "Iced Regular (12oz) l Oat", "ICED", "Horchata");
+    const r = mapRow(row("DOT SIGNATURES", "Horchata", "Iced Regular (12oz) l Oat"), [manual]);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
+    expect(r.mappedItemName).toBe("Horchata");
+  });
+
+  it("option with pipe separator is found", () => {
+    const manual = makeManualEntry("DOT SIGNATURES", "Horchata", "Iced Large (16oz) | Oat", "ICED", "Horchata");
+    const r = mapRow(row("DOT SIGNATURES", "Horchata", "Iced Large (16oz) | Oat"), [manual]);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
   });
 });
 
