@@ -58,7 +58,11 @@ export function useDailyReportsQuery(params: UseDailyReportsQueryParams = {}) {
       };
     },
     enabled:         !loading && !!user,
-    staleTime:       60_000,
+    // Treat cached data as always fresh — prevents a background refetch from
+    // wiping visible data while a token refresh is in progress.
+    // The query is explicitly invalidated (queryClient.invalidateQueries) after
+    // mutations (save / delete) so freshness is still enforced when it matters.
+    staleTime:       Infinity,
     gcTime:          24 * 60 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
