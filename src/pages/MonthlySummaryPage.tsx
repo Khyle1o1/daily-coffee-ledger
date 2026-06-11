@@ -33,17 +33,17 @@ export default function MonthlySummaryPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [monthlyBranchFilter, setMonthlyBranchFilter] = useState<BranchId | "all">("all");
-  const { data: cachedDailyReports, error: dailyReportsError } = useDailyReportsQuery();
+  const { data: cachedDailyReportsPage, error: dailyReportsError } = useDailyReportsQuery();
 
   useEffect(() => {
     void preloadMenuReference();
   }, []);
 
   useEffect(() => {
-    if (cachedDailyReports) {
-      setDailyReports(cachedDailyReports);
+    if (cachedDailyReportsPage) {
+      setDailyReports(cachedDailyReportsPage.reports);
     }
-  }, [cachedDailyReports]);
+  }, [cachedDailyReportsPage]);
 
   useEffect(() => {
     if (!dailyReportsError) return;

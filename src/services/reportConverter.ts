@@ -2,10 +2,10 @@
 // This ensures data consistency between local state and database
 
 import type { DailyReport } from '@/utils/types';
-import type { 
-  DailyReportRow, 
+import type {
+  DailyReportRow,
+  DailyReportListRow,
   DailySummaryJSON,
-  Branch 
 } from '@/lib/supabase-types';
 import type { BranchId } from '@/utils/types';
 
@@ -65,6 +65,44 @@ export function dailyReportFromRow(row: DailyReportRow): DailyReport {
  */
 export function dailyReportsFromRows(rows: DailyReportRow[]): DailyReport[] {
   return rows.map(dailyReportFromRow);
+}
+
+/**
+ * Convert a paginated list row into a DailyReport.
+ * summary_json is present in list rows so all financial fields are populated
+ * the same way as dailyReportFromRow.
+ */
+export function dailyReportMetaFromRow(row: DailyReportListRow): DailyReport {
+  const json = row.summary_json as DailySummaryJSON;
+  return {
+    id:                    row.id,
+    date:                  row.report_date,
+    dateRangeEnd:          row.date_range_end,
+    branch:                (row.branch?.name ?? 'greenbelt') as BranchId,
+    filename:              json.filename,
+    uploadedAt:            json.uploadedAt,
+    totalRows:             json.totalRows,
+    mappedRows:            json.mappedRows,
+    unmappedRows:          json.unmappedRows,
+    skippedRows:           json.skippedRows,
+    summaryTotalsByCat:    json.summaryTotalsByCat,
+    summaryQuantitiesByCat: json.summaryQuantitiesByCat,
+    grandTotal:            json.grandTotal,
+    grandQuantity:         json.grandQuantity,
+    percentByCat:          json.percentByCat,
+    rowDetails:            json.rowDetails.map((r) => ({
+      ...r,
+      transactionDate: r.transactionDate ? new Date(r.transactionDate as any) : undefined,
+    })),
+    unmappedSummary:       json.unmappedSummary,
+  };
+}
+
+/**
+ * Convert multiple lightweight list rows to DailyReports.
+ */
+export function dailyReportsMetaFromRows(rows: DailyReportListRow[]): DailyReport[] {
+  return rows.map(dailyReportMetaFromRow);
 }
 
 /**

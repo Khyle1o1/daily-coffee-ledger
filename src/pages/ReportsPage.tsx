@@ -126,7 +126,7 @@ export default function ReportsPage() {
 
   // ── Data loading ──────────────────────────────────────────────────────────
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
-  const { data: cachedDailyReports, isLoading: isLoadingDailyReports } = useDailyReportsQuery();
+  const { data: cachedDailyReportsPage, isLoading: isLoadingDailyReports } = useDailyReportsQuery();
   const isLoadingData = isLoadingDailyReports;
 
   // ── Filter state ──────────────────────────────────────────────────────────
@@ -157,8 +157,8 @@ export default function ReportsPage() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   useEffect(() => {
-    if (cachedDailyReports) setDailyReports(cachedDailyReports);
-  }, [cachedDailyReports]);
+    if (cachedDailyReportsPage) setDailyReports(cachedDailyReportsPage.reports);
+  }, [cachedDailyReportsPage]);
 
   // ── Derived labels ────────────────────────────────────────────────────────
   const selectedBranchNamesLabel = useMemo(() => {

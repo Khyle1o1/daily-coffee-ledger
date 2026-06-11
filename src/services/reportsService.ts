@@ -7,10 +7,16 @@ import { BRANCHES } from '@/utils/types';
 import type {
   Branch,
   DailyReportRow,
+  DailyReportListRow,
+  ListDailyReportsParams,
+  ListDailyReportsResult,
   MonthlyReportRow,
   SaveDailyReportPayload,
   SaveMonthlyReportPayload,
 } from '@/lib/supabase-types';
+
+/** Default page size for paginated list queries. */
+export const PAGE_SIZE = 50;
 
 // ============================================================================
 // BRANCH OPERATIONS
@@ -229,35 +235,56 @@ export async function listDailyReports(
 }
 
 /**
- * List all daily reports across all branches within a date range
+ * Paginated list of daily reports across all branches.
+ *
+ * summary_json is included per page — 50 rows × a few KB of JSON is fine.
+ * The statement timeout was caused by fetching ALL rows with no LIMIT; the
+ * .range() call is the real fix.  Use getDailyReport(id) when you need the
+ * full payload for an individual report outside the list context.
+ *
+ * @param params.page      1-based page number (default: 1)
+ * @param params.pageSize  rows per page (default: PAGE_SIZE = 50)
+ * @param params.branchId  filter to a single branch UUID
+ * @param params.dateFrom  inclusive lower bound for report_date (YYYY-MM-DD)
+ * @param params.dateTo    inclusive upper bound for report_date (YYYY-MM-DD)
  */
 export async function listAllDailyReports(
-  startDate?: string,
-  endDate?: string
-): Promise<DailyReportRow[]> {
+  params: ListDailyReportsParams = {},
+): Promise<ListDailyReportsResult> {
+  const { page = 1, pageSize = PAGE_SIZE, branchId, dateFrom, dateTo } = params;
+  const from = (page - 1) * pageSize;
+  const to   = from + pageSize - 1;
+
   try {
     let query = supabase
       .from('reports_daily')
-      .select('id, branch_id, report_date, date_range_start, date_range_end, transactions_file_name, mapping_file_name, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
+      .select(
+        'id, branch_id, report_date, date_range_start, date_range_end, ' +
+        'transactions_file_name, mapping_file_name, summary_json, ' +
+        'created_at, updated_at, ' +
+        'branch:branches(id, name, label, created_at, updated_at)',
+        { count: 'exact', head: false },
+      )
       .order('report_date', { ascending: false })
-      .order('branch_id', { ascending: true });
+      .order('branch_id',   { ascending: true  })
+      .range(from, to);
 
-    if (startDate) {
-      query = query.gte('report_date', startDate);
-    }
-    if (endDate) {
-      query = query.lte('report_date', endDate);
-    }
+    if (branchId) query = query.eq('branch_id', branchId);
+    if (dateFrom) query = query.gte('report_date', dateFrom);
+    if (dateTo)   query = query.lte('report_date', dateTo);
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
 
     if (error) {
-      throw new Error(`Failed to list all daily reports: ${error.message}`);
+      throw new Error(`Failed to list daily reports: ${error.message}`);
     }
 
-    return (data as DailyReportRow[]) || [];
+    return {
+      data:  (data as DailyReportListRow[]) ?? [],
+      total: count ?? 0,
+    };
   } catch (error) {
-    console.error('listAllDailyReports error:', error);
+    if (error instanceof Error) throw error;
     throw new Error(handleSupabaseError(error));
   }
 }

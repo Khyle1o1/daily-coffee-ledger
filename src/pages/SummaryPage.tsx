@@ -120,17 +120,17 @@ export default function SummaryPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredTotalsRef = useRef<HTMLDivElement | null>(null);
-  const { data: cachedDailyReports, error: dailyReportsError } = useDailyReportsQuery();
+  const { data: cachedDailyReportsPage, error: dailyReportsError } = useDailyReportsQuery();
 
   useEffect(() => {
     void preloadMenuReference();
   }, []);
 
   useEffect(() => {
-    if (cachedDailyReports) {
-      setDailyReports(cachedDailyReports);
+    if (cachedDailyReportsPage) {
+      setDailyReports(cachedDailyReportsPage.reports);
     }
-  }, [cachedDailyReports]);
+  }, [cachedDailyReportsPage]);
 
   useEffect(() => {
     if (!dailyReportsError) return;

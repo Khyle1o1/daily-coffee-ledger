@@ -9,6 +9,10 @@ export interface Branch {
   updated_at: string;
 }
 
+/**
+ * Full row shape — used when summary_json is required (e.g. getDailyReport, saveDailyReport).
+ * Do NOT use this for list queries; prefer DailyReportListRow.
+ */
 export interface DailyReportRow {
   id: string;
   branch_id: string;
@@ -22,6 +26,40 @@ export interface DailyReportRow {
   created_at: string;
   updated_at: string;
   branch: Branch;
+}
+
+/**
+ * Row shape for paginated list queries.
+ * summary_json IS included so that per-page summary aggregations (totals, charts,
+ * per-category breakdowns) continue to work.  The timeout was caused by fetching
+ * ALL rows with no LIMIT — pagination (PAGE_SIZE = 50) fixes that without
+ * sacrificing the summary data that the UI needs.
+ */
+export interface DailyReportListRow {
+  id: string;
+  branch_id: string;
+  report_date: string;
+  date_range_start: string;
+  date_range_end: string;
+  transactions_file_name: string | null;
+  mapping_file_name: string | null;
+  summary_json: any;
+  created_at: string;
+  updated_at: string;
+  branch: Branch;
+}
+
+export interface ListDailyReportsParams {
+  page?: number;
+  pageSize?: number;
+  branchId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface ListDailyReportsResult {
+  data: DailyReportListRow[];
+  total: number;
 }
 
 export interface MonthlyReportRow {

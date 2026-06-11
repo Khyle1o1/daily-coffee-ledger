@@ -56,7 +56,7 @@ export default function DailySummaryPage() {
   const [csvData, setCsvData] = useState<Record<string, string>[]>([]);
   const [showMapper, setShowMapper] = useState(false);
   const [autoMapping, setAutoMapping] = useState<Partial<Record<string, string>>>({});
-  const { data: cachedDailyReports, error: dailyReportsError } = useDailyReportsQuery();
+  const { data: cachedDailyReportsPage, error: dailyReportsError } = useDailyReportsQuery();
 
   const activeReport = dailyReports.find(r => r.id === activeReportId) || null;
 
@@ -65,10 +65,10 @@ export default function DailySummaryPage() {
   }, []);
 
   useEffect(() => {
-    if (cachedDailyReports) {
-      setDailyReports(cachedDailyReports);
+    if (cachedDailyReportsPage) {
+      setDailyReports(cachedDailyReportsPage.reports);
     }
-  }, [cachedDailyReports]);
+  }, [cachedDailyReportsPage]);
 
   useEffect(() => {
     if (!dailyReportsError) return;

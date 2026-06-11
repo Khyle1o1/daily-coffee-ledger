@@ -1,10 +1,33 @@
 export const queryKeys = {
   dashboard: ["dashboard"] as const,
   reports: {
-    dailyRoot: ["reports", "daily"] as const,
-    generatedRoot: ["reports", "generated"] as const,
+    dailyRoot:      ["reports", "daily"] as const,
+    generatedRoot:  ["reports", "generated"] as const,
+    /** @deprecated Use dailyList for paginated queries. */
     dailyAll: (userId?: string) =>
       ["reports", "daily", "all", userId ?? "anon"] as const,
+    /**
+     * Paginated, filtered list of daily reports (no summary_json).
+     * Each unique combination of params produces a distinct cache entry so
+     * TanStack Query can keep previous page data while the next page loads.
+     */
+    dailyList: (params: {
+      userId?:   string;
+      page?:     number;
+      pageSize?: number;
+      branchId?: string;
+      dateFrom?: string;
+      dateTo?:   string;
+    }) =>
+      [
+        "reports", "daily", "list",
+        params.userId   ?? "anon",
+        params.page     ?? 1,
+        params.pageSize ?? 50,
+        params.branchId ?? "",
+        params.dateFrom ?? "",
+        params.dateTo   ?? "",
+      ] as const,
     generated: (userId?: string) =>
       ["reports", "generated", userId ?? "anon"] as const,
   },
