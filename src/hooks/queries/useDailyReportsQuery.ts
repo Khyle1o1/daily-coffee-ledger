@@ -11,13 +11,11 @@ import { queryKeys } from "./queryKeys";
 import { useAuth } from "@/auth/useAuth";
 
 export interface DailyReportsPage {
-  /** Lightweight report objects for the current page. rowDetails is [] until the
-   *  full report is fetched via getDailyReport(id). */
   reports: DailyReport[];
-  /** Total number of rows matching the current filters (across all pages). */
+  /** Row count for the current page (≤ pageSize). */
   total: number;
-  /** Total pages given the current pageSize. */
-  pageCount: number;
+  /** True when there may be more pages (data.length === pageSize). */
+  hasNextPage: boolean;
 }
 
 export interface UseDailyReportsQueryParams extends ListDailyReportsParams {}
@@ -52,9 +50,9 @@ export function useDailyReportsQuery(params: UseDailyReportsQueryParams = {}) {
       await seedBranchesIfEmpty().catch(() => undefined);
       const { data, total } = await listAllDailyReports(params);
       return {
-        reports:   dailyReportsMetaFromRows(data),
+        reports:     dailyReportsMetaFromRows(data),
         total,
-        pageCount: Math.ceil(total / pageSize),
+        hasNextPage: data.length === pageSize,
       };
     },
     enabled:         !loading && !!user,

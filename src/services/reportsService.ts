@@ -258,15 +258,14 @@ export async function listAllDailyReports(
   try {
     let query = supabase
       .from('reports_daily')
+      // No count option — combining Prefer:count with HTTP Range headers
+      // causes silent failures on some PostgREST versions.
+      // Use data.length to derive hasNextPage instead.
       .select(
         'id, branch_id, report_date, date_range_start, date_range_end, ' +
         'transactions_file_name, mapping_file_name, summary_json, ' +
         'created_at, updated_at, ' +
         'branch:branches(id, name, label, created_at, updated_at)',
-        // 'planned' uses pg_class.reltuples (planner statistics) — instant,
-        // no full scan.  Exact enough for pagination; re-run ANALYZE if the
-        // estimate drifts after large bulk imports.
-        { count: 'planned', head: false },
       )
       .order('report_date', { ascending: false })
       .order('branch_id',   { ascending: true  })
@@ -276,15 +275,19 @@ export async function listAllDailyReports(
     if (dateFrom) query = query.gte('report_date', dateFrom);
     if (dateTo)   query = query.lte('report_date', dateTo);
 
-    const { data, error, count } = await query;
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Failed to list daily reports: ${error.message}`);
     }
 
+    const rows = (data as DailyReportListRow[]) ?? [];
     return {
-      data:  (data as DailyReportListRow[]) ?? [],
-      total: count ?? 0,
+      data:  rows,
+      // total is the count for this page only; a full count query would
+      // require a separate HEAD request.  Consumers should use
+      // hasNextPage = (data.length === pageSize) for pagination controls.
+      total: rows.length,
     };
   } catch (error) {
     if (error instanceof Error) throw error;
