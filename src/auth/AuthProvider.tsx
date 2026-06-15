@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { createContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { getUserProfileById, isAdminByUserId, syncRoleToJwtMetadata } from '@/services/userService';
@@ -59,23 +59,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  const isLoadingProfile = useRef(false);
+
+  // Prevent React Strict Mode from running initialization twice.
+  // The listener is always re-subscribed after cleanup, but getSession +
+  // loadProfile should only ever run once per true mount.
+  const initializedRef = useRef(false);
+
+  // Tracks the user whose profile is currently loaded in state.
+  // Checked before firing any loadProfile call to avoid redundant fetches.
   const lastLoadedUserId = useRef<string | null>(null);
+
+  // Guards against concurrent profile fetch requests.
+  const isLoadingProfile = useRef(false);
+
+  // ─── Cache helpers ────────────────────────────────────────────────────────
 
   const getCachedProfile = (userId: string): CachedProfile | null => {
     try {
       const cached = localStorage.getItem(PROFILE_CACHE_KEY);
       if (!cached) return null;
-      
       const data: CachedProfile = JSON.parse(cached);
-      
-      // Check if cache is for same user and not expired
       if (data.userId === userId && Date.now() - data.timestamp < CACHE_DURATION) {
-        console.log('[AuthProvider] 💾 Using cached profile');
+        console.log('[AuthProvider] 💾 Using cached profile for', userId);
         return data;
       }
-      
       return null;
     } catch (error) {
       console.error('[AuthProvider] ❌ Error reading cache:', error);
@@ -83,15 +90,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const setCachedProfile = (userId: string, profile: UserProfile | null, isAdmin: boolean, role: UserRole | null) => {
+  const setCachedProfile = (
+    userId: string,
+    cachedProfile: UserProfile | null,
+    adminFlag: boolean,
+    cachedRole: UserRole | null,
+  ) => {
     try {
-      const data: CachedProfile = {
-        userId,
-        profile,
-        role,
-        isAdmin,
-        timestamp: Date.now()
-      };
+      const data: CachedProfile = { userId, profile: cachedProfile, role: cachedRole, isAdmin: adminFlag, timestamp: Date.now() };
       localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(data));
     } catch (error) {
       console.error('[AuthProvider] ❌ Error writing cache:', error);
@@ -106,11 +112,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const loadProfile = async (currentUser: User | null, force = false) => {
-    console.log('[AuthProvider] 🔄 Loading user profile...');
-    
+  // ─── Profile loader ───────────────────────────────────────────────────────
+
+  const loadProfile = useCallback(async (currentUser: User | null, force = false) => {
     if (!currentUser) {
-      console.log('[AuthProvider] ❌ No current user, skipping profile load');
       setProfile(null);
       setRole(null);
       setIsAdmin(false);
@@ -120,24 +125,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    // Skip if already loading
+    // Guard: concurrent load already in progress
     if (isLoadingProfile.current) {
-      console.log('[AuthProvider] ⏭️  Profile already loading, skipping duplicate request');
+      console.log('[AuthProvider] ⏭️ Profile load already in progress — skipping');
       return;
     }
 
-    // Skip if same user already loaded and not forcing
+    // Guard: same user already loaded and no force refresh requested
     if (!force && lastLoadedUserId.current === currentUser.id) {
-      console.log('[AuthProvider] ⏭️  Profile already loaded for this user, skipping');
+      console.log('[AuthProvider] ⏭️ Profile already loaded for user', currentUser.id, '— skipping');
       return;
     }
 
-    console.log('[AuthProvider] 👤 Current user:', {
-      id: currentUser.id,
-      email: currentUser.email
-    });
+    console.log('[AuthProvider] 👤 Loading profile for', currentUser.email);
 
-    // Try to use cached profile first (warm path — DB not needed)
+    // Warm path: serve from cache without hitting the DB
     if (!force) {
       const cached = getCachedProfile(currentUser.id);
       if (cached) {
@@ -150,7 +152,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }
 
-    // Set loading flag
     isLoadingProfile.current = true;
 
     try {
@@ -162,16 +163,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         withTimeout(isAdminByUserId(userId), false),
       ]);
 
-      // Determine the resolved role using a three-tier fallback:
+      // Three-tier role fallback:
       //  1. DB user_profiles row (authoritative)
-      //  2. JWT app_metadata.role (seeded by createUser / updateUserProfile,
-      //     available even when the REST API is offline)
-      //  3. localStorage cache (populated by previous successful loads)
+      //  2. JWT app_metadata.role (available when DB is offline)
+      //  3. Stale localStorage cache (better than showing "Unknown")
       let resolvedRole = (userProfile?.role ?? null) as UserRole | null;
       let resolvedAdmin = adminStatus;
 
       if (!resolvedRole) {
-        // Tier 2: JWT app_metadata.role (set by createUser / updateUserProfile)
         const jwtRole = currentUser.app_metadata?.role as UserRole | undefined;
         if (jwtRole && (['admin', 'user', 'viewer'] as string[]).includes(jwtRole)) {
           console.log('[AuthProvider] ℹ️ DB unavailable — using JWT app_metadata.role:', jwtRole);
@@ -181,7 +180,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       if (!resolvedRole) {
-        // Tier 3: stale localStorage cache (ignore expiry — better than "Unknown")
         try {
           const raw = localStorage.getItem(PROFILE_CACHE_KEY);
           if (raw) {
@@ -197,11 +195,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       }
 
-      console.log('[AuthProvider] ✅ Profile loaded:', {
-        hasProfile: !!userProfile,
-        resolvedRole,
-        isAdmin: resolvedAdmin,
-      });
+      console.log('[AuthProvider] ✅ Profile resolved:', { hasProfile: !!userProfile, resolvedRole, isAdmin: resolvedAdmin });
 
       setProfile(userProfile);
       setRole(resolvedRole);
@@ -209,10 +203,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsViewer(resolvedRole === 'viewer');
 
       if (userProfile !== null) {
-        setCachedProfile(currentUser.id, userProfile, resolvedAdmin, resolvedRole);
+        setCachedProfile(userId, userProfile, resolvedAdmin, resolvedRole);
 
-        // One-time background sync: mirror role into app_metadata so the JWT
-        // carries it as a fallback for future sessions when the DB is offline.
+        // One-time background sync: mirror role into JWT app_metadata so it
+        // survives future sessions when the REST API is offline.
         if (!currentUser.app_metadata?.role) {
           void syncRoleToJwtMetadata(userId, userProfile.role);
         }
@@ -220,7 +214,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       lastLoadedUserId.current = currentUser.id;
     } catch (error) {
-      console.error('[AuthProvider] 💥 EXCEPTION loading profile:', error);
+      console.error('[AuthProvider] 💥 Exception loading profile:', error);
       setProfile(null);
       setRole(null);
       setIsAdmin(false);
@@ -228,97 +222,126 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       isLoadingProfile.current = false;
     }
-  };
+  }, []);
+
+  // ─── Auth initialization ──────────────────────────────────────────────────
 
   useEffect(() => {
-    console.log('[AuthProvider] 🚀 Initializing auth system...');
-
+    // ── Step 1: one-time startup (getSession + loadProfile) ──────────────────
+    //
+    // The initializedRef prevents this block from running a second time during
+    // React Strict Mode's deliberate double-mount in development. The listener
+    // below is always re-subscribed after cleanup so auth events are never missed.
     const initializeAuth = async () => {
+      if (initializedRef.current) {
+        console.log('[AuthProvider] ⏭️ Already initialized — skipping duplicate startup');
+        return;
+      }
+      initializedRef.current = true;
+
+      console.log('[AuthProvider] 🚀 Auth initialization starting...');
+
       try {
-        console.log('[AuthProvider] 📡 Getting session from Supabase...');
         const { data: { session: initialSession } } = await supabase.auth.getSession();
 
-        console.log('[AuthProvider] ✅ Session retrieved:', {
+        console.log('[AuthProvider] ✅ getSession complete:', {
           hasSession: !!initialSession,
-          hasUser: !!initialSession?.user,
-          userEmail: initialSession?.user?.email,
+          userEmail: initialSession?.user?.email ?? 'none',
         });
 
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
 
-        // Await the profile so role/isAdmin are committed before loading=false
-        // clears the spinner. Without this the header renders with role=null
-        // ("Unknown") and only corrects itself after the DB query completes.
-        await loadProfile(initialSession?.user ?? null);
+        // Await profile so role/isAdmin are committed before the spinner clears.
+        // Without this the header briefly renders with role=null ("Unknown").
+        if (initialSession?.user) {
+          await loadProfile(initialSession.user);
+        }
       } catch (error) {
-        console.error('[AuthProvider] ❌ Error getting session:', error);
+        console.error('[AuthProvider] ❌ Error during initialization:', error);
       } finally {
-        console.log('[AuthProvider] ✅ Auth initialization complete, setting loading=false');
+        console.log('[AuthProvider] ✅ Auth initialization complete — loading=false');
         setLoading(false);
       }
     };
 
-    initializeAuth();
+    void initializeAuth();
 
-    // Listen for auth changes
-    console.log('[AuthProvider] 👂 Setting up auth state change listener...');
+    // ── Step 2: listener for post-init auth changes ───────────────────────────
+    //
+    // Rules:
+    //  • INITIAL_SESSION — always ignored; getSession() already handled it.
+    //  • SIGNED_IN       — ignored when the incoming user ID matches the already-
+    //                      loaded user (duplicate event). Processed for real sign-ins
+    //                      and account switches.
+    //  • TOKEN_REFRESHED — session token rotated; no profile change needed.
+    //  • USER_UPDATED    — user metadata changed; force-reload profile.
+    //  • SIGNED_OUT      — clear all state.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log('[AuthProvider] 🔔 Auth state changed:', event, {
-          hasSession: !!currentSession,
-          hasUser: !!currentSession?.user,
-          userEmail: currentSession?.user?.email,
-        });
-
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-
         if (event === 'INITIAL_SESSION') {
-          // initializeAuth already awaits loadProfile and controls loading=false
-          // for the initial session — nothing to do here.
+          // getSession() in initializeAuth already handles the startup session.
+          // Supabase fires this synchronously when the listener is registered —
+          // processing it would duplicate the profile load.
+          console.log('[AuthProvider] ⏭️ Ignoring INITIAL_SESSION (handled by getSession)');
           return;
         }
 
         if (event === 'SIGNED_OUT') {
-          // State already cleared via setUser/setSession above; no loading needed.
+          console.log('[AuthProvider] 🚪 User signed out — clearing state');
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setRole(null);
+          setIsAdmin(false);
+          setIsViewer(false);
+          clearCachedProfile();
+          lastLoadedUserId.current = null;
           setLoading(false);
           return;
         }
 
-        // TOKEN_REFRESHED / USER_UPDATED are background operations — the user
-        // is already on a page and should NOT see the loading screen.
-        // Refresh the profile silently without touching the loading flag.
-        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-          if (!isLoadingProfile.current) {
-            void loadProfile(currentSession?.user ?? null, false);
-          }
+        if (event === 'TOKEN_REFRESHED') {
+          // Only the token changed — update session silently, no profile reload.
+          console.log('[AuthProvider] 🔄 Token refreshed — session updated silently');
+          setSession(currentSession);
           return;
         }
 
-        // SIGNED_IN: silently update profile in the background — no loading screen.
-        //
-        // Why: this event fires in three situations:
-        //   1. A new browser tab detects the existing session.
-        //   2. The user signs in from the login page (initializeAuth already
-        //      handled the initial loading state; the listener just refreshes).
-        //   3. Any other re-auth flow.
-        //
-        // In all cases the user is already on a page (or ProtectedRoute will
-        // immediately render once setUser above commits). Showing loading=true
-        // here flashes the full-screen spinner on every new tab and every login,
-        // even when the profile is already cached in localStorage.
-        if (event === 'SIGNED_IN' && !isLoadingProfile.current) {
-          void loadProfile(currentSession?.user ?? null, false);
+        if (event === 'USER_UPDATED') {
+          console.log('[AuthProvider] 🔄 User updated — reloading profile');
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          void loadProfile(currentSession?.user ?? null, true);
+          return;
+        }
+
+        if (event === 'SIGNED_IN') {
+          const incomingId = currentSession?.user?.id ?? null;
+
+          // Duplicate SIGNED_IN for the same user — ignore.
+          // This fires on every new tab and on Strict Mode re-mount.
+          if (incomingId && incomingId === lastLoadedUserId.current) {
+            console.log('[AuthProvider] ⏭️ Ignoring duplicate SIGNED_IN — same user already loaded');
+            return;
+          }
+
+          // Real sign-in or account switch — update state and load profile.
+          console.log('[AuthProvider] 🔔 SIGNED_IN — new or switched user, loading profile');
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          void loadProfile(currentSession?.user ?? null);
         }
       }
     );
 
     return () => {
-      console.log('[AuthProvider] 🔌 Unsubscribing from auth changes');
+      console.log('[AuthProvider] 🔌 Unsubscribing auth listener');
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile]);
+
+  // ─── Auth actions ─────────────────────────────────────────────────────────
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -334,10 +357,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signUp = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+      const { error } = await supabase.auth.signUp({ email, password });
       return { error };
     } catch (error) {
       return { error: error as AuthError };
@@ -350,7 +370,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       lastLoadedUserId.current = null;
       await supabase.auth.signOut();
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('[AuthProvider] Error signing out:', error);
     }
   };
 
@@ -367,9 +387,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const updatePassword = async (newPassword: string) => {
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
       return { error };
     } catch (error) {
       return { error: error as AuthError };
@@ -378,7 +396,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refreshProfile = async () => {
     if (user) {
-      await loadProfile(user, true); // Force refresh
+      await loadProfile(user, true);
     }
   };
 

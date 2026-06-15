@@ -15,7 +15,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: 'dotbrewhub-auth',
+    // No storageKey — use Supabase default so it matches existing sessions
   },
 });
 
