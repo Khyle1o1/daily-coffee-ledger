@@ -263,7 +263,10 @@ export async function listAllDailyReports(
         'transactions_file_name, mapping_file_name, summary_json, ' +
         'created_at, updated_at, ' +
         'branch:branches(id, name, label, created_at, updated_at)',
-        { count: 'exact', head: false },
+        // 'planned' uses pg_class.reltuples (planner statistics) — instant,
+        // no full scan.  Exact enough for pagination; re-run ANALYZE if the
+        // estimate drifts after large bulk imports.
+        { count: 'planned', head: false },
       )
       .order('report_date', { ascending: false })
       .order('branch_id',   { ascending: true  })
