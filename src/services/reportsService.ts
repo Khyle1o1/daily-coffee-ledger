@@ -235,12 +235,19 @@ export async function listDailyReports(
 }
 
 /**
- * Paginated list of daily reports across all branches.
+ * Paginated list of daily reports across all branches — LIGHTWEIGHT.
  *
- * summary_json is included per page — 50 rows × a few KB of JSON is fine.
- * The statement timeout was caused by fetching ALL rows with no LIMIT; the
- * .range() call is the real fix.  Use getDailyReport(id) when you need the
- * full payload for an individual report outside the list context.
+ * Queries the `reports_daily_meta` view which strips `rowDetails` and
+ * `unmappedSummary` from `summary_json`.  This reduces the payload from
+ * ~192 KB/row to ~5–10 KB/row, eliminating the PostgREST statement timeout.
+ *
+ * All lightweight aggregate fields (grandTotal, summaryTotalsByCat,
+ * grandQuantity, percentByCat, row stats, filename, uploadedAt) are preserved
+ * so the history sidebar and KPI cards continue to work without changes.
+ *
+ * For full summary_json (rowDetails + unmappedSummary) use:
+ *   • getDailyReport(id)              — single report detail
+ *   • fetchDailyReportsForCompute()   — batch for report generation
  *
  * @param params.page      1-based page number (default: 1)
  * @param params.pageSize  rows per page (default: PAGE_SIZE = 50)
@@ -255,12 +262,14 @@ export async function listAllDailyReports(
   const from = (page - 1) * pageSize;
   const to   = from + pageSize - 1;
 
+  const t0 = performance.now();
+
   try {
+    // reports_daily_meta is a view that strips rowDetails + unmappedSummary.
+    // PostgREST resolves the branch:branches(...) relationship via the
+    // branch_id FK that the view inherits from reports_daily.
     let query = supabase
-      .from('reports_daily')
-      // No count option — combining Prefer:count with HTTP Range headers
-      // causes silent failures on some PostgREST versions.
-      // Use data.length to derive hasNextPage instead.
+      .from('reports_daily_meta' as any)
       .select(
         'id, branch_id, report_date, date_range_start, date_range_end, ' +
         'transactions_file_name, mapping_file_name, summary_json, ' +
@@ -277,18 +286,84 @@ export async function listAllDailyReports(
 
     const { data, error } = await query;
 
+    const elapsed = Math.round(performance.now() - t0);
+
     if (error) {
+      console.error(`[listAllDailyReports] ❌ ${elapsed}ms — ${error.message}`);
       throw new Error(`Failed to list daily reports: ${error.message}`);
     }
 
     const rows = (data as DailyReportListRow[]) ?? [];
-    return {
-      data:  rows,
-      // total is the count for this page only; a full count query would
-      // require a separate HEAD request.  Consumers should use
-      // hasNextPage = (data.length === pageSize) for pagination controls.
-      total: rows.length,
-    };
+    const approxKb = Math.round(JSON.stringify(rows).length / 1024);
+    console.log(
+      `[listAllDailyReports] ✅ ${rows.length} rows in ${elapsed}ms (~${approxKb} KB) — page ${page}`,
+    );
+
+    return { data: rows, total: rows.length };
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error(handleSupabaseError(error));
+  }
+}
+
+/**
+ * Fetch full daily reports (including rowDetails + unmappedSummary) for a
+ * specific date range and optional branch filter.
+ *
+ * Use this ONLY when compute functions need row-level transaction data
+ * (product mix, pour-it-forward, HQ sync pack, channel sales summary, etc.).
+ * Do NOT call this for list rendering — use listAllDailyReports() instead.
+ *
+ * Results are intentionally not paginated: the caller (ReportsPage) needs the
+ * complete dataset for the selected period to produce accurate aggregations.
+ * Date filters keep the payload bounded — a typical month is 30–60 rows.
+ *
+ * @param dateFrom   inclusive lower bound for report_date (YYYY-MM-DD)
+ * @param dateTo     inclusive upper bound for report_date (YYYY-MM-DD)
+ * @param branchIds  optional list of branch UUIDs to restrict the query
+ */
+export async function fetchDailyReportsForCompute(params: {
+  dateFrom: string;
+  dateTo: string;
+  branchIds?: string[];
+}): Promise<DailyReportRow[]> {
+  const { dateFrom, dateTo, branchIds } = params;
+  const t0 = performance.now();
+
+  try {
+    let query = supabase
+      .from('reports_daily')
+      .select(
+        'id, branch_id, report_date, date_range_start, date_range_end, ' +
+        'transactions_file_name, mapping_file_name, summary_json, user_id, ' +
+        'created_at, updated_at, ' +
+        'branch:branches(id, name, label, created_at, updated_at)',
+      )
+      .gte('report_date', dateFrom)
+      .lte('report_date', dateTo)
+      .order('report_date', { ascending: true })
+      .order('branch_id',   { ascending: true });
+
+    if (branchIds && branchIds.length > 0) {
+      query = query.in('branch_id', branchIds);
+    }
+
+    const { data, error } = await query;
+
+    const elapsed = Math.round(performance.now() - t0);
+
+    if (error) {
+      console.error(`[fetchDailyReportsForCompute] ❌ ${elapsed}ms — ${error.message}`);
+      throw new Error(`Failed to fetch reports for compute: ${error.message}`);
+    }
+
+    const rows = (data as DailyReportRow[]) ?? [];
+    const approxKb = Math.round(JSON.stringify(rows).length / 1024);
+    console.log(
+      `[fetchDailyReportsForCompute] ✅ ${rows.length} rows in ${elapsed}ms (~${approxKb} KB) — ${dateFrom} → ${dateTo}`,
+    );
+
+    return rows;
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error(handleSupabaseError(error));

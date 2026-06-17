@@ -74,6 +74,7 @@ import { useAuth } from "@/auth/useAuth";
 import { canAddData, canEditData, canDeleteData } from "@/lib/permissions";
 import { logEvent } from "@/services/auditService";
 import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
+import { useReportDetailQuery } from "@/hooks/queries/useReportDetailQuery";
 import { queryKeys } from "@/hooks/queries/queryKeys";
 
 export default function SummaryPage() {
@@ -121,6 +122,14 @@ export default function SummaryPage() {
 
   const filteredTotalsRef = useRef<HTMLDivElement | null>(null);
   const { data: cachedDailyReportsPage, error: dailyReportsError } = useDailyReportsQuery();
+
+  // Fetch the full report (rowDetails + unmappedSummary) only when the user
+  // opens the detail panel.  The list query returns lightweight metadata from
+  // the reports_daily_meta view; this query loads the heavy blob on demand.
+  const {
+    data: activeReportDetail,
+    isLoading: isLoadingDetail,
+  } = useReportDetailQuery(activeReportId);
 
   useEffect(() => {
     void preloadMenuReference();
@@ -623,10 +632,14 @@ export default function SummaryPage() {
     return result;
   }, [dailyReports, filterBranches, fromKey, toKey]);
 
-  const activeReport = useMemo(
+  // Prefer the full detail (rowDetails + unmappedSummary loaded on demand).
+  // Fall back to the lightweight list entry while the detail query is in flight
+  // so the header, stats, and summary table render immediately on click.
+  const activeReportMeta = useMemo(
     () => filteredReports.find((r) => r.id === activeReportId) || null,
     [filteredReports, activeReportId],
   );
+  const activeReport = activeReportDetail ?? activeReportMeta;
 
   /**
    * Combined totals across all filtered reports.
@@ -1070,8 +1083,20 @@ export default function SummaryPage() {
                   percents={activeReport.percentByCat}
                   branchLabel={getBranchLabel(activeReport.branch)}
                 />
-                <DetailsTable rows={activeReport.rowDetails} />
-                <UnmappedList items={activeReport.unmappedSummary} />
+                {isLoadingDetail ? (
+                  <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                    <svg className="h-4 w-4 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
+                    </svg>
+                    Loading transaction details…
+                  </div>
+                ) : (
+                  <>
+                    <DetailsTable rows={activeReport.rowDetails} />
+                    <UnmappedList items={activeReport.unmappedSummary} />
+                  </>
+                )}
               </div>
             </div>
           )}

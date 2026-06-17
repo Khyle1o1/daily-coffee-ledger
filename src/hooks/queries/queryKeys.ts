@@ -28,6 +28,25 @@ export const queryKeys = {
         params.dateFrom ?? "",
         params.dateTo   ?? "",
       ] as const,
+    /** Single report detail — full summary_json including rowDetails + unmappedSummary. */
+    detail: (reportId: string) =>
+      ["reports", "daily", "detail", reportId] as const,
+    /**
+     * Full reports for a date range — used by ReportsPage compute functions.
+     * Each unique (userId, dateFrom, dateTo, branchIds) produces a distinct
+     * cache entry so back-to-back generates with the same filters are instant.
+     */
+    compute: (
+      userId: string | undefined,
+      params: { dateFrom: string; dateTo: string; branchIds?: string[] } | null,
+    ) =>
+      [
+        "reports", "daily", "compute",
+        userId ?? "anon",
+        params?.dateFrom ?? "",
+        params?.dateTo   ?? "",
+        (params?.branchIds ?? []).slice().sort().join(","),
+      ] as const,
     generated: (userId?: string) =>
       ["reports", "generated", userId ?? "anon"] as const,
   },

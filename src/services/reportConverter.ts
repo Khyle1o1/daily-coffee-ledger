@@ -68,33 +68,41 @@ export function dailyReportsFromRows(rows: DailyReportRow[]): DailyReport[] {
 }
 
 /**
- * Convert a paginated list row into a DailyReport.
- * summary_json is present in list rows so all financial fields are populated
- * the same way as dailyReportFromRow.
+ * Convert a paginated list row into a DailyReport (lightweight version).
+ *
+ * List rows come from the `reports_daily_meta` view which strips `rowDetails`
+ * and `unmappedSummary` from `summary_json` to keep the list payload small
+ * (~5–10 KB/row instead of ~192 KB/row).
+ *
+ * All aggregate fields (grandTotal, summaryTotalsByCat, etc.) are still
+ * present and correct — only the two heavy arrays are absent.
+ *
+ * Callers that need rowDetails / unmappedSummary should use:
+ *   • getDailyReport(id)            → dailyReportFromRow()
+ *   • fetchDailyReportsForCompute() → dailyReportsFromRows()
  */
 export function dailyReportMetaFromRow(row: DailyReportListRow): DailyReport {
   const json = row.summary_json as DailySummaryJSON;
   return {
-    id:                    row.id,
-    date:                  row.report_date,
-    dateRangeEnd:          row.date_range_end,
-    branch:                (row.branch?.name ?? 'greenbelt') as BranchId,
-    filename:              json.filename,
-    uploadedAt:            json.uploadedAt,
-    totalRows:             json.totalRows,
-    mappedRows:            json.mappedRows,
-    unmappedRows:          json.unmappedRows,
-    skippedRows:           json.skippedRows,
-    summaryTotalsByCat:    json.summaryTotalsByCat,
+    id:                     row.id,
+    date:                   row.report_date,
+    dateRangeEnd:           row.date_range_end,
+    branch:                 (row.branch?.name ?? 'greenbelt') as BranchId,
+    filename:               json.filename,
+    uploadedAt:             json.uploadedAt,
+    totalRows:              json.totalRows,
+    mappedRows:             json.mappedRows,
+    unmappedRows:           json.unmappedRows,
+    skippedRows:            json.skippedRows,
+    summaryTotalsByCat:     json.summaryTotalsByCat,
     summaryQuantitiesByCat: json.summaryQuantitiesByCat,
-    grandTotal:            json.grandTotal,
-    grandQuantity:         json.grandQuantity,
-    percentByCat:          json.percentByCat,
-    rowDetails:            json.rowDetails.map((r) => ({
-      ...r,
-      transactionDate: r.transactionDate ? new Date(r.transactionDate as any) : undefined,
-    })),
-    unmappedSummary:       json.unmappedSummary,
+    grandTotal:             json.grandTotal,
+    grandQuantity:          json.grandQuantity,
+    percentByCat:           json.percentByCat,
+    // rowDetails and unmappedSummary are stripped in the meta view.
+    // The detail query (getDailyReport) populates these when needed.
+    rowDetails:             [],
+    unmappedSummary:        [],
   };
 }
 

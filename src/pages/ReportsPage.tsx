@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   BarChart3,
@@ -42,6 +43,10 @@ import { CATEGORIES } from "@/utils/types";
 
 import { useLiveBranches } from "@/hooks/useLiveBranches";
 import { logEvent } from "@/services/auditService";
+import { fetchDailyReportsForCompute } from "@/services/reportsService";
+import { dailyReportsFromRows } from "@/services/reportConverter";
+import { queryKeys } from "@/hooks/queries/queryKeys";
+import { useAuth } from "@/auth/useAuth";
 
 import {
   computeCategoryTotals,
@@ -56,7 +61,6 @@ import { computePourItForward } from "@/lib/reports/computePourItForward";
 import type { ItemizedChannelFilter } from "@/lib/reports/computePourItForward";
 import { computeHQSyncPack } from "@/lib/reports/computeHQSyncPack";
 import { computeChannelSalesSummary } from "@/lib/reports/computeChannelSalesSummary";
-import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
 
 // ============================================================================
 // Constants
@@ -123,11 +127,8 @@ export default function ReportsPage() {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLDivElement>(null);
   const { branchOptions, getBranchLabel, getBranchUuid } = useLiveBranches();
-
-  // ── Data loading ──────────────────────────────────────────────────────────
-  const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
-  const { data: cachedDailyReportsPage, isLoading: isLoadingDailyReports } = useDailyReportsQuery();
-  const isLoadingData = isLoadingDailyReports;
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const [reportType, setReportType] = useState<ReportType>("HQ_SYNC_PACK");
@@ -155,10 +156,6 @@ export default function ReportsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
-
-  useEffect(() => {
-    if (cachedDailyReportsPage) setDailyReports(cachedDailyReportsPage.reports);
-  }, [cachedDailyReportsPage]);
 
   // ── Derived labels ────────────────────────────────────────────────────────
   const selectedBranchNamesLabel = useMemo(() => {
@@ -256,6 +253,42 @@ export default function ReportsPage() {
     setIsGenerating(true);
     try {
       const filters = buildFilters();
+
+      // Resolve branch UUIDs for the selected branch filter.
+      const branchIds =
+        filterBranches.length > 0
+          ? filterBranches
+              .map((b) => getBranchUuid(b))
+              .filter((id): id is string => !!id)
+          : undefined;
+
+      // Fetch full reports (with rowDetails) for the selected date range.
+      // Results are cached by React Query so repeated generates with the same
+      // filters are served from memory without a network round-trip.
+      const computeKey = queryKeys.reports.compute(user?.id, {
+        dateFrom: filters.dateFrom,
+        dateTo:   filters.dateTo,
+        branchIds,
+      });
+
+      console.log(
+        `[ReportsPage] Fetching compute data — ${filters.dateFrom} → ${filters.dateTo}`,
+        branchIds ? `branches: ${branchIds.join(",")}` : "all branches",
+      );
+
+      const rows = await queryClient.fetchQuery({
+        queryKey: computeKey,
+        queryFn:  () =>
+          fetchDailyReportsForCompute({
+            dateFrom:  filters.dateFrom,
+            dateTo:    filters.dateTo,
+            branchIds,
+          }),
+        staleTime: 60_000, // 1 minute — reuse cache for repeated generates
+      });
+
+      const dailyReports: DailyReport[] = dailyReportsFromRows(rows);
+
       let canvas: ReportCanvasData | null = null;
 
       if (reportType === "SALES_MIX_OVERVIEW") {
@@ -401,8 +434,7 @@ export default function ReportsPage() {
 
       if (!canvas) return;
       setCanvasData(canvas);
-      const branchId =
-        filterBranches.length === 1 ? (getBranchUuid(filterBranches[0]) ?? null) : null;
+      const branchId = filterBranches.length === 1 ? (getBranchUuid(filterBranches[0]) ?? null) : null;
       const typeLabel = REPORT_TYPE_OPTIONS.find((o) => o.value === reportType)?.label ?? reportType;
       const title = `${typeLabel} • ${branchLabel} • ${dateRangeLabel}`;
 
@@ -583,15 +615,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {isLoadingData && (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-3 text-slate-500">Loading data…</span>
-        </div>
-      )}
-
-      {!isLoadingData && (
-        <div className="flex-1 max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div className="flex-1 max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
           {/* Top filters bar */}
           <div className="mb-4 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
             <div className="px-5 pt-5 pb-3 border-b border-slate-200">
@@ -1087,7 +1111,6 @@ export default function ReportsPage() {
             </div>
           </div>
         </div>
-      )}
 
     </div>
   );
