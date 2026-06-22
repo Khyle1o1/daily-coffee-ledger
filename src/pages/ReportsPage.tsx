@@ -54,6 +54,7 @@ import {
   computeProductTotalsByCategory,
   computeTopProducts,
   computeCategoryPerformance,
+  getComputeFetchBounds,
   type ReportFilters,
 } from "@/lib/reports/compute";
 import { computeProductMixChannel } from "@/lib/reports/computeProductMixChannel";
@@ -262,17 +263,21 @@ export default function ReportsPage() {
               .filter((id): id is string => !!id)
           : undefined;
 
-      // Fetch full reports (with rowDetails) for the selected date range.
-      // Results are cached by React Query so repeated generates with the same
-      // filters are served from memory without a network round-trip.
+      // Include compare period in the DB fetch so May data is available when
+      // comparing May vs Jun (compute filters rowDetails by transaction date).
+      const fetchBounds = getComputeFetchBounds(filters);
+
       const computeKey = queryKeys.reports.compute(user?.id, {
-        dateFrom: filters.dateFrom,
-        dateTo:   filters.dateTo,
+        dateFrom: fetchBounds.dateFrom,
+        dateTo:   fetchBounds.dateTo,
         branchIds,
       });
 
       console.log(
-        `[ReportsPage] Fetching compute data — ${filters.dateFrom} → ${filters.dateTo}`,
+        `[ReportsPage] Fetching compute data — ${fetchBounds.dateFrom} → ${fetchBounds.dateTo}`,
+        filters.compareFrom
+          ? `(primary ${filters.dateFrom}→${filters.dateTo}, compare ${filters.compareFrom}→${filters.compareTo})`
+          : "",
         branchIds ? `branches: ${branchIds.join(",")}` : "all branches",
       );
 
@@ -280,8 +285,8 @@ export default function ReportsPage() {
         queryKey: computeKey,
         queryFn:  () =>
           fetchDailyReportsForCompute({
-            dateFrom:  filters.dateFrom,
-            dateTo:    filters.dateTo,
+            dateFrom:  fetchBounds.dateFrom,
+            dateTo:    fetchBounds.dateTo,
             branchIds,
           }),
         staleTime: 60_000, // 1 minute — reuse cache for repeated generates

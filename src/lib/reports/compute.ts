@@ -174,6 +174,25 @@ function calcPctChange(current: number, previous: number): number | undefined {
   return Math.round(result.raw);
 }
 
+/**
+ * DB fetch bounds for report generation.
+ * When compare mode is on, include both the primary and compare periods so
+ * May/Jun (or any pair) are loaded in one query.
+ */
+export function getComputeFetchBounds(
+  filters: Pick<ReportFilters, "dateFrom" | "dateTo" | "compareFrom" | "compareTo">,
+): { dateFrom: string; dateTo: string } {
+  let dateFrom = filters.dateFrom;
+  let dateTo = filters.dateTo;
+
+  if (filters.compareFrom && filters.compareTo) {
+    if (filters.compareFrom < dateFrom) dateFrom = filters.compareFrom;
+    if (filters.compareTo > dateTo) dateTo = filters.compareTo;
+  }
+
+  return { dateFrom, dateTo };
+}
+
 // ============================================================================
 // Public compute functions
 // ============================================================================
