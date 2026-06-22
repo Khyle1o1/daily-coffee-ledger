@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -471,7 +471,8 @@ export default function ReportsPage() {
     canGenerate,
     buildFilters,
     reportType,
-    dailyReports,
+    user?.id,
+    queryClient,
     branchLabel,
     dateRangeLabel,
     compareLabel,
@@ -480,6 +481,7 @@ export default function ReportsPage() {
     channelCategory,
     itemizedChannel,
     getBranchUuid,
+    getBranchLabel,
     filterBranches,
     toast,
   ]);
