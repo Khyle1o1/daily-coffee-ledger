@@ -236,6 +236,7 @@ const ADD_ON_MISC_OPTION_FALLBACK: Record<string, { mappedCat: Category; mappedI
   [normalizeText("Cereal Crunch")]: { mappedCat: "ADD-ONS", mappedItemName: "Cereal Crunch" },
   [normalizeText("Coconut Water")]: { mappedCat: "ADD-ONS", mappedItemName: "Coconut Water" },
   [normalizeText("Creatine Wheyl")]: { mappedCat: "ADD-ONS", mappedItemName: "Creatine Wheyl" },
+  [normalizeText("Decaf Espresso Shot")]: { mappedCat: "ADD-ONS", mappedItemName: "Decaf Espresso Shot" },
   [normalizeText("Espresso Shot")]: { mappedCat: "ADD-ONS", mappedItemName: "Espresso Shot" },
   [normalizeText("Matcha Powder")]: { mappedCat: "ADD-ONS", mappedItemName: "Matcha Powder" },
   [normalizeText("Hojicha Powder")]: { mappedCat: "ADD-ONS", mappedItemName: "Hojicha Powder" },
@@ -355,8 +356,9 @@ interface ValidationIndex {
 
   /**
    * Category+Item lookup → entry, but only stored when ALL rows for that
-   * cat+item pair share the same mappedName (i.e., the result is unambiguous
-   * regardless of option).
+   * cat+item pair share the same output (mapped category + item name).
+   * Sharing only the mapped category (e.g. every ADD ONS MISC → ADD-ONS) is
+   * NOT enough — that incorrectly remapped Decaf Espresso Shot → Creatine Wheyl.
    */
   catItemUnique: Map<string, MappingEntry>;
 }
@@ -384,14 +386,17 @@ function getIndex(table: MappingEntry[]): ValidationIndex {
     const fk = makeFullKey(entry.catNorm, entry.itemNorm, entry.optionNorm);
     if (!full.has(fk)) full.set(fk, entry);
 
-    // Track all distinct mappedNames per cat+item pair
+    // Track distinct *outputs* per cat+item (category + item name), not just
+    // mapped category. Bucket rows like ADD ONS MISC share mappedName "ADD-ONS"
+    // but different options must not collapse to the first seeded option.
     const ck = makeCatItemKey(entry.catNorm, entry.itemNorm);
+    const outKey = `${entry.mappedName}|||${resolveOutputItem(entry)}`;
     if (!catItemMapped.has(ck)) catItemMapped.set(ck, new Set());
-    catItemMapped.get(ck)!.add(entry.mappedName);
+    catItemMapped.get(ck)!.add(outKey);
     if (!catItemEntry.has(ck)) catItemEntry.set(ck, entry);
   }
 
-  // Populate catItemUnique only where there is exactly one mappedName
+  // Populate catItemUnique only where there is exactly one output
   const catItemUnique = new Map<string, MappingEntry>();
   for (const [ck, names] of catItemMapped) {
     if (names.size === 1) catItemUnique.set(ck, catItemEntry.get(ck)!);
@@ -684,15 +689,18 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
     }
   }
 
-  // PASS 7: cat+item fallback only when exactly one validation row exists
-  const seenCatItem = new Set<string>();
-  for (const c of pass2Cats) {
-    for (const i of pass4Items) {
-      const catItemKey = makeMenuReferenceCategoryItemKey(c, i);
-      if (seenCatItem.has(catItemKey)) continue;
-      seenCatItem.add(catItemKey);
-      const unique = lookupCatItemUnique(idx, c, i);
-      if (unique) return resolveMapped(unique);
+  // PASS 7: cat+item fallback only when exactly one validation OUTPUT exists.
+  // Skip add-on buckets — the option is the product; collapsing options is wrong.
+  if (!isAddOnsBucketItem(itemNorm) && !resolveAddOnBucketItem(catNorm, itemNorm, optNorm)) {
+    const seenCatItem = new Set<string>();
+    for (const c of pass2Cats) {
+      for (const i of pass4Items) {
+        const catItemKey = makeMenuReferenceCategoryItemKey(c, i);
+        if (seenCatItem.has(catItemKey)) continue;
+        seenCatItem.add(catItemKey);
+        const unique = lookupCatItemUnique(idx, c, i);
+        if (unique) return resolveMapped(unique);
+      }
     }
   }
 

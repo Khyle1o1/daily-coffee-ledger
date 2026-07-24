@@ -214,6 +214,35 @@ describe("DEL - SIGNATURES and delivery category aliases", () => {
     expect(r.mappedItemName).toBe("Creatine Wheyl");
   });
 
+  it("maps ADD ONS + ADD ONS MISC + Decaf Espresso Shot → ADD-ONS / Decaf Espresso Shot", () => {
+    const r = mapRow(row("ADD ONS", "ADD ONS MISC", "Decaf Espresso Shot"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ADD-ONS");
+    expect(r.mappedItemName).toBe("Decaf Espresso Shot");
+  });
+
+  it("does not remap Decaf Espresso Shot to Creatine when Creatine is the only MISC manual mapping", () => {
+    const manuals: MappingEntry[] = [
+      {
+        mappedName: "ADD-ONS",
+        category: "ADD ONS",
+        item: "ADD ONS MISC",
+        option: "Creatine Wheyl",
+        catNorm: "add ons",
+        itemNorm: "add ons misc",
+        optionNorm: "creatine wheyl",
+        outputItem: "Creatine Wheyl",
+      },
+    ];
+    const r = mapRow(
+      row("ADD ONS", "ADD ONS MISC", "Decaf Espresso Shot"),
+      [...manuals, ...DEFAULT_MAPPING],
+    );
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedItemName).toBe("Decaf Espresso Shot");
+    expect(r.mappedItemName).not.toBe("Creatine Wheyl");
+  });
+
   it("maps DEL - ADD ONS + ADD ONS MISC + Coconut Water → ADD-ONS / Coconut Water", () => {
     const r = mapRow(row("DEL - ADD ONS", "ADD ONS MISC", "Coconut Water"), DEFAULT_MAPPING);
     expect(r.status).toBe("MAPPED");

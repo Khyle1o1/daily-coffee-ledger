@@ -93,6 +93,7 @@ const RAW: [string, string, string, string][] = [
   ["ADD-ONS","ADD-ONS","Yuzu Syrup",""],
   ["ADD-ONS","ADD-ONS","Coconut Water",""],
   ["ADD-ONS","ADD-ONS","Creatine Wheyl",""],
+  ["ADD-ONS","ADD-ONS","Decaf Espresso Shot",""],
 
   // ── DEL-ADD-ONS ───────────────────────────────────────────────────────────
   ["ADD-ONS","DEL-ADD-ONS","Almond Milk",""],
@@ -128,6 +129,7 @@ const RAW: [string, string, string, string][] = [
   ["ADD-ONS","DEL-ADD-ONS","Yuzu Syrup",""],
   ["ADD-ONS","DEL-ADD-ONS","Coconut Water",""],
   ["ADD-ONS","DEL-ADD-ONS","Creatine Wheyl",""],
+  ["ADD-ONS","DEL-ADD-ONS","Decaf Espresso Shot",""],
 
   // ── CLASSICS ──────────────────────────────────────────────────────────────
   ["ICED","CLASSICS","Americano","Iced Regular 12 oz."],
