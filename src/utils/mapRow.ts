@@ -235,6 +235,7 @@ function buildOptionCandidates(rawOption: string, categoryCandidates: string[]):
 const ADD_ON_MISC_OPTION_FALLBACK: Record<string, { mappedCat: Category; mappedItemName: string }> = {
   [normalizeText("Cereal Crunch")]: { mappedCat: "ADD-ONS", mappedItemName: "Cereal Crunch" },
   [normalizeText("Coconut Water")]: { mappedCat: "ADD-ONS", mappedItemName: "Coconut Water" },
+  [normalizeText("Creatine Wheyl")]: { mappedCat: "ADD-ONS", mappedItemName: "Creatine Wheyl" },
   [normalizeText("Espresso Shot")]: { mappedCat: "ADD-ONS", mappedItemName: "Espresso Shot" },
   [normalizeText("Matcha Powder")]: { mappedCat: "ADD-ONS", mappedItemName: "Matcha Powder" },
   [normalizeText("Hojicha Powder")]: { mappedCat: "ADD-ONS", mappedItemName: "Hojicha Powder" },

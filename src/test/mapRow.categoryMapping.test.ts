@@ -147,6 +147,73 @@ describe("DEL - SIGNATURES and delivery category aliases", () => {
     expect(r.mappedItemName).toBe("Horchata");
   });
 
+  it("maps ADD ONS + ADD ONS FOAM + Hojicha Cold Foam → ADD-ONS / Hojicha Cold Foam", () => {
+    const r = mapRow(row("ADD ONS", "ADD ONS FOAM", "Hojicha Cold Foam"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ADD-ONS");
+    expect(r.mappedItemName).toBe("Hojicha Cold Foam");
+  });
+
+  it("maps PACKAGING + Less Ice → PACKAGING / Less Ice", () => {
+    const r = mapRow(row("PACKAGING", "Less Ice", ""), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PACKAGING");
+    expect(r.mappedItemName).toBe("Less Ice");
+  });
+
+  it("maps PACKAGING + Less Sweet → PACKAGING / Less Sweet", () => {
+    const r = mapRow(row("PACKAGING", "Less Sweet", ""), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PACKAGING");
+    expect(r.mappedItemName).toBe("Less Sweet");
+  });
+
+  it("maps PACKAGING modifiers No Sugar / Splenda / No Ice / One Pump / Warm", () => {
+    for (const item of ["No Sugar", "Splenda", "No Ice", "One Pump", "Warm"]) {
+      const r = mapRow(row("PACKAGING", item, ""), DEFAULT_MAPPING);
+      expect(r.status).toBe("MAPPED");
+      expect(r.mappedCat).toBe("PACKAGING");
+      expect(r.mappedItemName).toBe(item);
+    }
+  });
+
+  it("maps PACKAGING + Stirrer / Half-Shot Espresso", () => {
+    for (const item of ["Stirrer", "Half-Shot Espresso"]) {
+      const r = mapRow(row("PACKAGING", item, ""), DEFAULT_MAPPING);
+      expect(r.status).toBe("MAPPED");
+      expect(r.mappedCat).toBe("PACKAGING");
+      expect(r.mappedItemName).toBe(item);
+    }
+  });
+
+  it("maps PACKAGING + Extra Hot", () => {
+    const r = mapRow(row("PACKAGING", "Extra Hot", ""), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PACKAGING");
+    expect(r.mappedItemName).toBe("Extra Hot");
+  });
+
+  it("maps PROMO + Klook Kreators + Free Drink 16oz Iced", () => {
+    const r = mapRow(row("PROMO", "Klook Kreators", "Free Drink 16oz Iced"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PROMO");
+    expect(r.mappedItemName).toBe("Klook Kreators");
+  });
+
+  it("maps PACKAGING + Sugar Granules", () => {
+    const r = mapRow(row("PACKAGING", "Sugar Granules", ""), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PACKAGING");
+    expect(r.mappedItemName).toBe("Sugar Granules");
+  });
+
+  it("maps ADD ONS + ADD ONS MISC + Creatine Wheyl → ADD-ONS / Creatine Wheyl", () => {
+    const r = mapRow(row("ADD ONS", "ADD ONS MISC", "Creatine Wheyl"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ADD-ONS");
+    expect(r.mappedItemName).toBe("Creatine Wheyl");
+  });
+
   it("maps DEL - ADD ONS + ADD ONS MISC + Coconut Water → ADD-ONS / Coconut Water", () => {
     const r = mapRow(row("DEL - ADD ONS", "ADD ONS MISC", "Coconut Water"), DEFAULT_MAPPING);
     expect(r.status).toBe("MAPPED");

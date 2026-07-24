@@ -42,6 +42,17 @@ const RAW: [string, string, string, string][] = [
   ["PACKAGING","PACKAGING","16oz Paper Cup",""],
   ["PACKAGING","PACKAGING","Dagel Box of 3",""],
   ["PACKAGING","PACKAGING","Rice Straw",""],
+  ["PACKAGING","PACKAGING","Less Ice",""],
+  ["PACKAGING","PACKAGING","Less Sweet",""],
+  ["PACKAGING","PACKAGING","No Ice",""],
+  ["PACKAGING","PACKAGING","No Sugar",""],
+  ["PACKAGING","PACKAGING","One Pump",""],
+  ["PACKAGING","PACKAGING","Splenda",""],
+  ["PACKAGING","PACKAGING","Stirrer",""],
+  ["PACKAGING","PACKAGING","Half-Shot Espresso",""],
+  ["PACKAGING","PACKAGING","Warm",""],
+  ["PACKAGING","PACKAGING","Extra Hot",""],
+  ["PACKAGING","PACKAGING","Sugar Granules",""],
   ["PACKAGING","PACKAGING","Delivery | Rice Straw",""],
   ["PACKAGING","PACKAGING","Delivery | Egg Carrier",""],
   ["PACKAGING","PACKAGING","Delivery | Paper Bag - Egg Tray",""],
@@ -58,6 +69,7 @@ const RAW: [string, string, string, string][] = [
   ["ADD-ONS","ADD-ONS","Dehusk Coconut Milk",""],
   ["ADD-ONS","ADD-ONS","Espresso Shot",""],
   ["ADD-ONS","ADD-ONS","French Vanilla Syrup",""],
+  ["ADD-ONS","ADD-ONS","Hojicha Cold Foam",""],
   ["ADD-ONS","ADD-ONS","Hojicha Powder",""],
   ["ADD-ONS","ADD-ONS","Honey Syrup",""],
   ["ADD-ONS","ADD-ONS","Lychee Syrup",""],
@@ -80,6 +92,7 @@ const RAW: [string, string, string, string][] = [
   ["ADD-ONS","ADD-ONS","White Chocolate Mocha Syrup",""],
   ["ADD-ONS","ADD-ONS","Yuzu Syrup",""],
   ["ADD-ONS","ADD-ONS","Coconut Water",""],
+  ["ADD-ONS","ADD-ONS","Creatine Wheyl",""],
 
   // ── DEL-ADD-ONS ───────────────────────────────────────────────────────────
   ["ADD-ONS","DEL-ADD-ONS","Almond Milk",""],
@@ -93,6 +106,7 @@ const RAW: [string, string, string, string][] = [
   ["ADD-ONS","DEL-ADD-ONS","Dehusk Coconut Milk",""],
   ["ADD-ONS","DEL-ADD-ONS","Espresso Shot",""],
   ["ADD-ONS","DEL-ADD-ONS","French Vanilla Syrup",""],
+  ["ADD-ONS","DEL-ADD-ONS","Hojicha Cold Foam",""],
   ["ADD-ONS","DEL-ADD-ONS","Hojicha Powder",""],
   ["ADD-ONS","DEL-ADD-ONS","Honey Syrup",""],
   ["ADD-ONS","DEL-ADD-ONS","Lychee Syrup",""],
@@ -113,6 +127,7 @@ const RAW: [string, string, string, string][] = [
   ["ADD-ONS","DEL-ADD-ONS","White Chocolate Mocha Syrup",""],
   ["ADD-ONS","DEL-ADD-ONS","Yuzu Syrup",""],
   ["ADD-ONS","DEL-ADD-ONS","Coconut Water",""],
+  ["ADD-ONS","DEL-ADD-ONS","Creatine Wheyl",""],
 
   // ── CLASSICS ──────────────────────────────────────────────────────────────
   ["ICED","CLASSICS","Americano","Iced Regular 12 oz."],
@@ -439,6 +454,7 @@ const RAW: [string, string, string, string][] = [
 
   // ── PROMO ─────────────────────────────────────────────────────────────────
   ["PROMO","PROMO","Bring your Own Tumbler",""],
+  ["PROMO","PROMO","Klook Kreators","Free Drink 16oz Iced"],
   ["PROMO","PROMO","Gcash Food","100 pesos off"],
   ["PROMO","PROMO","Tumbler Only Promo Price","min.of 300 pesos"],
   ["PROMO","PROMO","Add Ons Set 1 Promo Price","straw + rubber stopper"],
