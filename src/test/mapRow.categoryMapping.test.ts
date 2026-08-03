@@ -200,6 +200,21 @@ describe("DEL - SIGNATURES and delivery category aliases", () => {
     expect(r.mappedItemName).toBe("Klook Kreators");
   });
 
+  it("maps PROMO + Kiehl'sVoucher → PROMO / Kiehl'sVoucher", () => {
+    const r = mapRow(row("PROMO", "Kiehl'sVoucher", ""), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PROMO");
+    expect(r.mappedItemName).toBe("Kiehl'sVoucher");
+  });
+
+  it("maps PROMO + Kiehl'sVoucher with curly apostrophe", () => {
+    const curly = "Kiehl\u2019sVoucher";
+    const r = mapRow(row("PROMO", curly, ""), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PROMO");
+    expect(normalizeText(r.mappedItemName)).toBe(normalizeText("Kiehl'sVoucher"));
+  });
+
   it("maps PACKAGING + Sugar Granules", () => {
     const r = mapRow(row("PACKAGING", "Sugar Granules", ""), DEFAULT_MAPPING);
     expect(r.status).toBe("MAPPED");

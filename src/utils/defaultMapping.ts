@@ -456,6 +456,7 @@ const RAW: [string, string, string, string][] = [
 
   // ── PROMO ─────────────────────────────────────────────────────────────────
   ["PROMO","PROMO","Bring your Own Tumbler",""],
+  ["PROMO","PROMO","Kiehl'sVoucher",""],
   ["PROMO","PROMO","Klook Kreators","Free Drink 16oz Iced"],
   ["PROMO","PROMO","Gcash Food","100 pesos off"],
   ["PROMO","PROMO","Tumbler Only Promo Price","min.of 300 pesos"],

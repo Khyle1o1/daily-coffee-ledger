@@ -375,7 +375,7 @@ export default function SummaryPage() {
     void normalizeText(dateEndStr);
 
     return report;
-  }, [detectedDateRange, modalCsvData, modalBranch, modalFile, modalAutoMapping, mappingTable, toast]);
+  }, [detectedDateRange, modalCsvData, modalBranch, modalFile, modalAutoMapping, mappingTable, manualEntries, toast]);
 
   const handleSubmitReport = () => {
     const report = buildReportForPreview();
