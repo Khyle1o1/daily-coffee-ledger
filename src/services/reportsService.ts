@@ -25,14 +25,33 @@ export const COMPUTE_CHUNK_SIZE = 8;
 /** Hard cap on overlapping report rows per month window (protects Supabase CPU/RAM). */
 export const MAX_COMPUTE_REPORTS = 40;
 
-/** Hard cap on aggregate compute payload size per month window (~15 MB). */
-export const MAX_COMPUTE_PAYLOAD_BYTES = 15 * 1024 * 1024;
+/**
+ * Soft ceiling on slimmed compute payload per month window.
+ * Month windows already bound PostgREST load; this only stops extreme single-month blobs.
+ * Raw multi-branch months often exceed 15 MB before slimming — not a date-range issue.
+ */
+export const MAX_COMPUTE_PAYLOAD_BYTES = 48 * 1024 * 1024;
 
 /** Max calendar days for a single generate (primary or fetch-bounds span). */
 export const MAX_GENERATE_SPAN_DAYS = 366;
 
 /** Max unique reports after merging all month windows for a long-range generate. */
 export const MAX_COMPUTE_RANGE_REPORTS = 150;
+
+/** Fields compute paths need from each rowDetail (drops verbose mapping debug). */
+const COMPUTE_ROW_DETAIL_KEYS = [
+  "transactionDate",
+  "quantity",
+  "unitPrice",
+  "rowSales",
+  "mappedCat",
+  "mappedItemName",
+  "rawItemName",
+  "rawCategory",
+  "option",
+  "paymentType",
+  "status",
+] as const;
 
 function parseYmdLocal(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -77,20 +96,49 @@ export function iterMonthWindows(
   return windows;
 }
 
-/** Keep only rowDetails whose transaction date falls within [dateFrom, dateTo]. */
+/** Drop unmappedSummary and keep only compute-needed rowDetail fields. */
+function slimSummaryJsonForCompute(row: DailyReportRow): DailyReportRow {
+  const json = row.summary_json as DailySummaryJSON | null | undefined;
+  if (!json) return row;
+
+  const rowDetails = Array.isArray(json.rowDetails)
+    ? json.rowDetails.map((r) => {
+        const slim: Record<string, unknown> = {};
+        for (const key of COMPUTE_ROW_DETAIL_KEYS) {
+          if (r != null && r[key] !== undefined) slim[key] = r[key];
+        }
+        return slim;
+      })
+    : [];
+
+  return {
+    ...row,
+    summary_json: {
+      ...json,
+      rowDetails,
+      unmappedSummary: [],
+    },
+  };
+}
+
+/**
+ * Slim for compute, then keep only rowDetails whose transaction date falls
+ * within [dateFrom, dateTo].
+ */
 function pruneSummaryJsonRowDetails(
   row: DailyReportRow,
   dateFrom: string,
   dateTo: string,
 ): DailyReportRow {
-  const json = row.summary_json as DailySummaryJSON | null | undefined;
+  const slimmed = slimSummaryJsonForCompute(row);
+  const json = slimmed.summary_json as DailySummaryJSON | null | undefined;
   if (!json || !Array.isArray(json.rowDetails) || json.rowDetails.length === 0) {
-    return row;
+    return slimmed;
   }
 
   const startKey = toLocalDateKey(parseYmdLocal(dateFrom));
   const endKey = toLocalDateKey(parseYmdLocal(dateTo));
-  if (startKey == null || endKey == null) return row;
+  if (startKey == null || endKey == null) return slimmed;
 
   const pruned = json.rowDetails.filter((r) => {
     const key = toLocalDateKey(r?.transactionDate);
@@ -98,13 +146,14 @@ function pruneSummaryJsonRowDetails(
     return key >= startKey && key <= endKey;
   });
 
-  if (pruned.length === json.rowDetails.length) return row;
+  if (pruned.length === json.rowDetails.length) return slimmed;
 
   return {
-    ...row,
+    ...slimmed,
     summary_json: {
       ...json,
       rowDetails: pruned,
+      unmappedSummary: [],
     },
   };
 }
@@ -403,8 +452,9 @@ export async function listAllDailyReports(
  * still be loaded when generating a July-only HQ report — compute then filters
  * rowDetails by transactionDate.
  *
- * Health: results are fetched in chunks and hard-capped by row count + payload
- * size so a wide generate cannot tip Supabase into unhealthy CPU/RAM.
+ * Health: results are fetched in chunks, slimmed for compute, and soft-capped
+ * by row count + payload size per month window so a wide generate cannot tip
+ * Supabase via one unbounded multi-month select.
  *
  * @param dateFrom   inclusive lower bound for the selected period (YYYY-MM-DD)
  * @param dateTo     inclusive upper bound for the selected period (YYYY-MM-DD)
@@ -475,20 +525,22 @@ export async function fetchDailyReportsForCompute(params: {
         throw new Error(`Failed to fetch reports for compute: ${error.message}`);
       }
 
-      const rows = (data as DailyReportRow[]) ?? [];
+      const rows = ((data as DailyReportRow[]) ?? []).map(slimSummaryJsonForCompute);
       all.push(...rows);
 
+      // Measure after slim — raw summary_json often looks "too big" before dropping
+      // unmappedSummary / unused rowDetail fields; date span is handled by month windows.
       const approxBytes = JSON.stringify(all).length;
       if (approxBytes > MAX_COMPUTE_PAYLOAD_BYTES) {
         throw new Error(
-          `Report payload too large (~${Math.round(approxBytes / (1024 * 1024))} MB). ` +
-            `Narrow the date range or select fewer branches (max ~15 MB).`,
+          `Report payload too large (~${Math.round(approxBytes / (1024 * 1024))} MB) for one month window. ` +
+            `Select fewer branches (max ~${Math.round(MAX_COMPUTE_PAYLOAD_BYTES / (1024 * 1024))} MB per month).`,
         );
       }
 
       console.log(
         `[fetchDailyReportsForCompute] chunk ${from}-${to}: ${rows.length} rows ` +
-          `(~${Math.round(approxBytes / 1024)} KB cumulative)`,
+          `(~${Math.round(approxBytes / 1024)} KB cumulative, slimmed)`,
       );
 
       offset += COMPUTE_CHUNK_SIZE;
@@ -539,7 +591,8 @@ export async function fetchDailyReportsForComputeRange(params: {
     });
 
     for (const row of rows) {
-      byId.set(row.id, row);
+      // Keep the first slimmed copy — dual-month uploads appear in adjacent windows.
+      if (!byId.has(row.id)) byId.set(row.id, row);
     }
 
     if (byId.size > MAX_COMPUTE_RANGE_REPORTS) {

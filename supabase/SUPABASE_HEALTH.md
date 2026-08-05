@@ -33,20 +33,21 @@ App safeguards:
 
 - Date-range **overlap** fetch (so dual-month uploads still work), chunked (8 reports/request).
 - Long spans (up to **366 days** / ~1 year) use `fetchDailyReportsForComputeRange`: **month-by-month** windows, dedupe by report id, then prune `rowDetails` outside the selected bounds.
-- Hard cap **per month window**: max **40** overlapping report rows / ~**15 MB** JSON.
-- Hard cap after merge: max **150** unique reports across the full span.
+- Hard cap **per month window**: max **40** overlapping report rows / ~**48 MB** slimmed JSON (not a date-range limit).
+- After each chunk, drop `unmappedSummary` and unused `rowDetails` fields before the size check.
+- Hard cap after merge: max **150** unique reports across the full span; then prune `rowDetails` outside the selected bounds.
 - UI blocks only spans **> 366 days**; spans **> 62 days** show an info toast (“fetching month by month”).
 
 Watch the browser console:
 
 ```
 [fetchDailyReportsForComputeRange] window 2026-01-01 → 2026-01-31
-[fetchDailyReportsForCompute] chunk 0-7: …
+[fetchDailyReportsForCompute] chunk 0-7: … (~KB cumulative, slimmed)
 [fetchDailyReportsForCompute] ✅ N rows in Xms (~Y KB)
 [fetchDailyReportsForComputeRange] ✅ M unique reports … across K month window(s)
 ```
 
-If you hit a cap, narrow the date range or select fewer branches.
+If you still hit a per-month payload cap, select fewer branches (date range is already split by month).
 
 ## 4) Query and Index Optimization
 
