@@ -2,13 +2,17 @@
 
 ## 1) Connection Pooling (Critical)
 
-Use pooled Postgres in backend/serverless code:
+Use pooled Postgres in backend/serverless/scripts:
 
 `DATABASE_URL=postgresql://<user>:<password>@<project-ref>.pooler.supabase.com:6543/postgres`
 
 Do not use direct host/port for application traffic:
 
 - `...supabase.co:5432`
+
+Encode special characters in the DB password (`#`, `@`, etc.) as URL percent-encoding (e.g. `#` → `%23`).
+
+The SPA talks to Supabase via PostgREST (anon/service keys), not `DATABASE_URL`. Scripts that run SQL (migrations) use the pooled URL.
 
 If you add a Node/Next/Laravel backend, reuse a singleton client instead of creating one per request.
 
@@ -18,14 +22,40 @@ If you add a Node/Next/Laravel backend, reuse a singleton client instead of crea
 - Avoid polling unless the page truly needs near-real-time data.
 - Avoid automatic re-fetch on every tab focus/reconnect unless required.
 - Ensure data-loading effects run once on mount unless dependencies are intentional.
+- Daily list uses `staleTime: 60s` and does **not** force `refetchOnMount: "always"`.
+- React Query persist only stores light keys (daily list, branches, directory) — never compute/detail blobs (`buster: v4-health-light-cache`).
 
-## 3) Query and Index Optimization
+## 3) Report generate payload caps (Critical)
 
-Run migration `supabase/migrations/015_performance_indexes.sql` to add targeted indexes for frequent `WHERE`, `JOIN`, and `ORDER BY` paths.
+`fetchDailyReportsForCompute` loads full `summary_json` (including `rowDetails`). That is the main overload path.
 
-Also avoid `SELECT *` for list views where possible.
+App safeguards:
 
-## 4) Find and Kill Long-Running Queries
+- Date-range **overlap** fetch (so dual-month uploads still work), chunked (8 reports/request).
+- Hard cap: max **40** overlapping report rows per generate.
+- Hard cap: ~**15 MB** aggregate JSON payload.
+- UI blocks ranges **> 62 days**, and **all-branches** generates longer than **31 days**.
+
+Watch the browser console:
+
+```
+[fetchDailyReportsForCompute] chunk 0-7: …
+[fetchDailyReportsForCompute] ✅ N rows in Xms (~Y KB)
+```
+
+If you hit the cap, narrow the date range or select fewer branches.
+
+## 4) Query and Index Optimization
+
+Run migrations:
+
+- `015_performance_indexes.sql` — frequent WHERE / JOIN / ORDER BY
+- `017_reports_daily_list_index.sql` — list sort
+- `020_reports_daily_overlap_index.sql` — GiST on `daterange(date_range_start, date_range_end)` for compute overlap
+
+Prefer `reports_daily_meta` for list UIs (strips `rowDetails` / `unmappedSummary` on the wire). Avoid `SELECT *` on list endpoints.
+
+## 5) Find and Kill Long-Running Queries
 
 Run in Supabase SQL Editor:
 
@@ -45,7 +75,7 @@ where state != 'idle'
 and now() - query_start > interval '5 minutes';
 ```
 
-## 5) Realtime Subscription Cleanup
+## 6) Realtime Subscription Cleanup
 
 Always return cleanup in React effects:
 
@@ -62,7 +92,7 @@ useEffect(() => {
 }, []);
 ```
 
-## 6) Monitoring Checklist
+## 7) Monitoring Checklist
 
 Supabase Dashboard:
 
@@ -71,11 +101,11 @@ Supabase Dashboard:
 
 Interpretation:
 
-- High CPU -> optimize slow queries.
+- High CPU -> optimize slow queries / shrink JSON payloads.
 - High connections -> fix pooling/reuse.
 - Slow query traces -> add/adjust indexes and avoid full scans.
 
-## 7) Free Tier Notes
+## 8) Free Tier Notes
 
 - Expect occasional cold starts and paused project behavior.
 - Avoid heavy background jobs and aggressive polling.

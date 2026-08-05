@@ -35,7 +35,15 @@ export async function listDirectoryLinks(
   params: ListDirectoryLinksParams = {}
 ): Promise<{ items: DirectoryLink[]; total: number }> {
   try {
-    const { q, category, active, sort = 'updatedAt', order = 'desc' } = params;
+    const {
+      q,
+      category,
+      active,
+      sort = 'updatedAt',
+      order = 'desc',
+      page = 1,
+      pageSize = 200,
+    } = params;
 
     const columnMap: Record<string, string> = {
       updatedAt: 'updated_at',
@@ -43,11 +51,17 @@ export async function listDirectoryLinks(
       name: 'name',
     };
     const orderColumn = columnMap[sort] ?? 'updated_at';
+    const from = (Math.max(1, page) - 1) * pageSize;
+    const to = from + pageSize - 1;
 
     let query = supabase
       .from('directory_links')
-      .select('*', { count: 'exact' })
-      .order(orderColumn, { ascending: order === 'asc' });
+      .select(
+        'id, name, url, description, category, is_active, created_by, created_at, updated_at',
+        { count: 'exact' },
+      )
+      .order(orderColumn, { ascending: order === 'asc' })
+      .range(from, to);
 
     if (typeof active === 'boolean') {
       query = query.eq('is_active', active);

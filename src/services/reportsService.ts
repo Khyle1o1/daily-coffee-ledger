@@ -18,6 +18,15 @@ import type {
 /** Default page size for paginated list queries. */
 export const PAGE_SIZE = 50;
 
+/** Reports per request when loading full summary_json for compute. */
+export const COMPUTE_CHUNK_SIZE = 8;
+
+/** Hard cap on overlapping report rows per generate (protects Supabase CPU/RAM). */
+export const MAX_COMPUTE_REPORTS = 40;
+
+/** Hard cap on aggregate compute payload size (~15 MB). */
+export const MAX_COMPUTE_PAYLOAD_BYTES = 15 * 1024 * 1024;
+
 // ============================================================================
 // BRANCH OPERATIONS
 // ============================================================================
@@ -200,34 +209,27 @@ export async function saveDailyReport(
 }
 
 /**
- * List daily reports for a branch within a date range
+ * List daily reports for a branch within a date range.
+ *
+ * @deprecated Prefer `listAllDailyReports` (meta view + pagination). This path
+ * still exists for compatibility but uses the lightweight meta view so it cannot
+ * overload PostgREST with full rowDetails blobs.
  */
 export async function listDailyReports(
   branchId: string,
   startDate?: string,
   endDate?: string
-): Promise<DailyReportRow[]> {
+): Promise<DailyReportListRow[]> {
   try {
-    let query = supabase
-      .from('reports_daily')
-      .select('id, branch_id, report_date, date_range_start, date_range_end, transactions_file_name, mapping_file_name, summary_json, user_id, created_at, updated_at, branch:branches(id, name, label, created_at, updated_at)')
-      .eq('branch_id', branchId)
-      .order('report_date', { ascending: false });
-
-    if (startDate) {
-      query = query.gte('report_date', startDate);
-    }
-    if (endDate) {
-      query = query.lte('report_date', endDate);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to list daily reports: ${error.message}`);
-    }
-
-    return (data as DailyReportRow[]) || [];
+    const { data, total } = await listAllDailyReports({
+      branchId,
+      dateFrom: startDate,
+      dateTo: endDate,
+      page: 1,
+      pageSize: PAGE_SIZE,
+    });
+    void total;
+    return data;
   } catch (error) {
     console.error('listDailyReports error:', error);
     throw new Error(handleSupabaseError(error));
@@ -314,13 +316,13 @@ export async function listAllDailyReports(
  * (product mix, pour-it-forward, HQ sync pack, channel sales summary, etc.).
  * Do NOT call this for list rendering — use listAllDailyReports() instead.
  *
- * Results are intentionally not paginated: the caller (ReportsPage) needs the
- * complete dataset for the selected period to produce accurate aggregations.
- *
  * IMPORTANT: filter by date-range *overlap*, not report_date alone.
  * Dual-month uploads (e.g. report_date=2026-06-01, range Jun 1–Jul 31) must
  * still be loaded when generating a July-only HQ report — compute then filters
  * rowDetails by transactionDate.
+ *
+ * Health: results are fetched in chunks and hard-capped by row count + payload
+ * size so a wide generate cannot tip Supabase into unhealthy CPU/RAM.
  *
  * @param dateFrom   inclusive lower bound for the selected period (YYYY-MM-DD)
  * @param dateTo     inclusive upper bound for the selected period (YYYY-MM-DD)
@@ -335,40 +337,89 @@ export async function fetchDailyReportsForCompute(params: {
   const t0 = performance.now();
 
   try {
-    let query = supabase
+    let countQuery = supabase
       .from('reports_daily')
-      .select(
-        'id, branch_id, report_date, date_range_start, date_range_end, ' +
-        'transactions_file_name, mapping_file_name, summary_json, user_id, ' +
-        'created_at, updated_at, ' +
-        'branch:branches(id, name, label, created_at, updated_at)',
-      )
-      // Overlap: report range intersects [dateFrom, dateTo]
+      .select('id', { count: 'exact', head: true })
       .lte('date_range_start', dateTo)
-      .gte('date_range_end', dateFrom)
-      .order('date_range_start', { ascending: true })
-      .order('branch_id',   { ascending: true });
+      .gte('date_range_end', dateFrom);
 
     if (branchIds && branchIds.length > 0) {
-      query = query.in('branch_id', branchIds);
+      countQuery = countQuery.in('branch_id', branchIds);
     }
 
-    const { data, error } = await query;
+    const { count, error: countError } = await countQuery;
+    if (countError) {
+      throw new Error(`Failed to count reports for compute: ${countError.message}`);
+    }
+
+    const total = count ?? 0;
+    if (total > MAX_COMPUTE_REPORTS) {
+      throw new Error(
+        `Too many overlapping reports (${total}). Narrow the date range or select fewer branches (max ${MAX_COMPUTE_REPORTS}).`,
+      );
+    }
+
+    const selectCols =
+      'id, branch_id, report_date, date_range_start, date_range_end, ' +
+      'transactions_file_name, mapping_file_name, summary_json, user_id, ' +
+      'created_at, updated_at, ' +
+      'branch:branches(id, name, label, created_at, updated_at)';
+
+    const all: DailyReportRow[] = [];
+    let offset = 0;
+
+    while (offset < total || (total === 0 && offset === 0)) {
+      if (total === 0) break;
+
+      const from = offset;
+      const to = Math.min(offset + COMPUTE_CHUNK_SIZE - 1, total - 1);
+
+      let query = supabase
+        .from('reports_daily')
+        .select(selectCols)
+        .lte('date_range_start', dateTo)
+        .gte('date_range_end', dateFrom)
+        .order('date_range_start', { ascending: true })
+        .order('branch_id', { ascending: true })
+        .range(from, to);
+
+      if (branchIds && branchIds.length > 0) {
+        query = query.in('branch_id', branchIds);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error(`[fetchDailyReportsForCompute] ❌ chunk ${from}-${to}: ${error.message}`);
+        throw new Error(`Failed to fetch reports for compute: ${error.message}`);
+      }
+
+      const rows = (data as DailyReportRow[]) ?? [];
+      all.push(...rows);
+
+      const approxBytes = JSON.stringify(all).length;
+      if (approxBytes > MAX_COMPUTE_PAYLOAD_BYTES) {
+        throw new Error(
+          `Report payload too large (~${Math.round(approxBytes / (1024 * 1024))} MB). ` +
+            `Narrow the date range or select fewer branches (max ~15 MB).`,
+        );
+      }
+
+      console.log(
+        `[fetchDailyReportsForCompute] chunk ${from}-${to}: ${rows.length} rows ` +
+          `(~${Math.round(approxBytes / 1024)} KB cumulative)`,
+      );
+
+      offset += COMPUTE_CHUNK_SIZE;
+      if (rows.length === 0) break;
+    }
 
     const elapsed = Math.round(performance.now() - t0);
-
-    if (error) {
-      console.error(`[fetchDailyReportsForCompute] ❌ ${elapsed}ms — ${error.message}`);
-      throw new Error(`Failed to fetch reports for compute: ${error.message}`);
-    }
-
-    const rows = (data as DailyReportRow[]) ?? [];
-    const approxKb = Math.round(JSON.stringify(rows).length / 1024);
+    const approxKb = Math.round(JSON.stringify(all).length / 1024);
     console.log(
-      `[fetchDailyReportsForCompute] ✅ ${rows.length} rows in ${elapsed}ms (~${approxKb} KB) — overlap ${dateFrom} → ${dateTo}`,
+      `[fetchDailyReportsForCompute] ✅ ${all.length} rows in ${elapsed}ms (~${approxKb} KB) — overlap ${dateFrom} → ${dateTo}`,
     );
 
-    return rows;
+    return all;
   } catch (error) {
     if (error instanceof Error) throw error;
     throw new Error(handleSupabaseError(error));

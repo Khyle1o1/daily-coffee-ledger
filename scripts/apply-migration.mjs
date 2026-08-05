@@ -36,8 +36,16 @@ const sqlPath = path.isAbsolute(migration)
   : path.join(root, migration);
 const sql = fs.readFileSync(sqlPath, 'utf8').replace(/^\uFEFF/, '');
 
+function encodeDatabaseUrl(raw) {
+  if (!raw) return raw;
+  // Encode password special chars (#, @, etc.) that break URL parsing.
+  const m = raw.match(/^(postgresql:\/\/[^:/]+:)([^@]+)(@.+)$/i);
+  if (!m) return raw;
+  return `${m[1]}${encodeURIComponent(decodeURIComponent(m[2]))}${m[3]}`;
+}
+
 const client = new pg.Client({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: encodeDatabaseUrl(process.env.DATABASE_URL),
   ssl: { rejectUnauthorized: false },
 });
 

@@ -38,13 +38,34 @@ const localStoragePersister = createSyncStoragePersister({
   key: "daily-coffee-ledger-react-query-cache",
 });
 
+/** Only persist light list/branch/directory caches — never compute or detail blobs. */
+function shouldDehydrateQuery(query: { queryKey: readonly unknown[]; state: { status: string } }) {
+  if (query.state.status !== "success") return false;
+  const key = query.queryKey;
+  if (!Array.isArray(key) || key.length === 0) return false;
+
+  // Heavy: full summary_json compute batches and single-report detail
+  if (key[0] === "reports" && (key[2] === "compute" || key[2] === "detail")) {
+    return false;
+  }
+
+  // Light allowlist
+  if (key[0] === "reports" && key[1] === "daily" && key[2] === "list") return true;
+  if (key[0] === "branches") return true;
+  if (key[0] === "directory") return true;
+  return false;
+}
+
 const App = () => (
   <PersistQueryClientProvider
     client={queryClient}
     persistOptions={{
       persister: localStoragePersister,
       maxAge: 24 * 60 * 60 * 1000,
-      buster: "v3-report-cache-refetch",
+      buster: "v4-health-light-cache",
+      dehydrateOptions: {
+        shouldDehydrateQuery,
+      },
     }}
   >
     <TooltipProvider>

@@ -20,18 +20,15 @@ export interface DailyReportsPage {
 
 export interface UseDailyReportsQueryParams extends ListDailyReportsParams {}
 
+/** Seed empty branches at most once per browser session. */
+let branchesSeedAttempted = false;
+
 /**
- * Paginated, filtered query for the daily-reports list.
+ * Paginated, filtered query for the daily-reports list (meta view).
  *
- * Changes vs. the previous version:
- *  - summary_json is no longer fetched — avoids transferring heavy per-report
- *    transaction blobs and eliminates the statement-timeout on large datasets.
- *  - .range() limits each request to `pageSize` rows (default 50).
- *  - staleTime: 60 s — background-refetches at most once per minute.
- *  - placeholderData: keepPreviousData — navigating between pages shows the
- *    previous page instead of a loading spinner (TanStack Query v5 API).
- *  - Each unique (page, pageSize, branchId, dateFrom, dateTo) combination gets
- *    its own cache entry so prefetching adjacent pages is straightforward.
+ * - Uses reports_daily_meta so list payloads stay small.
+ * - staleTime 60s + refetch when stale (not on every remount) to avoid API storms.
+ * - Mutations still invalidate via queryClient.invalidateQueries.
  */
 export function useDailyReportsQuery(params: UseDailyReportsQueryParams = {}) {
   const { user, loading } = useAuth();
@@ -47,7 +44,10 @@ export function useDailyReportsQuery(params: UseDailyReportsQueryParams = {}) {
       dateTo:   params.dateTo,
     }),
     queryFn: async () => {
-      await seedBranchesIfEmpty().catch(() => undefined);
+      if (!branchesSeedAttempted) {
+        branchesSeedAttempted = true;
+        await seedBranchesIfEmpty().catch(() => undefined);
+      }
       const { data, total } = await listAllDailyReports(params);
       return {
         reports:     dailyReportsMetaFromRows(data),
@@ -56,11 +56,9 @@ export function useDailyReportsQuery(params: UseDailyReportsQueryParams = {}) {
       };
     },
     enabled:         !loading && !!user,
-    // Keep list reasonably fresh across devices/tabs. Infinity + localStorage
-    // persist left production stuck on an empty snapshot after local uploads.
     staleTime:       60 * 1000,
     gcTime:          24 * 60 * 60 * 1000,
-    refetchOnMount:  "always",
+    // Default: refetch only when stale (not "always" on every remount).
     placeholderData: keepPreviousData,
   });
 }

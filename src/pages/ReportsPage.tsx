@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays, parseISO } from "date-fns";
 import {
   BarChart3,
   Calendar,
@@ -267,6 +267,31 @@ export default function ReportsPage() {
       // comparing May vs Jun (compute filters rowDetails by transaction date).
       const fetchBounds = getComputeFetchBounds(filters);
 
+      const primarySpanDays =
+        differenceInCalendarDays(parseISO(filters.dateTo), parseISO(filters.dateFrom)) + 1;
+      const fetchSpanDays =
+        differenceInCalendarDays(parseISO(fetchBounds.dateTo), parseISO(fetchBounds.dateFrom)) + 1;
+
+      if (primarySpanDays > 62 || fetchSpanDays > 62) {
+        toast({
+          variant: "destructive",
+          title: "Date range too large",
+          description:
+            "Limit the primary (and compare) range to 62 days or less to keep Supabase healthy.",
+        });
+        return;
+      }
+
+      if (filterBranches.length === 0 && fetchSpanDays > 31) {
+        toast({
+          variant: "destructive",
+          title: "Narrow branches or dates",
+          description:
+            "All-branches generates over a multi-month window pull too much data. Select specific branches or shorten the range to 31 days.",
+        });
+        return;
+      }
+
       const computeKey = queryKeys.reports.compute(user?.id, {
         dateFrom: fetchBounds.dateFrom,
         dateTo:   fetchBounds.dateTo,
@@ -282,7 +307,7 @@ export default function ReportsPage() {
       );
 
       const rows = await queryClient.fetchQuery({
-        queryKey: [...computeKey, "overlap-v2"] as const,
+        queryKey: [...computeKey, "overlap-v2", "chunked"] as const,
         queryFn:  () =>
           fetchDailyReportsForCompute({
             dateFrom:  fetchBounds.dateFrom,
@@ -487,6 +512,8 @@ export default function ReportsPage() {
     itemizedChannel,
     getBranchUuid,
     getBranchLabel,
+    filterBranches,
+    toast,
     filterBranches,
     toast,
   ]);

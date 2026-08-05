@@ -127,10 +127,13 @@ export async function fetchActiveManualMappings(): Promise<ManualMapping[]> {
 
   const { data, error } = await (supabase as any)
     .from("manual_mappings")
-    .select("*")
+    .select(
+      "id, source_category, source_item, source_option, mapped_category, mapped_item_name, priority, is_active, notes, source_cat_norm, source_item_norm, source_opt_norm, created_at, updated_at",
+    )
     .eq("is_active", true)
     .order("priority", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(2000);
 
   if (error) {
     // If table doesn't exist yet (migration not run), return empty gracefully

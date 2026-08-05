@@ -233,6 +233,8 @@ export interface ListDirectoryLinksParams {
   active?: boolean;
   sort?: 'updatedAt' | 'createdAt' | 'name';
   order?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
 }
 
 // ============================================================================

@@ -1313,3 +1313,9 @@ CREATE POLICY "manual_mappings_admin_all"
   WITH CHECK (public.current_user_is_admin());
 
 
+-- ─── 020: reports_daily_overlap_index ────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_reports_daily_daterange_gist
+  ON public.reports_daily
+  USING GIST (daterange(date_range_start, date_range_end, '[]'));
+
+
