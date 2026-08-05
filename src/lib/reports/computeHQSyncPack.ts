@@ -17,6 +17,16 @@ export const HQ_ADDON_CATS: Category[] = ["ADD-ONS"];
 
 const PRESENTATION_CHANNELS: SalesChannel[] = ["WALK_IN", "GRAB", "FOODPANDA"];
 
+/** HQ Product Mix pages show qty — rank highest → lowest by current qty. */
+function sortProductMixByQtyDesc(mix: ComputedProductMix): ComputedProductMix {
+  return {
+    ...mix,
+    products: [...mix.products].sort(
+      (a, b) => b.qty - a.qty || b.sales - a.sales || a.name.localeCompare(b.name),
+    ),
+  };
+}
+
 // ─── Output types ──────────────────────────────────────────────────────────────
 
 export interface CupSizeTotal {
@@ -153,10 +163,10 @@ export function computeHQSyncPack(
 ): ComputedHQSyncPack {
   return {
     overview:       computeCategoryTotals(reports, filters),
-    icedDetail:     computeProductTotals(reports, filters, "ICED"),
-    hotDetail:      computeProductTotals(reports, filters, "HOT"),
-    pastriesDetail: computeProductTotals(reports, filters, "SNACKS"),
-    addOnsDetail:   computeProductTotals(reports, filters, "ADD-ONS"),
+    icedDetail:     sortProductMixByQtyDesc(computeProductTotals(reports, filters, "ICED")),
+    hotDetail:      sortProductMixByQtyDesc(computeProductTotals(reports, filters, "HOT")),
+    pastriesDetail: sortProductMixByQtyDesc(computeProductTotals(reports, filters, "SNACKS")),
+    addOnsDetail:   sortProductMixByQtyDesc(computeProductTotals(reports, filters, "ADD-ONS")),
     top5Drinks:     buildChannelTop5(reports, filters, HQ_DRINK_CATS,  "DRINKS"),
     top5Pastry:     buildChannelTop5(reports, filters, HQ_PASTRY_CATS, "PASTRY"),
     top5AddOn:      buildChannelTop5(reports, filters, HQ_ADDON_CATS,  "ADD-ON"),
