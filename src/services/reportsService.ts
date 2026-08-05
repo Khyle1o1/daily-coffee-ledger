@@ -316,10 +316,14 @@ export async function listAllDailyReports(
  *
  * Results are intentionally not paginated: the caller (ReportsPage) needs the
  * complete dataset for the selected period to produce accurate aggregations.
- * Date filters keep the payload bounded — a typical month is 30–60 rows.
  *
- * @param dateFrom   inclusive lower bound for report_date (YYYY-MM-DD)
- * @param dateTo     inclusive upper bound for report_date (YYYY-MM-DD)
+ * IMPORTANT: filter by date-range *overlap*, not report_date alone.
+ * Dual-month uploads (e.g. report_date=2026-06-01, range Jun 1–Jul 31) must
+ * still be loaded when generating a July-only HQ report — compute then filters
+ * rowDetails by transactionDate.
+ *
+ * @param dateFrom   inclusive lower bound for the selected period (YYYY-MM-DD)
+ * @param dateTo     inclusive upper bound for the selected period (YYYY-MM-DD)
  * @param branchIds  optional list of branch UUIDs to restrict the query
  */
 export async function fetchDailyReportsForCompute(params: {
@@ -339,9 +343,10 @@ export async function fetchDailyReportsForCompute(params: {
         'created_at, updated_at, ' +
         'branch:branches(id, name, label, created_at, updated_at)',
       )
-      .gte('report_date', dateFrom)
-      .lte('report_date', dateTo)
-      .order('report_date', { ascending: true })
+      // Overlap: report range intersects [dateFrom, dateTo]
+      .lte('date_range_start', dateTo)
+      .gte('date_range_end', dateFrom)
+      .order('date_range_start', { ascending: true })
       .order('branch_id',   { ascending: true });
 
     if (branchIds && branchIds.length > 0) {
@@ -360,7 +365,7 @@ export async function fetchDailyReportsForCompute(params: {
     const rows = (data as DailyReportRow[]) ?? [];
     const approxKb = Math.round(JSON.stringify(rows).length / 1024);
     console.log(
-      `[fetchDailyReportsForCompute] ✅ ${rows.length} rows in ${elapsed}ms (~${approxKb} KB) — ${dateFrom} → ${dateTo}`,
+      `[fetchDailyReportsForCompute] ✅ ${rows.length} rows in ${elapsed}ms (~${approxKb} KB) — overlap ${dateFrom} → ${dateTo}`,
     );
 
     return rows;

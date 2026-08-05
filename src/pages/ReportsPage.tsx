@@ -274,7 +274,7 @@ export default function ReportsPage() {
       });
 
       console.log(
-        `[ReportsPage] Fetching compute data — ${fetchBounds.dateFrom} → ${fetchBounds.dateTo}`,
+        `[ReportsPage] Fetching compute data (date-range overlap) — ${fetchBounds.dateFrom} → ${fetchBounds.dateTo}`,
         filters.compareFrom
           ? `(primary ${filters.dateFrom}→${filters.dateTo}, compare ${filters.compareFrom}→${filters.compareTo})`
           : "",
@@ -282,7 +282,7 @@ export default function ReportsPage() {
       );
 
       const rows = await queryClient.fetchQuery({
-        queryKey: computeKey,
+        queryKey: [...computeKey, "overlap-v2"] as const,
         queryFn:  () =>
           fetchDailyReportsForCompute({
             dateFrom:  fetchBounds.dateFrom,
