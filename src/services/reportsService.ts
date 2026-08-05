@@ -8,6 +8,7 @@ import type {
   Branch,
   DailyReportRow,
   DailyReportListRow,
+  DailySummaryJSON,
   ListDailyReportsParams,
   ListDailyReportsResult,
   MonthlyReportRow,
@@ -21,11 +22,92 @@ export const PAGE_SIZE = 50;
 /** Reports per request when loading full summary_json for compute. */
 export const COMPUTE_CHUNK_SIZE = 8;
 
-/** Hard cap on overlapping report rows per generate (protects Supabase CPU/RAM). */
+/** Hard cap on overlapping report rows per month window (protects Supabase CPU/RAM). */
 export const MAX_COMPUTE_REPORTS = 40;
 
-/** Hard cap on aggregate compute payload size (~15 MB). */
+/** Hard cap on aggregate compute payload size per month window (~15 MB). */
 export const MAX_COMPUTE_PAYLOAD_BYTES = 15 * 1024 * 1024;
+
+/** Max calendar days for a single generate (primary or fetch-bounds span). */
+export const MAX_GENERATE_SPAN_DAYS = 366;
+
+/** Max unique reports after merging all month windows for a long-range generate. */
+export const MAX_COMPUTE_RANGE_REPORTS = 150;
+
+function parseYmdLocal(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatYmdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function toLocalDateKey(value: unknown): number | null {
+  if (value == null) return null;
+  const d = value instanceof Date ? value : new Date(value as string | number);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/**
+ * Split an inclusive YYYY-MM-DD span into calendar-month windows,
+ * clamping the first/last month to the selected bounds.
+ */
+export function iterMonthWindows(
+  dateFrom: string,
+  dateTo: string,
+): Array<{ dateFrom: string; dateTo: string }> {
+  const end = parseYmdLocal(dateTo);
+  let cursor = parseYmdLocal(dateFrom);
+  if (cursor > end) return [];
+
+  const windows: Array<{ dateFrom: string; dateTo: string }> = [];
+  while (cursor <= end) {
+    const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+    const wFrom = cursor > monthStart ? cursor : monthStart;
+    const wTo = end < monthEnd ? end : monthEnd;
+    windows.push({ dateFrom: formatYmdLocal(wFrom), dateTo: formatYmdLocal(wTo) });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  return windows;
+}
+
+/** Keep only rowDetails whose transaction date falls within [dateFrom, dateTo]. */
+function pruneSummaryJsonRowDetails(
+  row: DailyReportRow,
+  dateFrom: string,
+  dateTo: string,
+): DailyReportRow {
+  const json = row.summary_json as DailySummaryJSON | null | undefined;
+  if (!json || !Array.isArray(json.rowDetails) || json.rowDetails.length === 0) {
+    return row;
+  }
+
+  const startKey = toLocalDateKey(parseYmdLocal(dateFrom));
+  const endKey = toLocalDateKey(parseYmdLocal(dateTo));
+  if (startKey == null || endKey == null) return row;
+
+  const pruned = json.rowDetails.filter((r) => {
+    const key = toLocalDateKey(r?.transactionDate);
+    if (key == null) return false;
+    return key >= startKey && key <= endKey;
+  });
+
+  if (pruned.length === json.rowDetails.length) return row;
+
+  return {
+    ...row,
+    summary_json: {
+      ...json,
+      rowDetails: pruned,
+    },
+  };
+}
 
 // ============================================================================
 // BRANCH OPERATIONS
@@ -424,6 +506,62 @@ export async function fetchDailyReportsForCompute(params: {
     if (error instanceof Error) throw error;
     throw new Error(handleSupabaseError(error));
   }
+}
+
+/**
+ * Long-range compute fetch: load overlapping reports month-by-month, dedupe by id,
+ * then prune out-of-range rowDetails so year-long generates stay client-safe.
+ *
+ * Per-window caps (40 rows / ~15 MB) still protect PostgREST; the merge ceiling
+ * is MAX_COMPUTE_RANGE_REPORTS unique reports.
+ */
+export async function fetchDailyReportsForComputeRange(params: {
+  dateFrom: string;
+  dateTo: string;
+  branchIds?: string[];
+}): Promise<DailyReportRow[]> {
+  const { dateFrom, dateTo, branchIds } = params;
+  const t0 = performance.now();
+  const windows = iterMonthWindows(dateFrom, dateTo);
+
+  if (windows.length === 0) return [];
+
+  const byId = new Map<string, DailyReportRow>();
+
+  for (const window of windows) {
+    console.log(
+      `[fetchDailyReportsForComputeRange] window ${window.dateFrom} → ${window.dateTo}`,
+    );
+    const rows = await fetchDailyReportsForCompute({
+      dateFrom: window.dateFrom,
+      dateTo: window.dateTo,
+      branchIds,
+    });
+
+    for (const row of rows) {
+      byId.set(row.id, row);
+    }
+
+    if (byId.size > MAX_COMPUTE_RANGE_REPORTS) {
+      throw new Error(
+        `Too many overlapping reports (${byId.size}) across the selected range. ` +
+          `Narrow the date range or select fewer branches (max ${MAX_COMPUTE_RANGE_REPORTS}).`,
+      );
+    }
+  }
+
+  const merged = Array.from(byId.values()).map((row) =>
+    pruneSummaryJsonRowDetails(row, dateFrom, dateTo),
+  );
+
+  const elapsed = Math.round(performance.now() - t0);
+  const approxKb = Math.round(JSON.stringify(merged).length / 1024);
+  console.log(
+    `[fetchDailyReportsForComputeRange] ✅ ${merged.length} unique reports ` +
+      `in ${elapsed}ms (~${approxKb} KB) across ${windows.length} month window(s) — ${dateFrom} → ${dateTo}`,
+  );
+
+  return merged;
 }
 
 /**

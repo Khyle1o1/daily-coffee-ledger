@@ -32,18 +32,21 @@ If you add a Node/Next/Laravel backend, reuse a singleton client instead of crea
 App safeguards:
 
 - Date-range **overlap** fetch (so dual-month uploads still work), chunked (8 reports/request).
-- Hard cap: max **40** overlapping report rows per generate.
-- Hard cap: ~**15 MB** aggregate JSON payload.
-- UI blocks ranges **> 62 days**, and **all-branches** generates longer than **31 days**.
+- Long spans (up to **366 days** / ~1 year) use `fetchDailyReportsForComputeRange`: **month-by-month** windows, dedupe by report id, then prune `rowDetails` outside the selected bounds.
+- Hard cap **per month window**: max **40** overlapping report rows / ~**15 MB** JSON.
+- Hard cap after merge: max **150** unique reports across the full span.
+- UI blocks only spans **> 366 days**; spans **> 62 days** show an info toast (“fetching month by month”).
 
 Watch the browser console:
 
 ```
+[fetchDailyReportsForComputeRange] window 2026-01-01 → 2026-01-31
 [fetchDailyReportsForCompute] chunk 0-7: …
 [fetchDailyReportsForCompute] ✅ N rows in Xms (~Y KB)
+[fetchDailyReportsForComputeRange] ✅ M unique reports … across K month window(s)
 ```
 
-If you hit the cap, narrow the date range or select fewer branches.
+If you hit a cap, narrow the date range or select fewer branches.
 
 ## 4) Query and Index Optimization
 

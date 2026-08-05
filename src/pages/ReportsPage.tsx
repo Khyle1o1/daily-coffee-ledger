@@ -43,7 +43,7 @@ import { CATEGORIES } from "@/utils/types";
 
 import { useLiveBranches } from "@/hooks/useLiveBranches";
 import { logEvent } from "@/services/auditService";
-import { fetchDailyReportsForCompute } from "@/services/reportsService";
+import { fetchDailyReportsForComputeRange, MAX_GENERATE_SPAN_DAYS } from "@/services/reportsService";
 import { dailyReportsFromRows } from "@/services/reportConverter";
 import { queryKeys } from "@/hooks/queries/queryKeys";
 import { useAuth } from "@/auth/useAuth";
@@ -272,24 +272,20 @@ export default function ReportsPage() {
       const fetchSpanDays =
         differenceInCalendarDays(parseISO(fetchBounds.dateTo), parseISO(fetchBounds.dateFrom)) + 1;
 
-      if (primarySpanDays > 62 || fetchSpanDays > 62) {
+      if (primarySpanDays > MAX_GENERATE_SPAN_DAYS || fetchSpanDays > MAX_GENERATE_SPAN_DAYS) {
         toast({
           variant: "destructive",
           title: "Date range too large",
-          description:
-            "Limit the primary (and compare) range to 62 days or less to keep Supabase healthy.",
+          description: `Limit the primary (and compare) range to ${MAX_GENERATE_SPAN_DAYS} days or less (about one year).`,
         });
         return;
       }
 
-      if (filterBranches.length === 0 && fetchSpanDays > 31) {
+      if (fetchSpanDays > 62) {
         toast({
-          variant: "destructive",
-          title: "Narrow branches or dates",
-          description:
-            "All-branches generates over a multi-month window pull too much data. Select specific branches or shorten the range to 31 days.",
+          title: "Large range",
+          description: "Fetching month by month — this may take a minute.",
         });
-        return;
       }
 
       const computeKey = queryKeys.reports.compute(user?.id, {
@@ -307,9 +303,9 @@ export default function ReportsPage() {
       );
 
       const rows = await queryClient.fetchQuery({
-        queryKey: [...computeKey, "overlap-v2", "chunked"] as const,
+        queryKey: [...computeKey, "overlap-v2", "month-windows-v1"] as const,
         queryFn:  () =>
-          fetchDailyReportsForCompute({
+          fetchDailyReportsForComputeRange({
             dateFrom:  fetchBounds.dateFrom,
             dateTo:    fetchBounds.dateTo,
             branchIds,
