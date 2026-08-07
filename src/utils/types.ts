@@ -64,6 +64,15 @@ export interface RawRow {
   paymentType?: string;
   // Optional: normalized transaction date for reporting
   transactionDate?: Date;
+  /** POS Transaction ID (for unique txn counts) */
+  transactionId?: string;
+  receiptNo?: string;
+  grossPrice?: number;
+  discountedPrice?: number;
+  regularDiscount?: number;
+  seniorDiscount?: number;
+  pwdDiscount?: number;
+  vatExemption?: number;
 }
 
 export interface ProcessedRow extends RawRow {
@@ -123,6 +132,14 @@ export interface ColumnMapping {
   quantity: string;
   unitPrice: string;
   paymentType?: string;
+  transactionId?: string;
+  receiptNo?: string;
+  grossPrice?: string;
+  discountedPrice?: string;
+  regularDiscount?: string;
+  seniorDiscount?: string;
+  pwdDiscount?: string;
+  vatExemption?: string;
 }
 
 // View mode type

@@ -315,6 +315,14 @@ export default function SummaryPage() {
       quantity: modalAutoMapping.quantity || "",
       unitPrice: modalAutoMapping.unitPrice || "",
       paymentType: modalAutoMapping.paymentType || "",
+      transactionId: modalAutoMapping.transactionId || "",
+      receiptNo: modalAutoMapping.receiptNo || "",
+      grossPrice: modalAutoMapping.grossPrice || "",
+      discountedPrice: modalAutoMapping.discountedPrice || "",
+      regularDiscount: modalAutoMapping.regularDiscount || "",
+      seniorDiscount: modalAutoMapping.seniorDiscount || "",
+      pwdDiscount: modalAutoMapping.pwdDiscount || "",
+      vatExemption: modalAutoMapping.vatExemption || "",
     };
 
     const required: (keyof ColumnMapping)[] = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
@@ -332,6 +340,11 @@ export default function SummaryPage() {
     const dateKey = findTransactionDateKey(modalCsvHeaders);
 
     const debugDates: Date[] = [];
+    const parseOptMoney = (raw: string | undefined) => {
+      if (raw == null || raw === "") return undefined;
+      const n = parseFloat(String(raw).replace(/[,₱\s]/g, ""));
+      return Number.isFinite(n) ? n : undefined;
+    };
 
     const rawRows: RawRow[] = [];
     for (const r of modalCsvData) {
@@ -346,6 +359,20 @@ export default function SummaryPage() {
         unitPrice: parseFloat(r[mapping.unitPrice]) || 0,
         paymentType: mapping.paymentType ? r[mapping.paymentType] || "" : undefined,
         transactionDate: d,
+        transactionId: mapping.transactionId ? r[mapping.transactionId] || undefined : undefined,
+        receiptNo: mapping.receiptNo ? r[mapping.receiptNo] || undefined : undefined,
+        grossPrice: mapping.grossPrice ? parseOptMoney(r[mapping.grossPrice]) : undefined,
+        discountedPrice: mapping.discountedPrice
+          ? parseOptMoney(r[mapping.discountedPrice])
+          : undefined,
+        regularDiscount: mapping.regularDiscount
+          ? parseOptMoney(r[mapping.regularDiscount])
+          : undefined,
+        seniorDiscount: mapping.seniorDiscount
+          ? parseOptMoney(r[mapping.seniorDiscount])
+          : undefined,
+        pwdDiscount: mapping.pwdDiscount ? parseOptMoney(r[mapping.pwdDiscount]) : undefined,
+        vatExemption: mapping.vatExemption ? parseOptMoney(r[mapping.vatExemption]) : undefined,
       });
     }
 

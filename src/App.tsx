@@ -14,6 +14,7 @@ import AppShell from "./layout/AppShell";
 import SummaryPage from "./pages/SummaryPage";
 import ReportsPage from "./pages/ReportsPage";
 import MonthlyBranchReportPage from "./pages/MonthlyBranchReportPage";
+import DailyCashLedgerReportPage from "./pages/DailyCashLedgerReportPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import ActivityLogsPage from "./pages/ActivityLogsPage";
 import DirectoryPage from "./pages/DirectoryPage";
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="summary" element={<SummaryPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="monthly-branch-report" element={<MonthlyBranchReportPage />} />
+              <Route path="daily-cash-ledger" element={<DailyCashLedgerReportPage />} />
               <Route path="users" element={<UserManagementPage />} />
               <Route path="activity-logs" element={<ActivityLogsPage />} />
               <Route path="directory" element={<DirectoryPage />} />

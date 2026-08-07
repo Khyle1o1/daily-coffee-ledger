@@ -51,6 +51,14 @@ const COMPUTE_ROW_DETAIL_KEYS = [
   "option",
   "paymentType",
   "status",
+  "transactionId",
+  "receiptNo",
+  "grossPrice",
+  "discountedPrice",
+  "regularDiscount",
+  "seniorDiscount",
+  "pwdDiscount",
+  "vatExemption",
 ] as const;
 
 function parseYmdLocal(ymd: string): Date {

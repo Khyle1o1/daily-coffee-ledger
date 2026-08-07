@@ -643,12 +643,20 @@ export default function ReportsPage() {
               </p>
             </div>
           </div>
-          <Link
-            to="/app/monthly-branch-report"
-            className="text-xs font-semibold px-4 py-2 rounded-full bg-white/15 text-primary-foreground hover:bg-white/25 transition-colors"
-          >
-            Monthly Branch Report →
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/app/daily-cash-ledger"
+              className="text-xs font-semibold px-4 py-2 rounded-full bg-white/15 text-primary-foreground hover:bg-white/25 transition-colors"
+            >
+              Cash Ledger →
+            </Link>
+            <Link
+              to="/app/monthly-branch-report"
+              className="text-xs font-semibold px-4 py-2 rounded-full bg-white/15 text-primary-foreground hover:bg-white/25 transition-colors"
+            >
+              Monthly Branch →
+            </Link>
+          </div>
         </div>
       </div>
 
