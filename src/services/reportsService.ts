@@ -385,8 +385,8 @@ export async function listDailyReports(
  * @param params.page      1-based page number (default: 1)
  * @param params.pageSize  rows per page (default: PAGE_SIZE = 50)
  * @param params.branchId  filter to a single branch UUID
- * @param params.dateFrom  inclusive lower bound for report_date (YYYY-MM-DD)
- * @param params.dateTo    inclusive upper bound for report_date (YYYY-MM-DD)
+ * @param params.dateFrom  inclusive lower bound — filters by date-range *overlap*
+ * @param params.dateTo    inclusive upper bound — filters by date-range *overlap*
  */
 export async function listAllDailyReports(
   params: ListDailyReportsParams = {},
@@ -414,8 +414,16 @@ export async function listAllDailyReports(
       .range(from, to);
 
     if (branchId) query = query.eq('branch_id', branchId);
-    if (dateFrom) query = query.gte('report_date', dateFrom);
-    if (dateTo)   query = query.lte('report_date', dateTo);
+
+    // Overlap (not report_date alone) so dual-month uploads still appear when
+    // the selected filter only covers the second month (e.g. Jul inside Jun–Jul).
+    if (dateFrom && dateTo) {
+      query = query.lte('date_range_start', dateTo).gte('date_range_end', dateFrom);
+    } else if (dateFrom) {
+      query = query.gte('date_range_end', dateFrom);
+    } else if (dateTo) {
+      query = query.lte('date_range_start', dateTo);
+    }
 
     const { data, error } = await query;
 
@@ -429,7 +437,8 @@ export async function listAllDailyReports(
     const rows = (data as DailyReportListRow[]) ?? [];
     const approxKb = Math.round(JSON.stringify(rows).length / 1024);
     console.log(
-      `[listAllDailyReports] ✅ ${rows.length} rows in ${elapsed}ms (~${approxKb} KB) — page ${page}`,
+      `[listAllDailyReports] ✅ ${rows.length} rows in ${elapsed}ms (~${approxKb} KB) — page ${page}` +
+        (dateFrom || dateTo ? ` overlap ${dateFrom ?? "…"}→${dateTo ?? "…"}` : ""),
     );
 
     return { data: rows, total: rows.length };

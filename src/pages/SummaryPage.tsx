@@ -121,7 +121,33 @@ export default function SummaryPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredTotalsRef = useRef<HTMLDivElement | null>(null);
-  const { data: cachedDailyReportsPage, error: dailyReportsError } = useDailyReportsQuery();
+
+  /**
+   * Derive plain YYYY-MM-DD filter bounds from the calendar-picker Dates.
+   * Using local date components (getFullYear/getMonth/getDate) avoids the
+   * UTC-midnight vs. local-midnight mismatch that makes new Date("YYYY-MM-DD")
+   * land on the wrong calendar day in UTC+8 timezones.
+   */
+  const { fromKey, toKey } = useMemo(() => {
+    const toKey_ = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+    const from = filterDateRange.from ? toKey_(filterDateRange.from) : null;
+    const to   = filterDateRange.to   ? toKey_(filterDateRange.to)   : from;
+    return { fromKey: from, toKey: to };
+  }, [filterDateRange]);
+
+  // Meta list is light — use a high page size so older months (e.g. January)
+  // are not hidden behind the default newest-50 page. When a date filter is
+  // set, push it to Supabase as an overlap query.
+  const { data: cachedDailyReportsPage, error: dailyReportsError } = useDailyReportsQuery({
+    dateFrom: fromKey ?? undefined,
+    dateTo:   toKey ?? undefined,
+    pageSize: 500,
+  });
 
   // Fetch the full report (rowDetails + unmappedSummary) only when the user
   // opens the detail panel.  The list query returns lightweight metadata from
@@ -520,24 +546,6 @@ export default function SummaryPage() {
       setIsDeleting(false);
     }
   }, [reportPendingDelete, activeReportId, getBranchLabel, queryClient, toast]);
-
-  /**
-   * Derive plain YYYY-MM-DD filter bounds from the calendar-picker Dates.
-   * Using local date components (getFullYear/getMonth/getDate) avoids the
-   * UTC-midnight vs. local-midnight mismatch that makes new Date("YYYY-MM-DD")
-   * land on the wrong calendar day in UTC+8 timezones.
-   */
-  const { fromKey, toKey } = useMemo(() => {
-    const toKey_ = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
-    };
-    const from = filterDateRange.from ? toKey_(filterDateRange.from) : null;
-    const to   = filterDateRange.to   ? toKey_(filterDateRange.to)   : from;
-    return { fromKey: from, toKey: to };
-  }, [filterDateRange]);
 
   /**
    * For a single report, aggregate only the rowDetails whose transactionDate
