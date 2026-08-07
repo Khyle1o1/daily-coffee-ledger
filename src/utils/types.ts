@@ -112,6 +112,9 @@ export interface DailyReport {
   branch: BranchId; // branch identifier
   filename: string;
   uploadedAt: number; // timestamp
+  /** DB row timestamps — used to pick a winning upload when date ranges overlap. */
+  createdAt?: number;
+  updatedAt?: number;
   totalRows: number;
   mappedRows: number;
   unmappedRows: number;

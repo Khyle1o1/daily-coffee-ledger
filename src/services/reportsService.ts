@@ -2,7 +2,7 @@
 // Handles all database operations for branches and reports
 
 import { supabase, handleSupabaseError } from '@/lib/supabaseClient';
-import type { BranchId } from '@/utils/types';
+import type { BranchId, ProcessedRow } from '@/utils/types';
 import { BRANCHES } from '@/utils/types';
 import type {
   Branch,
@@ -15,6 +15,12 @@ import type {
   SaveDailyReportPayload,
   SaveMonthlyReportPayload,
 } from '@/lib/supabase-types';
+import {
+  collectLocalDaysFromRowDetails,
+  contentDateBoundsFromRowDetails,
+  localYmdFromUnknown,
+  rebuildSummaryJsonFromRowDetails,
+} from '@/lib/reports/posReportCoverage';
 
 /** Default page size for paginated list queries. */
 export const PAGE_SIZE = 50;
@@ -299,7 +305,86 @@ export async function seedBranchesIfEmpty(): Promise<void> {
 // ============================================================================
 
 /**
- * Save a daily report (upsert - insert or update if exists)
+ * After saving a report, remove any calendar days it covers from other uploads
+ * for the same branch (trim or delete siblings). Prevents double-counting on generate.
+ */
+export async function reconcileOverlappingSiblingReports(params: {
+  branchId: string;
+  keepReportId: string;
+  keepDays: Set<string>;
+  dateFrom: string;
+  dateTo: string;
+}): Promise<{ trimmed: number; deleted: number }> {
+  const { branchId, keepReportId, keepDays, dateFrom, dateTo } = params;
+  if (keepDays.size === 0) return { trimmed: 0, deleted: 0 };
+
+  const { data: siblings, error } = await supabase
+    .from('reports_daily')
+    .select('id, date_range_start, date_range_end, summary_json')
+    .eq('branch_id', branchId)
+    .neq('id', keepReportId)
+    .lte('date_range_start', dateTo)
+    .gte('date_range_end', dateFrom);
+
+  if (error) {
+    throw new Error(`Failed to load overlapping reports: ${error.message}`);
+  }
+
+  let trimmed = 0;
+  let deleted = 0;
+
+  for (const sibling of siblings ?? []) {
+    const details = Array.isArray(sibling.summary_json?.rowDetails)
+      ? (sibling.summary_json.rowDetails as ProcessedRow[])
+      : [];
+    const kept = details.filter((row) => {
+      const day = localYmdFromUnknown(row.transactionDate);
+      return !day || !keepDays.has(day);
+    });
+    if (kept.length === details.length) continue;
+
+    if (kept.length === 0) {
+      const { error: delErr } = await supabase
+        .from('reports_daily')
+        .delete()
+        .eq('id', sibling.id);
+      if (delErr) {
+        throw new Error(`Failed to delete overlapping report: ${delErr.message}`);
+      }
+      deleted += 1;
+      continue;
+    }
+
+    const bounds = contentDateBoundsFromRowDetails(kept);
+    if (!bounds) continue;
+    const nextJson = rebuildSummaryJsonFromRowDetails(
+      (sibling.summary_json ?? {}) as Record<string, unknown>,
+      kept,
+    );
+
+    const { error: updErr } = await supabase
+      .from('reports_daily')
+      .update({
+        summary_json: nextJson as any,
+        date_range_start: bounds.start,
+        date_range_end: bounds.end,
+        report_date: bounds.start,
+      })
+      .eq('id', sibling.id);
+
+    if (updErr) {
+      throw new Error(`Failed to trim overlapping report: ${updErr.message}`);
+    }
+    trimmed += 1;
+  }
+
+  return { trimmed, deleted };
+}
+
+/**
+ * Save a daily report (upsert - insert or update if exists).
+ * Normalizes date ranges from rowDetails and strips overlapping days from
+ * other uploads for the same branch so Cash Ledger / reports never double-count.
  */
 export async function saveDailyReport(
   payload: SaveDailyReportPayload
@@ -312,14 +397,23 @@ export async function saveDailyReport(
       throw new Error('User must be authenticated to save reports');
     }
 
+    const rowDetails = Array.isArray(payload.summaryJson?.rowDetails)
+      ? payload.summaryJson.rowDetails
+      : [];
+    const bounds = contentDateBoundsFromRowDetails(rowDetails);
+    const dateRangeStart = bounds?.start ?? payload.dateRangeStart;
+    const dateRangeEnd = bounds?.end ?? payload.dateRangeEnd;
+    const reportDate = bounds?.start ?? payload.reportDate;
+    const keepDays = collectLocalDaysFromRowDetails(rowDetails);
+
     const { data, error } = await supabase
       .from('reports_daily')
       .upsert(
         {
           branch_id: payload.branchId,
-          report_date: payload.reportDate,
-          date_range_start: payload.dateRangeStart,
-          date_range_end: payload.dateRangeEnd,
+          report_date: reportDate,
+          date_range_start: dateRangeStart,
+          date_range_end: dateRangeEnd,
           transactions_file_name: payload.transactionsFileName,
           mapping_file_name: payload.mappingFileName || null,
           summary_json: payload.summaryJson as any,
@@ -340,7 +434,28 @@ export async function saveDailyReport(
       throw new Error('Failed to save daily report: No data returned');
     }
 
-    return data as DailyReportRow;
+    const saved = data as DailyReportRow;
+
+    try {
+      const result = await reconcileOverlappingSiblingReports({
+        branchId: payload.branchId,
+        keepReportId: saved.id,
+        keepDays,
+        dateFrom: dateRangeStart,
+        dateTo: dateRangeEnd,
+      });
+      if (result.trimmed || result.deleted) {
+        console.log(
+          `[saveDailyReport] reconciled overlaps — trimmed=${result.trimmed} deleted=${result.deleted}`,
+        );
+      }
+    } catch (reconcileError) {
+      console.error('saveDailyReport reconcile error:', reconcileError);
+      // Save succeeded; overlap reconcile failure should not hide the primary save.
+      // Derive-time ownership remains a safety net.
+    }
+
+    return saved;
   } catch (error) {
     console.error('saveDailyReport error:', error);
     throw new Error(handleSupabaseError(error));
