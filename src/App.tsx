@@ -13,6 +13,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AppShell from "./layout/AppShell";
 import SummaryPage from "./pages/SummaryPage";
 import ReportsPage from "./pages/ReportsPage";
+import MonthlyBranchReportPage from "./pages/MonthlyBranchReportPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import ActivityLogsPage from "./pages/ActivityLogsPage";
 import DirectoryPage from "./pages/DirectoryPage";
@@ -96,6 +97,7 @@ const App = () => (
               <Route index element={<Navigate to="/app/summary" replace />} />
               <Route path="summary" element={<SummaryPage />} />
               <Route path="reports" element={<ReportsPage />} />
+              <Route path="monthly-branch-report" element={<MonthlyBranchReportPage />} />
               <Route path="users" element={<UserManagementPage />} />
               <Route path="activity-logs" element={<ActivityLogsPage />} />
               <Route path="directory" element={<DirectoryPage />} />

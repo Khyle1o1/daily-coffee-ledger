@@ -14,6 +14,7 @@ import {
   Eye,
   ScrollText,
   Menu,
+  LayoutList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -117,6 +118,7 @@ function SidebarNav({
 
         {navLink('/app/summary', <Calendar className="h-5 w-5" />, 'Summary')}
         {navLink('/app/reports', <BarChart3 className="h-5 w-5" />, 'Reports')}
+        {navLink('/app/monthly-branch-report', <LayoutList className="h-5 w-5" />, 'Monthly Branch')}
 
         {isAdmin && navLink('/app/users', <Shield className="h-5 w-5" />, 'User Management')}
         {isAdmin && navLink('/app/activity-logs', <ScrollText className="h-5 w-5" />, 'Activity Logs')}
@@ -149,6 +151,7 @@ export default function AppShell() {
 
   const getPageTitle = () => {
     if (location.pathname.includes('/summary'))       return 'Summary';
+    if (location.pathname.includes('/monthly-branch-report')) return 'Monthly Branch Report';
     if (location.pathname.includes('/reports'))       return 'Reports';
     if (location.pathname.includes('/users'))         return 'User Management';
     if (location.pathname.includes('/activity-logs')) return 'Activity Logs';

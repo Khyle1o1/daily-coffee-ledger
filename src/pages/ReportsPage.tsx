@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, differenceInCalendarDays, parseISO } from "date-fns";
 import {
@@ -642,6 +643,12 @@ export default function ReportsPage() {
               </p>
             </div>
           </div>
+          <Link
+            to="/app/monthly-branch-report"
+            className="text-xs font-semibold px-4 py-2 rounded-full bg-white/15 text-primary-foreground hover:bg-white/25 transition-colors"
+          >
+            Monthly Branch Report →
+          </Link>
         </div>
       </div>
 
