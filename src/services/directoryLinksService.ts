@@ -57,7 +57,7 @@ export async function listDirectoryLinks(
     let query = supabase
       .from('directory_links')
       .select(
-        'id, name, url, description, category, is_active, created_by, created_at, updated_at',
+        'id, name, url, description, category, is_active, created_at, updated_at',
         { count: 'exact' },
       )
       .order(orderColumn, { ascending: order === 'asc' })

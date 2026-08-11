@@ -1,4 +1,6 @@
-CREATE OR REPLACE VIEW public.reports_daily_meta AS
+CREATE OR REPLACE VIEW public.reports_daily_meta
+WITH (security_invoker = on)
+AS
 SELECT
   r.id,
   r.branch_id,

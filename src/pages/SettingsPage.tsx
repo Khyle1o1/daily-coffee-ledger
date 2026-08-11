@@ -27,9 +27,11 @@ export default function SettingsPage() {
   const { isAdmin, loading } = useAuth();
   const invalidateBranches = useInvalidateBranches();
 
+  const PAGE_SIZE = 10;
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 350);
   const [activeOnly, setActiveOnly] = useState(true);
+  const [page, setPage] = useState(1);
 
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
@@ -53,8 +55,12 @@ export default function SettingsPage() {
     enabled: isAdmin,
   });
 
-  const branches = (branchesResult?.items ?? []) as Branch[];
-  const total = branchesResult?.total ?? 0;
+  const allBranches = (branchesResult?.items ?? []) as Branch[];
+  const total = branchesResult?.total ?? allBranches.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const branches = allBranches.slice(pageStart, pageStart + PAGE_SIZE);
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -66,6 +72,10 @@ export default function SettingsPage() {
       navigate('/app/summary', { replace: true });
     }
   }, [loading, isAdmin, navigate, toast]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, activeOnly]);
 
   useEffect(() => {
     if (!branchesError) return;
@@ -151,47 +161,46 @@ export default function SettingsPage() {
 
         {/* Branches section */}
         <section className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
-                Branches
-              </p>
-              <h3 className="text-lg font-semibold text-card-foreground">
-                Branch management
-              </h3>
-            </div>
-            <Button
-              onClick={openAddBranch}
-              className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              + Add Branch
-            </Button>
+          <div>
+            <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
+              Branches
+            </p>
+            <h3 className="text-lg font-semibold text-card-foreground">
+              Branch management
+            </h3>
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-[220px]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-foreground/80 pointer-events-none" />
               <Input
-                placeholder="Search branch…"
+                placeholder="Search branches…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="rounded-full pl-9 bg-primary text-primary-foreground placeholder:text-primary-foreground/80 border-transparent shadow-sm"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Switch
-                id="branches-active-only"
-                checked={activeOnly}
-                onCheckedChange={setActiveOnly}
-              />
-              <Label
-                htmlFor="branches-active-only"
-                className="text-sm cursor-pointer select-none text-card-foreground"
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="branches-active-only"
+                  checked={activeOnly}
+                  onCheckedChange={setActiveOnly}
+                />
+                <Label
+                  htmlFor="branches-active-only"
+                  className="text-sm cursor-pointer select-none text-card-foreground whitespace-nowrap"
+                >
+                  Active only
+                </Label>
+              </div>
+              <Button
+                onClick={openAddBranch}
+                className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                Active only
-              </Label>
+                + Add Branch
+              </Button>
             </div>
           </div>
 
@@ -199,8 +208,12 @@ export default function SettingsPage() {
             branches={branches}
             loading={branchesLoading}
             total={total}
+            page={currentPage}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
             onEdit={openEditBranch}
             onAdd={openAddBranch}
+            hasFilters={Boolean(debouncedSearch)}
           />
         </section>
 

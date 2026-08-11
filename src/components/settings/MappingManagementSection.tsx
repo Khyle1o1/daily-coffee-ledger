@@ -5,14 +5,13 @@ import {
   Pencil,
   Trash2,
   Loader2,
-  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -31,6 +30,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { MappingModal } from "./MappingModal";
 import { MappingTestPanel } from "./MappingTestPanel";
 import {
@@ -44,7 +46,7 @@ import {
 } from "@/lib/api/manualMappings";
 import { CATEGORIES, type Category, type MappingEntry } from "@/utils/types";
 
-// ─── Category colour maps ─────────────────────────────────────────────────────
+const PAGE_SIZE = 10;
 
 const CATEGORY_DOT: Record<string, string> = {
   ICED:           "bg-blue-500",
@@ -68,7 +70,24 @@ const CATEGORY_BADGE: Record<string, string> = {
   PACKAGING:      "bg-slate-100 text-slate-700",
 };
 
-// ─── Section component ────────────────────────────────────────────────────────
+function pageNumbers(current: number, totalPages: number): (number | "ellipsis")[] {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages, current, current - 1, current + 1]);
+  const sorted = [...pages].filter((n) => n >= 1 && n <= totalPages).sort((a, b) => a - b);
+
+  const result: (number | "ellipsis")[] = [];
+  for (const n of sorted) {
+    const prev = result[result.length - 1];
+    if (typeof prev === "number" && n - prev > 1) {
+      result.push("ellipsis");
+    }
+    result.push(n);
+  }
+  return result;
+}
 
 interface MappingManagementSectionProps {
   manualEntries: MappingEntry[];
@@ -86,8 +105,10 @@ export function MappingManagementSection({
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [catFilter, setCatFilter] = useState<Category | "ALL">("ALL");
   const [activeOnly, setActiveOnly] = useState(false);
+  const [page, setPage] = useState(1);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<ManualMapping | null>(null);
@@ -96,14 +117,18 @@ export function MappingManagementSection({
   const [deleteTarget, setDeleteTarget] = useState<ManualMapping | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const result = await listManualMappings({
-        q: search || undefined,
+        q: debouncedSearch || undefined,
         mappedCategory: catFilter,
         activeOnly,
-        pageSize: 200,
+        page: currentPage,
+        pageSize: PAGE_SIZE,
       });
       setMappings(result.items);
       setTotal(result.total);
@@ -116,11 +141,15 @@ export function MappingManagementSection({
     } finally {
       setLoading(false);
     }
-  }, [search, catFilter, activeOnly, toast]);
+  }, [debouncedSearch, catFilter, activeOnly, currentPage, toast]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, catFilter, activeOnly]);
 
   const handleSave = async (payload: SaveManualMappingPayload) => {
     if (editing) {
@@ -178,32 +207,22 @@ export function MappingManagementSection({
 
   return (
     <section className="space-y-4">
-      {/* ── Section header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
-            Mapping Management
-          </p>
-          <h3 className="text-lg font-semibold text-card-foreground">
-            Manual mapping overrides
-          </h3>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            These rules run{" "}
-            <span className="font-semibold text-primary">before</span>{" "}
-            the built-in validation table. Use them to fix unmapped or mis-categorised transactions.
-          </p>
-        </div>
-        <Button
-          onClick={openAdd}
-          className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          + Add Mapping
-        </Button>
+      <div>
+        <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
+          Mapping Management
+        </p>
+        <h3 className="text-lg font-semibold text-card-foreground">
+          Manual mapping overrides
+        </h3>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          These rules run{" "}
+          <span className="font-semibold text-primary">before</span>{" "}
+          the built-in validation table. Use them to fix unmapped or mis-categorised transactions.
+        </p>
       </div>
 
-      {/* ── Filters ── */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[220px]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-foreground/80 pointer-events-none" />
           <Input
             placeholder="Search item, category, notes…"
@@ -213,45 +232,55 @@ export function MappingManagementSection({
           />
         </div>
 
-        <Select value={catFilter} onValueChange={(v) => setCatFilter(v as Category | "ALL")}>
-          <SelectTrigger className="rounded-full w-[160px] text-sm bg-muted text-card-foreground border-border font-medium">
-            <SelectValue placeholder="All categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All categories</SelectItem>
-            {CATEGORIES.map((cat) => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-3 flex-wrap shrink-0">
+          <Select value={catFilter} onValueChange={(v) => setCatFilter(v as Category | "ALL")}>
+            <SelectTrigger className="rounded-full w-[160px] text-sm bg-muted text-card-foreground border-border font-medium">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All categories</SelectItem>
+              {CATEGORIES.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <div className="flex items-center gap-2">
-          <Switch id="mm-active-only" checked={activeOnly} onCheckedChange={setActiveOnly} />
-          <Label
-            htmlFor="mm-active-only"
-            className="text-sm font-medium cursor-pointer select-none text-card-foreground"
+          <div className="flex items-center gap-2">
+            <Switch id="mm-active-only" checked={activeOnly} onCheckedChange={setActiveOnly} />
+            <Label
+              htmlFor="mm-active-only"
+              className="text-sm font-medium cursor-pointer select-none text-card-foreground whitespace-nowrap"
+            >
+              Active only
+            </Label>
+          </div>
+
+          <Button
+            onClick={openAdd}
+            className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            Active only
-          </Label>
+            + Add Mapping
+          </Button>
         </div>
       </div>
 
-      {/* ── List ── */}
       <MappingList
         mappings={mappings}
         total={total}
         loading={loading}
+        page={currentPage}
+        pageSize={PAGE_SIZE}
         togglingId={togglingId}
+        hasFilters={Boolean(debouncedSearch) || catFilter !== "ALL" || activeOnly}
+        onPageChange={setPage}
         onAdd={openAdd}
         onEdit={openEdit}
         onToggle={handleToggle}
         onDelete={setDeleteTarget}
       />
 
-      {/* ── Test panel ── */}
       <MappingTestPanel manualEntries={manualEntries} />
 
-      {/* ── Modals ── */}
       <MappingModal
         open={showModal}
         onOpenChange={(open) => { setShowModal(open); if (!open) setEditing(null); }}
@@ -288,13 +317,15 @@ export function MappingManagementSection({
   );
 }
 
-// ─── MappingList ──────────────────────────────────────────────────────────────
-
 interface MappingListProps {
   mappings: ManualMapping[];
   total: number;
   loading: boolean;
+  page: number;
+  pageSize: number;
   togglingId: string | null;
+  hasFilters: boolean;
+  onPageChange: (page: number) => void;
   onAdd: () => void;
   onEdit: (m: ManualMapping) => void;
   onToggle: (m: ManualMapping) => void;
@@ -305,61 +336,120 @@ function MappingList({
   mappings,
   total,
   loading,
+  page,
+  pageSize,
   togglingId,
+  hasFilters,
+  onPageChange,
   onAdd,
   onEdit,
   onToggle,
   onDelete,
 }: MappingListProps) {
-  if (loading) {
-    return (
-      <Card className="rounded-3xl shadow-xl p-8">
-        <div className="text-center py-10">
-          <Loader2 className="h-10 w-10 text-primary animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading mappings…</p>
-        </div>
-      </Card>
-    );
-  }
-
-  if (!mappings.length) {
-    return (
-      <Card className="rounded-3xl shadow-xl p-8">
-        <div className="text-center py-10">
-          <Layers className="h-14 w-14 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-xl font-semibold text-card-foreground mb-2">No override mappings</p>
-          <p className="text-muted-foreground mb-6 text-sm max-w-sm mx-auto">
-            The built-in validation table handles most transactions. Add overrides here when you
-            need to fix specific unmapped or mis-categorised rows.
-          </p>
-          <Button className="rounded-full" onClick={onAdd}>+ Add Mapping</Button>
-        </div>
-      </Card>
-    );
-  }
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
 
   return (
-    <Card className="rounded-3xl shadow-xl p-4 sm:p-6">
-      <div className="space-y-2">
-        {mappings.map((m) => (
-          <MappingRow
-            key={m.id}
-            mapping={m}
-            toggling={togglingId === m.id}
-            onEdit={onEdit}
-            onToggle={onToggle}
-            onDelete={onDelete}
-          />
-        ))}
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-border/80 bg-card overflow-hidden">
+        {loading ? (
+          <div className="text-center py-14">
+            <Loader2 className="h-8 w-8 text-primary animate-spin mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Loading mappings…</p>
+          </div>
+        ) : !mappings.length ? (
+          <div className="text-center py-14 px-6">
+            <div className="bg-primary/10 rounded-xl p-3 w-fit mx-auto mb-3">
+              <Layers className="h-7 w-7 text-primary" />
+            </div>
+            <p className="text-base font-semibold text-card-foreground mb-1">
+              {hasFilters ? "No matching mappings" : "No override mappings"}
+            </p>
+            <p className="text-sm text-muted-foreground mb-5 max-w-sm mx-auto">
+              {hasFilters
+                ? "Try adjusting your search or filters."
+                : "The built-in validation table handles most transactions. Add overrides here when you need to fix specific unmapped or mis-categorised rows."}
+            </p>
+            {!hasFilters && (
+              <Button className="rounded-full" onClick={onAdd}>+ Add Mapping</Button>
+            )}
+          </div>
+        ) : (
+          <ul className="divide-y divide-border/70">
+            {mappings.map((m) => (
+              <MappingRow
+                key={m.id}
+                mapping={m}
+                toggling={togglingId === m.id}
+                onEdit={onEdit}
+                onToggle={onToggle}
+                onDelete={onDelete}
+              />
+            ))}
+          </ul>
+        )}
       </div>
-      <p className="text-xs text-muted-foreground mt-4 text-right">
-        {total} override{total !== 1 ? "s" : ""} total
-      </p>
-    </Card>
+
+      {!loading && total > 0 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap px-1">
+          <p className="text-sm text-muted-foreground">
+            Showing {from}–{to} of {total} {total === 1 ? "mapping" : "mappings"}
+          </p>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full h-8 w-8 p-0"
+                disabled={page <= 1}
+                onClick={() => onPageChange(page - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              {pageNumbers(page, totalPages).map((item, index) =>
+                item === "ellipsis" ? (
+                  <span
+                    key={`ellipsis-${index}`}
+                    className="w-8 text-center text-sm text-muted-foreground"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <Button
+                    key={item}
+                    variant={item === page ? "default" : "outline"}
+                    size="sm"
+                    className="rounded-full h-8 w-8 p-0"
+                    onClick={() => onPageChange(item)}
+                    aria-current={item === page ? "page" : undefined}
+                    aria-label={`Page ${item}`}
+                  >
+                    {item}
+                  </Button>
+                ),
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full h-8 w-8 p-0"
+                disabled={page >= totalPages}
+                onClick={() => onPageChange(page + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
-
-// ─── MappingRow ───────────────────────────────────────────────────────────────
 
 function MappingRow({
   mapping: m,
@@ -374,106 +464,101 @@ function MappingRow({
   onToggle: (m: ManualMapping) => void;
   onDelete: (m: ManualMapping) => void;
 }) {
-  const hasMeta = m.priority !== 0 || !!m.notes;
+  const detailParts = [
+    m.sourceCategory || null,
+    m.sourceOption || null,
+    m.mappedItemName && m.mappedItemName !== m.sourceItem ? m.mappedItemName : null,
+    m.notes,
+  ].filter(Boolean);
 
   return (
-    <div
-      className={`flex items-center justify-between px-4 py-3.5 border rounded-2xl gap-4 transition-colors ${
-        m.isActive
-          ? "border-border bg-card hover:bg-muted/30"
-          : "border-border/40 bg-muted/20 opacity-55"
-      }`}
-    >
-      {/* ── Left: dot + content ── */}
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        {/* Category colour dot */}
-        <div
-          className={`h-3 w-3 rounded-full shrink-0 ${
-            CATEGORY_DOT[m.mappedCategory] ?? "bg-slate-400"
-          }`}
-        />
-
-        <div className="flex-1 min-w-0 space-y-1">
-          {/* SOURCE line */}
-          <div className="flex items-center flex-wrap gap-1.5">
-            {m.sourceCategory && (
-              <span className="text-[11px] font-mono font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-md uppercase tracking-wider">
-                {m.sourceCategory}
-              </span>
-            )}
-            {m.sourceCategory && (
-              <span className="text-muted-foreground text-sm font-medium">›</span>
-            )}
-            <span className="text-sm font-semibold text-card-foreground">{m.sourceItem}</span>
-            {m.sourceOption && (
-              <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                {m.sourceOption}
-              </span>
-            )}
+    <li>
+      <div className="flex items-center gap-3 px-4 h-16 sm:h-[68px] hover:bg-muted/40 transition-colors">
+        <div className="relative shrink-0">
+          <div className="bg-primary/10 rounded-lg p-1.5">
+            <Layers className="h-4 w-4 text-primary" />
           </div>
+          <span
+            className={cn(
+              "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-card",
+              CATEGORY_DOT[m.mappedCategory] ?? "bg-slate-400",
+            )}
+          />
+        </div>
 
-          {/* OUTPUT line */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <ArrowRight className="h-3 w-3 text-primary shrink-0" />
-            <span className="text-sm font-semibold text-card-foreground">{m.mappedItemName}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-semibold text-sm text-card-foreground truncate">
+              {m.sourceItem}
+            </span>
             <span
-              className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                CATEGORY_BADGE[m.mappedCategory] ?? "bg-muted text-card-foreground"
-              }`}
+              className={cn(
+                "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0",
+                CATEGORY_BADGE[m.mappedCategory] ?? "bg-muted text-card-foreground",
+              )}
             >
               {m.mappedCategory}
             </span>
           </div>
-
-          {/* META line — only rendered when there is something to show */}
-          {hasMeta && (
-            <div className="flex items-center gap-2 flex-wrap pt-0.5">
-              {m.priority !== 0 && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] font-mono font-semibold rounded-full h-5 text-muted-foreground border-border"
-                >
-                  P{m.priority > 0 ? "+" : ""}{m.priority}
-                </Badge>
-              )}
-              {m.notes && (
-                <span className="text-xs text-muted-foreground italic truncate max-w-[260px]">
-                  {m.notes}
-                </span>
-              )}
-            </div>
-          )}
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            {detailParts.length > 0 && (
+              <>
+                {detailParts.join(" · ")}
+                <span className="mx-1.5 text-border">·</span>
+              </>
+            )}
+            Updated {format(new Date(m.updatedAt), "MMM d, yyyy")}
+          </p>
         </div>
-      </div>
 
-      {/* ── Right: controls ── */}
-      <div className="flex items-center gap-2 shrink-0">
-        <Switch
-          checked={m.isActive}
-          onCheckedChange={() => onToggle(m)}
+        <button
+          type="button"
+          onClick={() => onToggle(m)}
           disabled={toggling}
           aria-label={m.isActive ? "Deactivate mapping" : "Activate mapping"}
-          className="scale-90"
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded-xl h-8 w-8 p-0 text-card-foreground hover:bg-muted"
-          onClick={() => onEdit(m)}
-          title="Edit mapping"
+          className={cn(
+            "inline-flex items-center gap-1.5 shrink-0 text-xs font-medium min-w-[4.75rem] rounded-full px-1 py-1 -mx-1 hover:bg-muted/60 transition-colors disabled:opacity-50",
+            m.isActive
+              ? "text-[hsl(var(--badge-mapped))]"
+              : "text-muted-foreground",
+          )}
         >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded-xl h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
-          onClick={() => onDelete(m)}
-          title="Delete mapping"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+          {toggling ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                m.isActive
+                  ? "bg-[hsl(var(--badge-mapped))]"
+                  : "bg-muted-foreground/45",
+              )}
+            />
+          )}
+          {m.isActive ? "Active" : "Inactive"}
+        </button>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button
+            size="sm"
+            className="rounded-full h-8 px-3"
+            onClick={() => onEdit(m)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Edit</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+            onClick={() => onDelete(m)}
+            title="Delete mapping"
+            aria-label="Delete mapping"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
-    </div>
+    </li>
   );
 }
