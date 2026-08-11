@@ -17,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
@@ -84,6 +83,7 @@ export default function SummaryPage() {
   const { branchOptions, isLoading: isLoadingBranches, getBranchLabel, getBranchUuid } = useLiveBranches();
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
@@ -192,6 +192,12 @@ export default function SummaryPage() {
     void loadValidation();
   }, []);
 
+  // Ensure the page stays interactive if a nested overlay left body pointer-events stuck.
+  useEffect(() => {
+    if (isAddModalOpen) return;
+    document.body.style.pointerEvents = "";
+  }, [isAddModalOpen]);
+
   const resetAddModal = () => {
     setModalBranch("");
     setDetectedDateRange({ from: undefined, to: undefined });
@@ -200,6 +206,7 @@ export default function SummaryPage() {
     setModalCsvData([]);
     setModalAutoMapping({});
     setDateDetectionError(null);
+    setIsGenerating(false);
   };
 
   const handleOpenAddModal = () => {
@@ -208,7 +215,10 @@ export default function SummaryPage() {
   };
 
   const handleCloseAddModal = () => {
+    if (isGenerating) return;
     setIsAddModalOpen(false);
+    // Radix Select/Dialog can leave body non-interactive after dismiss.
+    document.body.style.pointerEvents = "";
   };
 
   const handleModalFileChange = useCallback(
@@ -298,8 +308,29 @@ export default function SummaryPage() {
     [toast],
   );
 
+  const requiredColumnsMapped = (
+    ["rawCategory", "rawItemName", "quantity", "unitPrice"] as const
+  ).every((field) => !!modalAutoMapping[field]);
+
   const canGenerate =
-    !!modalBranch && !!modalFile && !!detectedDateRange.from && !dateDetectionError;
+    !!modalBranch &&
+    !!modalFile &&
+    modalCsvData.length > 0 &&
+    !!detectedDateRange.from &&
+    !dateDetectionError &&
+    requiredColumnsMapped;
+
+  const generateBlockedReason = !modalBranch
+    ? "Select a branch to continue."
+    : !modalFile
+      ? "Upload a transactions CSV to continue."
+      : modalCsvData.length === 0
+        ? "The CSV has headers but no transaction rows were read."
+        : !detectedDateRange.from || dateDetectionError
+          ? dateDetectionError || "Could not detect a date range from the file."
+          : !requiredColumnsMapped
+            ? "Required columns could not be detected (category, item, quantity, unit price)."
+            : null;
 
   const buildReportForPreview = useCallback((): DailyReport | null => {
     if (!detectedDateRange.from || !modalCsvData.length || !modalBranch || !modalFile) return null;
@@ -430,13 +461,33 @@ export default function SummaryPage() {
     return report;
   }, [detectedDateRange, modalCsvData, modalBranch, modalFile, modalAutoMapping, mappingTable, manualEntries, toast]);
 
-  const handleSubmitReport = () => {
-    const report = buildReportForPreview();
-    if (!report) return;
+  const handleSubmitReport = async () => {
+    if (!canGenerate || isGenerating || isSaving) return;
 
-    setPreviewReport(report);
-    setIsAddModalOpen(false);
-    setIsPreviewOpen(true);
+    setIsGenerating(true);
+    try {
+      // Yield so the button can paint "Generating..." before heavy sync work.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+      const report = buildReportForPreview();
+      if (!report) return;
+
+      setPreviewReport(report);
+      setIsAddModalOpen(false);
+      setIsPreviewOpen(true);
+    } catch (error) {
+      console.error("Failed to generate report preview:", error);
+      toast({
+        variant: "destructive",
+        title: "Failed to generate report",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong while processing the CSV. Please try again.",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleConfirmAndSave = async () => {
@@ -1176,37 +1227,61 @@ export default function SummaryPage() {
       </Sheet>
 
       {/* ADD REPORT Modal */}
-      <Dialog open={isAddModalOpen} onOpenChange={(open) => (open ? handleOpenAddModal() : handleCloseAddModal())}>
-        <DialogContent className="w-[95vw] max-w-2xl sm:max-w-3xl rounded-2xl sm:rounded-3xl bg-primary text-primary-foreground border border-white/15 shadow-2xl px-4 sm:px-6 lg:px-8 py-5 sm:py-7">
+      <Dialog
+        open={isAddModalOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseAddModal();
+        }}
+      >
+        <DialogContent
+          className="w-[95vw] max-w-2xl sm:max-w-3xl rounded-2xl sm:rounded-3xl bg-primary text-primary-foreground border border-white/15 shadow-2xl px-4 sm:px-6 lg:px-8 py-5 sm:py-7 pointer-events-auto"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            document.body.style.pointerEvents = "";
+          }}
+          onPointerDownOutside={(event) => {
+            if (isGenerating) event.preventDefault();
+          }}
+          onEscapeKeyDown={(event) => {
+            if (isGenerating) event.preventDefault();
+          }}
+        >
           <DialogHeader className="pb-4 border-b border-white/10 mb-3">
             <DialogTitle className="text-2xl font-bold tracking-tight">Add new report</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Select Branch */}
+            {/* Select Branch — native <select> avoids Radix Select+Dialog pointer-events bugs */}
             <div className="space-y-3">
               <p className="text-sm font-medium text-primary-foreground/90">Select branch</p>
-              <Select
+              <select
                 value={modalBranch}
-                onValueChange={(value) => setModalBranch(value as BranchId)}
+                disabled={isGenerating || isLoadingBranches}
+                onChange={(e) => setModalBranch(e.target.value as BranchId)}
+                className="w-full rounded-full px-5 py-2.5 h-auto bg-primary-foreground text-primary border-none shadow-inner text-sm font-medium outline-none disabled:opacity-70"
               >
-                <SelectTrigger className="w-full rounded-full px-5 py-2.5 h-auto bg-primary-foreground text-primary border-none shadow-inner">
-                  <SelectValue placeholder="Choose a branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branchOptions.map((branch) => (
-                    <SelectItem key={branch.slug} value={branch.slug}>
-                      {branch.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="" disabled>
+                  {isLoadingBranches ? "Loading branches…" : "Choose a branch"}
+                </option>
+                {branchOptions.map((branch) => (
+                  <option key={branch.slug} value={branch.slug}>
+                    {branch.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Upload CSV */}
             <div className="space-y-3 pb-1">
               <p className="text-sm font-medium text-primary-foreground/90">Upload transactions CSV</p>
-              <label className="flex items-center justify-between px-5 py-3 rounded-full border border-dashed border-white/40 cursor-pointer bg-primary-foreground text-primary hover:bg-primary-foreground/95 transition-colors shadow-sm">
+              <label
+                className={cn(
+                  "flex items-center justify-between px-5 py-3 rounded-full border border-dashed border-white/40 bg-primary-foreground text-primary shadow-sm transition-colors",
+                  isGenerating
+                    ? "cursor-not-allowed opacity-70"
+                    : "cursor-pointer hover:bg-primary-foreground/95",
+                )}
+              >
                 <div className="flex flex-col text-left">
                   <span className="text-sm font-medium truncate max-w-[260px]">
                     {modalFile ? modalFile.name : "Choose CSV file"}
@@ -1222,13 +1297,19 @@ export default function SummaryPage() {
                   type="file"
                   accept=".csv"
                   className="hidden"
+                  disabled={isGenerating}
                   onChange={handleModalFileChange}
                 />
               </label>
               {modalCsvHeaders.length > 0 && (
                 <p className="text-xs text-primary-foreground/80">
-                  Detected {modalCsvHeaders.length} columns from the uploaded file.
+                  Detected {modalCsvHeaders.length} columns
+                  {modalFile ? ` · ${modalCsvData.length.toLocaleString()} rows` : ""} from the
+                  uploaded file.
                 </p>
+              )}
+              {generateBlockedReason && modalFile && (
+                <p className="text-xs text-red-200">{generateBlockedReason}</p>
               )}
               {detectedDateRange.from && !dateDetectionError && (
                 <p className="text-xs text-primary-foreground/80">
@@ -1247,24 +1328,32 @@ export default function SummaryPage() {
                   {dateDetectionError}
                 </p>
               )}
+              {isGenerating && (
+                <p className="text-xs text-primary-foreground/90">
+                  Processing transactions… large month files can take a few seconds.
+                </p>
+              )}
             </div>
           </div>
 
           <DialogFooter className="mt-7 gap-2">
             <Button
+              type="button"
               variant="outline"
               onClick={handleCloseAddModal}
-              disabled={isSaving}
+              disabled={isSaving || isGenerating}
               className="rounded-full border-white/70 text-primary-foreground bg-transparent hover:bg-white/10"
             >
               Cancel
             </Button>
             <Button
-              onClick={handleSubmitReport}
-              disabled={!canGenerate || isSaving}
-              className="rounded-full bg-white text-primary font-semibold hover:bg-blue-50 shadow-md"
+              type="button"
+              onClick={() => void handleSubmitReport()}
+              disabled={!canGenerate || isSaving || isGenerating}
+              title={generateBlockedReason ?? undefined}
+              className="rounded-full bg-white text-primary font-semibold hover:bg-blue-50 shadow-md disabled:bg-white/55 disabled:text-primary/70 disabled:opacity-100"
             >
-              Generate Report
+              {isGenerating ? "Generating…" : "Generate Report"}
             </Button>
           </DialogFooter>
         </DialogContent>

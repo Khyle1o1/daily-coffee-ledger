@@ -4,10 +4,12 @@ export function parseCsvFile(file: File): Promise<{ headers: string[]; data: Rec
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       header: true,
-      skipEmptyLines: true,
+      skipEmptyLines: "greedy",
       complete: (results) => {
-        const headers = results.meta.fields || [];
-        const data = results.data as Record<string, string>[];
+        const headers = (results.meta.fields || []).map((h) => String(h ?? "").trim());
+        const data = (results.data as Record<string, string>[]).filter((row) =>
+          Object.values(row).some((v) => String(v ?? "").trim() !== ""),
+        );
         resolve({ headers, data });
       },
       error: (err) => reject(err),

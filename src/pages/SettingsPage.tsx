@@ -13,6 +13,7 @@ import type { Branch } from '@/types/branch';
 import { BranchesTable } from '@/components/settings/BranchesTable';
 import { BranchModal } from '@/components/settings/BranchModal';
 import { MappingManagementSection } from '@/components/settings/MappingManagementSection';
+import { BackupRestoreSection } from '@/components/settings/BackupRestoreSection';
 import { listBranches, createBranch, updateBranch } from '@/lib/api/branches';
 import { useManualMappings } from '@/hooks/useManualMappings';
 import { useInvalidateBranches } from '@/hooks/useLiveBranches';
@@ -211,6 +212,10 @@ export default function SettingsPage() {
           manualEntries={manualEntries}
           onMappingsChanged={refetchManual}
         />
+
+        <div className="border-t border-border" />
+
+        <BackupRestoreSection onRestored={refetchManual} />
       </Card>
 
       <BranchModal
