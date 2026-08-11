@@ -628,39 +628,22 @@ export default function ReportsPage() {
   // ============================================================================
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] flex flex-col overflow-hidden">
-      {/* Page header */}
-      <div className="bg-primary shadow-md px-4 sm:px-8 py-4 sm:py-5">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <BarChart3 className="h-5 w-5 text-primary-foreground" />
-            <div>
-              <h1 className="text-xl font-bold text-primary-foreground leading-tight">
-                Reports
-              </h1>
-              <p className="text-xs text-primary-foreground/70 mt-0.5">
-                Generate HQ-style reports for branch performance and product mix.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/app/daily-cash-ledger"
-              className="text-xs font-semibold px-4 py-2 rounded-full bg-white/15 text-primary-foreground hover:bg-white/25 transition-colors"
-            >
-              Cash Ledger →
-            </Link>
-            <Link
-              to="/app/monthly-branch-report"
-              className="text-xs font-semibold px-4 py-2 rounded-full bg-white/15 text-primary-foreground hover:bg-white/25 transition-colors"
-            >
-              Monthly Branch →
-            </Link>
-          </div>
+    <div className="flex flex-col pb-8">
+      <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 sm:px-8 lg:px-10 py-6">
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <Link
+            to="/app/daily-cash-ledger"
+            className="text-xs font-semibold px-4 py-2 rounded-[10px] border border-border bg-white text-[#172B4D] hover:bg-muted transition-colors"
+          >
+            Cash Ledger →
+          </Link>
+          <Link
+            to="/app/monthly-branch-report"
+            className="text-xs font-semibold px-4 py-2 rounded-[10px] border border-border bg-white text-[#172B4D] hover:bg-muted transition-colors"
+          >
+            Monthly Branch →
+          </Link>
         </div>
-      </div>
-
-      <div className="flex-1 max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
           {/* Top filters bar */}
           <div className="mb-4 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
             <div className="px-5 pt-5 pb-3 border-b border-slate-200">
@@ -1044,7 +1027,7 @@ export default function ReportsPage() {
               {/* Actions */}
               <div className="flex items-center gap-2">
                 <Button
-                  className="rounded-xl bg-[#1e3a5f] hover:bg-[#0e2d49] text-white font-semibold"
+                  className="rounded-[10px] bg-primary hover:bg-primary/90 text-white font-semibold"
                   disabled={!canGenerate || isGenerating}
                   onClick={handleGenerate}
                 >

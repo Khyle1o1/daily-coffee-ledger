@@ -217,25 +217,15 @@ export default function DirectoryPage() {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto px-8 py-8">
-      <Card className="rounded-3xl shadow-xl p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <div className="bg-primary/10 rounded-2xl p-4">
-              <Link2 className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-card-foreground">Directory</h2>
-              <p className="text-muted-foreground">Manage redirect links and quick resources.</p>
-            </div>
-          </div>
+    <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 py-6">
+      <Card className="p-6 sm:p-8">
+        <div className="mb-8 flex flex-wrap items-center justify-end gap-4">
           <Button
             onClick={() => {
               setEditingLink(null);
               setShowLinkModal(true);
             }}
-            className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+            className="rounded-[10px]"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Link
@@ -245,12 +235,12 @@ export default function DirectoryPage() {
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-6 items-center">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-foreground/90 pointer-events-none" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search links…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="rounded-full pl-9 bg-primary text-primary-foreground placeholder:text-primary-foreground/80 border-transparent shadow-sm"
+              className="rounded-[10px] pl-9 bg-white"
             />
           </div>
 

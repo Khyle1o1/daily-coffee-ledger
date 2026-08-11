@@ -251,21 +251,12 @@ export default function ActivityLogsPage() {
   if (loading || !isAdmin) return null;
 
   return (
-    <div className="max-w-[1600px] mx-auto px-8 py-8">
-      <Card className="rounded-3xl shadow-xl p-8 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <div className="bg-primary/10 rounded-2xl p-4">
-              <ScrollText className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-card-foreground">Activity Logs</h2>
-              <p className="text-muted-foreground text-sm">
-                Audit trail of all user actions — {total.toLocaleString()} total records
-              </p>
-            </div>
-          </div>
+    <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 py-6">
+      <Card className="space-y-6 p-6 sm:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            {total.toLocaleString()} total records
+          </p>
           <Button
             variant="outline"
             size="sm"

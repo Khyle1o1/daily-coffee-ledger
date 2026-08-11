@@ -14,9 +14,18 @@ export default {
     },
     extend: {
       fontFamily: {
+        sans: ['Inter', 'Segoe UI', 'sans-serif'],
         mono: ['IBM Plex Mono', 'Courier New', 'monospace'],
       },
+      boxShadow: {
+        card: "0 4px 20px rgba(23, 43, 77, 0.06)",
+      },
       colors: {
+        hot: "hsl(var(--hot))",
+        snacks: "hsl(var(--snacks))",
+        addons: "hsl(var(--addons))",
+        merch: "hsl(var(--merch))",
+        success: "hsl(var(--success))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

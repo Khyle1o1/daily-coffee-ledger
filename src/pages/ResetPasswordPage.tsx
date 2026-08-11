@@ -69,9 +69,9 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-primary flex items-center justify-center px-4">
+    <div className="flex h-full items-center justify-center overflow-y-auto bg-background px-4">
       <div className="w-full max-w-md">
-        <div className="bg-card rounded-3xl shadow-2xl p-8">
+        <div className="saas-card p-8">
           <div className="text-center mb-8">
             <div className="bg-primary/10 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
               <Coffee className="h-8 w-8 text-primary" strokeWidth={2.5} />

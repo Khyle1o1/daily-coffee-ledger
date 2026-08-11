@@ -4,61 +4,73 @@
 
 @layer base {
   :root {
-    /* DOT BLUE BRAND PALETTE */
-    /* Primary Royal Blue: #1E63B6 (HSL: 212 72% 42%) */
-    /* Soft Cream: #F4F1EA (HSL: 40 22% 93%) */
-    
-    --background: 212 72% 42%; /* Royal Blue background */
-    --foreground: 0 0% 100%; /* White text on blue background */
+    /* DOT Coffee official palette
+       Primary Blue #1769E0 · Orange #F7652B · Purple #7450C8 · Teal #2997A8
+       Cream #F7F4EE · Navy #172B4D · Muted #667085 · Border #E6E8EC */
 
-    --surface-base: 42 31% 93%; /* #F4F0E5 warm cream */
-    --surface-elevated: 42 31% 94%;
-    --surface-muted: 40 24% 89%;
-    --border-soft: 38 18% 80%;
+    --background: 40 36% 95%; /* #F7F4EE cream app canvas */
+    --foreground: 218 54% 20%; /* #172B4D navy text */
 
-    --card: var(--surface-base); /* Warm cream cards */
-    --card-foreground: 212 30% 20%; /* Dark text on cream cards */
+    --surface-base: 0 0% 100%;
+    --surface-elevated: 0 0% 100%;
+    --surface-muted: 40 24% 93%;
+    --border-soft: 220 14% 91%; /* #E6E8EC */
 
-    --popover: var(--surface-elevated);
-    --popover-foreground: 212 30% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 218 54% 20%;
 
-    --primary: 212 72% 42%; /* Royal Blue #1E63B6 */
-    --primary-foreground: 0 0% 100%; /* White text on blue */
+    --popover: 0 0% 100%;
+    --popover-foreground: 218 54% 20%;
 
-    --secondary: var(--surface-elevated);
-    --secondary-foreground: 212 30% 20%; /* Dark text */
+    --primary: 215 81% 48%; /* #1769E0 */
+    --primary-foreground: 0 0% 100%;
 
-    --muted: var(--surface-muted); /* Warm muted surface */
-    --muted-foreground: 212 20% 40%; /* Darker for better contrast */
+    --secondary: 17 92% 57%; /* #F7652B */
+    --secondary-foreground: 0 0% 100%;
 
-    --accent: 212 50% 88%; /* Light blue accent */
-    --accent-foreground: 212 72% 42%;
+    --muted: 40 24% 93%;
+    --muted-foreground: 221 13% 46%; /* #667085 */
 
-    --destructive: 0 72% 51%;
+    --accent: 215 81% 96%;
+    --accent-foreground: 215 81% 40%;
+
+    --destructive: 4 86% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: var(--border-soft); /* Cream-compatible border */
-    --input: var(--border-soft);
-    --ring: 212 72% 42%; /* Blue focus ring */
+    --border: 220 14% 91%;
+    --input: 220 14% 91%;
+    --ring: 215 81% 48%;
 
-    --radius: 1rem; /* Increased border radius for modern look */
+    --radius: 0.75rem;
 
-    /* DOT BLUE CUSTOM TOKENS */
-    --table-header: 212 72% 42%; /* Royal blue headers */
+    --hot: 17 92% 57%;
+    --snacks: 258 52% 55%;
+    --addons: 188 61% 41%;
+    --merch: 45 70% 47%;
+    --success: 152 69% 39%;
+
+    --table-header: 215 81% 48%;
     --table-header-foreground: 0 0% 100%;
-    --table-grid: 212 10% 90%; /* Subtle grid lines */
-    --table-totals: 212 50% 95%; /* Soft blue highlight */
-    --table-row-hover: 212 80% 97%; /* Light blue hover */
-    --history-card: var(--surface-elevated);
-    --history-card-hover: 40 26% 91%;
-    --history-card-active: 212 72% 42%; /* Blue for active */
-    --badge-mapped: 142 60% 40%;
-    --badge-unmapped: 33 100% 50%; /* Keep warning color visible */
-    --badge-skipped: 212 15% 60%;
+    --table-grid: 220 14% 93%;
+    --table-totals: 215 81% 97%;
+    --table-row-hover: 215 81% 97%;
+    --history-card: 0 0% 100%;
+    --history-card-hover: 40 24% 93%;
+    --history-card-active: 215 81% 48%;
+    --badge-mapped: 152 69% 39%;
+    --badge-unmapped: 33 100% 48%;
+    --badge-skipped: 221 13% 60%;
 
-    --sidebar-background: var(--surface-base);
-    --sidebar-foreground: 212 30% 20%; /* Dark text */
-    --sidebar-border: 212 15% 88%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 218 54% 20%;
+    --sidebar-primary: 215 81% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 81% 96%;
+    --sidebar-accent-foreground: 215 81% 40%;
+    --sidebar-border: 220 14% 91%;
+    --sidebar-ring: 215 81% 48%;
+
+    --shadow-card: 0 4px 20px rgba(23, 43, 77, 0.06);
   }
 }
 
@@ -66,96 +78,112 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  
-  /* Modern smooth scrolling */
-  html {
-    scroll-behavior: smooth;
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  #root::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
 @layer components {
-  /* DOT BLUE MINIMAL TABLE STYLES */
   .spreadsheet-cell {
     @apply px-2.5 py-2 text-right text-xs tabular-nums;
-    border: none; /* Remove dotted borders */
+    border: none;
     border-bottom: 1px solid hsl(var(--table-grid));
-    background: hsl(var(--surface-base));
-    color: hsl(212 30% 20%); /* Dark text for readability */
-    transition: background-color 0.2s ease;
+    background: #ffffff;
+    color: #172b4d;
+    transition: background-color 0.15s ease;
   }
-  
+
   .spreadsheet-header {
-    @apply px-2.5 py-2 text-[11px] font-semibold text-center uppercase tracking-wider;
-    background: #2B67B2; /* primary blue header */
-    color: #FFFFFF;
+    @apply px-2.5 py-2.5 text-[11px] font-semibold text-center uppercase tracking-wider;
+    background: #1769e0;
+    color: #ffffff;
     border: none;
   }
-  
-  /* First header cell rounded top-left */
+
   .spreadsheet-header:first-child {
-    border-top-left-radius: 1rem;
+    border-top-left-radius: 12px;
   }
-  
-  /* Last header cell rounded top-right */
+
   .spreadsheet-header:last-child {
-    border-top-right-radius: 1rem;
+    border-top-right-radius: 12px;
   }
-  
+
   .totals-row .spreadsheet-cell {
-    @apply font-bold text-sm;
-    background: hsl(var(--surface-base)); /* warm cream surface for totals */
-    color: hsl(212 30% 20%); /* Dark text */
+    @apply font-semibold text-sm;
+    background: #ffffff;
+    color: #172b4d;
     border-bottom: 1px solid hsl(var(--table-grid));
   }
-  
+
   .quantities-row .spreadsheet-cell {
     @apply font-medium text-xs;
     background: hsl(var(--muted));
-    color: hsl(212 30% 20%); /* Dark text */
+    color: #172b4d;
   }
-  
+
   .percent-row .spreadsheet-cell {
     @apply font-semibold text-xs;
-    background: hsl(210 45% 92%); /* cool contrast tint */
-    color: #2B67B2;
-    font-style: normal; /* Remove italic */
+    background: hsl(215 81% 97%);
+    color: #1769e0;
+    font-style: normal;
   }
-  
-  /* Hover effect on table rows */
+
   tbody tr:hover .spreadsheet-cell {
     background: hsl(var(--table-row-hover));
   }
-  
-  /* Override hover for special rows */
+
   .totals-row:hover .spreadsheet-cell {
     background: hsl(var(--table-totals));
   }
-  
+
   .quantities-row:hover .spreadsheet-cell {
     background: hsl(var(--muted));
+  }
+
+  .saas-card {
+    @apply rounded-[18px] border border-border bg-card text-card-foreground;
+    box-shadow: var(--shadow-card);
+  }
+
+  .filter-control {
+    @apply h-10 rounded-xl border border-border bg-card px-3.5 text-sm font-medium text-foreground
+      shadow-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring;
   }
 }
 
 @layer utilities {
-  /* System-wide white-surface replacement */
-  .bg-white {
-    background-color: hsl(var(--surface-base)) !important;
-  }
-
-  /* Hide scrollbar while keeping scroll behavior */
   .scrollbar-none {
-    -ms-overflow-style: none; /* IE/Edge */
-    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   .scrollbar-none::-webkit-scrollbar {
     width: 0;
     height: 0;
-    display: none; /* Chrome/Safari/Opera */
+    display: none;
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
   }
 }

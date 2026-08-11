@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Trash2, Shield, User as UserIcon, Loader2, Eye, EyeOff, Pencil, Archive, ArchiveRestore } from 'lucide-react';
+import { Plus, Trash2, Shield, User as UserIcon, Loader2, Eye, EyeOff, Pencil, Archive, ArchiveRestore } from 'lucide-react';
 import { logEvent } from '@/services/auditService';
 import { getRoleBadgeClass, getRoleLabel } from '@/lib/permissions';
 import { Button } from '@/components/ui/button';
@@ -284,22 +284,12 @@ export default function UserManagementPage() {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto px-8 py-8">
-      <Card className="rounded-3xl shadow-xl p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="bg-primary/10 rounded-2xl p-4">
-              <Users className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-card-foreground">User Management</h2>
-              <p className="text-muted-foreground">Create and manage user accounts</p>
-            </div>
-          </div>
+    <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 py-6">
+      <Card className="p-6 sm:p-8">
+        <div className="mb-8 flex items-center justify-end">
           <Button
             onClick={() => setShowCreateDialog(true)}
-            className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+            className="rounded-[10px]"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create User

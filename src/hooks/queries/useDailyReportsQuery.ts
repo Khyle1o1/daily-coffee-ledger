@@ -18,7 +18,9 @@ export interface DailyReportsPage {
   hasNextPage: boolean;
 }
 
-export interface UseDailyReportsQueryParams extends ListDailyReportsParams {}
+export interface UseDailyReportsQueryParams extends ListDailyReportsParams {
+  enabled?: boolean;
+}
 
 /** Seed empty branches at most once per browser session. */
 let branchesSeedAttempted = false;
@@ -32,30 +34,31 @@ let branchesSeedAttempted = false;
  */
 export function useDailyReportsQuery(params: UseDailyReportsQueryParams = {}) {
   const { user, loading } = useAuth();
-  const pageSize = params.pageSize ?? PAGE_SIZE;
+  const { enabled, ...listParams } = params;
+  const pageSize = listParams.pageSize ?? PAGE_SIZE;
 
   return useQuery<DailyReportsPage>({
     queryKey: queryKeys.reports.dailyList({
       userId:   user?.id,
-      page:     params.page,
-      pageSize: params.pageSize,
-      branchId: params.branchId,
-      dateFrom: params.dateFrom,
-      dateTo:   params.dateTo,
+      page:     listParams.page,
+      pageSize: listParams.pageSize,
+      branchId: listParams.branchId,
+      dateFrom: listParams.dateFrom,
+      dateTo:   listParams.dateTo,
     }),
     queryFn: async () => {
       if (!branchesSeedAttempted) {
         branchesSeedAttempted = true;
         await seedBranchesIfEmpty().catch(() => undefined);
       }
-      const { data, total } = await listAllDailyReports(params);
+      const { data, total } = await listAllDailyReports(listParams);
       return {
         reports:     dailyReportsMetaFromRows(data),
         total,
         hasNextPage: data.length === pageSize,
       };
     },
-    enabled:         !loading && !!user,
+    enabled:         !loading && !!user && (enabled ?? true),
     staleTime:       60 * 1000,
     gcTime:          24 * 60 * 60 * 1000,
     // Default: refetch only when stale (not "always" on every remount).

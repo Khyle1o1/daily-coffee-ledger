@@ -272,11 +272,11 @@ export default function MonthlyBranchReportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="pb-8">
       {/* Filters */}
-      <div className="bg-primary shadow-md print:hidden">
-        <div className="max-w-[1600px] mx-auto px-6 py-5">
-          <div className="flex flex-wrap items-end gap-3">
+      <div className="print:hidden">
+        <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 pt-6">
+          <div className="saas-card flex flex-wrap items-end gap-3 p-4">
             <FilterField label="Year">
               <Select
                 value={year === "all" ? "all" : String(year)}
@@ -285,7 +285,7 @@ export default function MonthlyBranchReportPage() {
                   setMonthKey("all");
                 }}
               >
-                <SelectTrigger className="w-[130px] rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground">
+                <SelectTrigger className="w-[130px] rounded-xl border-border bg-white">
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -304,7 +304,7 @@ export default function MonthlyBranchReportPage() {
                 value={monthKey}
                 onValueChange={(v) => setMonthKey(v as string | "all")}
               >
-                <SelectTrigger className="w-[180px] rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground">
+                <SelectTrigger className="w-[180px] rounded-xl border-border bg-white">
                   <SelectValue placeholder="Month" />
                 </SelectTrigger>
                 <SelectContent>
@@ -323,7 +323,7 @@ export default function MonthlyBranchReportPage() {
                 value={branchId}
                 onValueChange={(v) => setBranchId(v as BranchId | "all")}
               >
-                <SelectTrigger className="w-[180px] rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground">
+                <SelectTrigger className="w-[180px] rounded-xl border-border bg-white">
                   <MapPin className="mr-1 h-4 w-4" />
                   <SelectValue placeholder="Branch" />
                 </SelectTrigger>
@@ -343,7 +343,7 @@ export default function MonthlyBranchReportPage() {
                 value={category}
                 onValueChange={(v) => setCategory(v as Category | "all")}
               >
-                <SelectTrigger className="w-[170px] rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground">
+                <SelectTrigger className="w-[170px] rounded-xl border-border bg-white">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -363,8 +363,8 @@ export default function MonthlyBranchReportPage() {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-[230px] justify-start rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10",
-                      !dateRange.from && "text-primary-foreground/70",
+                      "w-[230px] justify-start rounded-xl border-border bg-white hover:bg-muted/70",
+                      !dateRange.from && "text-muted-foreground",
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -407,7 +407,7 @@ export default function MonthlyBranchReportPage() {
             <Button
               onClick={handleGenerate}
               disabled={isFetching}
-              className="rounded-full bg-white text-[#0e2d49] hover:bg-white/90 font-semibold px-6"
+              className="rounded-[10px] bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6"
             >
               {isFetching ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -422,7 +422,7 @@ export default function MonthlyBranchReportPage() {
                 <Button
                   variant="outline"
                   disabled={!generated?.hasData}
-                  className="rounded-full border-2 border-primary-foreground/70 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
+                  className="rounded-[10px] border-border bg-white text-[#172B4D] hover:bg-muted"
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Export Report
@@ -559,7 +559,7 @@ export default function MonthlyBranchReportPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse min-w-[1100px]">
                   <thead>
-                    <tr className="bg-[#0e2d49] text-white">
+                    <tr className="bg-primary text-primary-foreground">
                       <th className="px-3 py-2.5 text-left font-semibold">Month</th>
                       <th className="px-3 py-2.5 text-left font-semibold">Branch</th>
                       {CATEGORIES.map((c) => (
@@ -870,7 +870,7 @@ export default function MonthlyBranchReportPage() {
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label className="text-[10px] uppercase tracking-wider text-white/85 px-1">
+      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground px-1">
         {label}
       </Label>
       {children}

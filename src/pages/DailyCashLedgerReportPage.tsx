@@ -297,10 +297,10 @@ export default function DailyCashLedgerReportPage() {
   }, [branchOptions, uploadBranch]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="bg-primary shadow-md print:hidden">
-        <div className="max-w-[1600px] mx-auto px-6 py-5 space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
+    <div className="pb-8">
+      <div className="print:hidden">
+        <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 pt-6 space-y-4">
+          <div className="saas-card flex flex-wrap items-end gap-3 p-4">
             <FilterField label="Year">
               <Select
                 value={year === "all" ? "all" : String(year)}
@@ -309,7 +309,7 @@ export default function DailyCashLedgerReportPage() {
                   setMonthKey("all");
                 }}
               >
-                <SelectTrigger className="w-[120px] rounded-full bg-transparent border-2 border-white/70 text-white">
+                <SelectTrigger className="w-[120px] rounded-xl border-border bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -325,7 +325,7 @@ export default function DailyCashLedgerReportPage() {
 
             <FilterField label="Month">
               <Select value={monthKey} onValueChange={(v) => setMonthKey(v as string | "all")}>
-                <SelectTrigger className="w-[180px] rounded-full bg-transparent border-2 border-white/70 text-white">
+                <SelectTrigger className="w-[180px] rounded-xl border-border bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -341,7 +341,7 @@ export default function DailyCashLedgerReportPage() {
 
             <FilterField label="Branch">
               <Select value={branchId} onValueChange={setBranchId}>
-                <SelectTrigger className="w-[180px] rounded-full bg-transparent border-2 border-white/70 text-white">
+                <SelectTrigger className="w-[180px] rounded-xl border-border bg-white">
                   <MapPin className="h-4 w-4 mr-1" />
                   <SelectValue />
                 </SelectTrigger>
@@ -362,8 +362,8 @@ export default function DailyCashLedgerReportPage() {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-[220px] justify-start rounded-full bg-transparent border-2 border-white/70 text-white hover:bg-white/10",
-                      !dateRange.from && "text-white/70",
+                      "w-[220px] justify-start rounded-xl border-border bg-white hover:bg-muted/70",
+                      !dateRange.from && "text-muted-foreground",
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -400,7 +400,7 @@ export default function DailyCashLedgerReportPage() {
             <Button
               onClick={() => void handleGenerate()}
               disabled={isGenerating || branchesLoading}
-              className="rounded-full bg-white text-[#0e2d49] hover:bg-white/90 font-semibold px-6"
+              className="rounded-[10px] bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6"
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -415,7 +415,7 @@ export default function DailyCashLedgerReportPage() {
                 <Button
                   variant="outline"
                   disabled={!result?.hasData}
-                  className="rounded-full border-2 border-white/70 bg-transparent text-white hover:bg-white/10"
+                  className="rounded-[10px] border-border bg-white text-[#172B4D] hover:bg-muted"
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Export
@@ -438,10 +438,10 @@ export default function DailyCashLedgerReportPage() {
             </Popover>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3 rounded-2xl bg-white/10 px-4 py-3">
+          <div className="saas-card flex flex-wrap items-end gap-3 p-4">
             <FilterField label="Upload sheet for branch">
               <Select value={uploadBranch} onValueChange={setUploadBranch}>
-                <SelectTrigger className="w-[180px] rounded-full bg-white text-[#0e2d49]">
+                <SelectTrigger className="w-[180px] rounded-xl border-border bg-white">
                   <SelectValue placeholder="Branch" />
                 </SelectTrigger>
                 <SelectContent>
@@ -453,12 +453,12 @@ export default function DailyCashLedgerReportPage() {
                 </SelectContent>
               </Select>
             </FilterField>
-            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-[#0e2d49] text-sm font-semibold cursor-pointer hover:bg-white/90">
+            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-[10px] bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90">
               {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               Upload Daily Ledger CSV
               <input type="file" accept=".csv,text/csv" className="hidden" onChange={(ev) => void handleSheetUpload(ev)} />
             </label>
-            <p className="text-sm text-white/90 max-w-xl">
+            <p className="text-sm text-muted-foreground max-w-xl">
               Sheet uploads win over POS for the same branch+day. Without a sheet, tender totals are derived from POS Payment Type (re-upload POS for full discounts/VAT/txn IDs).
             </p>
           </div>
@@ -526,7 +526,7 @@ export default function DailyCashLedgerReportPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs border-collapse min-w-[1400px]">
                   <thead>
-                    <tr className="bg-[#0e2d49] text-white">
+                    <tr className="bg-primary text-primary-foreground">
                       {[
                         "Date", "Day", "Branch", "Cash", "Maya", "Grab", "Paymongo", "GCash",
                         "FoodPanda", "Gift Card", "Regular Disc.", "Senior", "PWD", "VAT Ex.",
@@ -613,7 +613,7 @@ export default function DailyCashLedgerReportPage() {
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label className="text-[10px] uppercase tracking-wider text-white/85 px-1">{label}</Label>
+      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground px-1">{label}</Label>
       {children}
     </div>
   );

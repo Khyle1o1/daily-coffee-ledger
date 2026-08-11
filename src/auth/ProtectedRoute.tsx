@@ -11,10 +11,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center">
+      <div className="flex h-full items-center justify-center bg-background">
         <div className="text-center">
-          <Coffee className="h-16 w-16 text-primary-foreground animate-pulse mx-auto mb-4" />
-          <p className="text-primary-foreground text-lg font-medium">Loading...</p>
+          <Coffee className="mx-auto mb-4 h-16 w-16 animate-pulse text-primary" />
+          <p className="text-lg font-medium text-[#172B4D]">Loading...</p>
         </div>
       </div>
     );

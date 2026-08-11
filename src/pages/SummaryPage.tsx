@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { differenceInCalendarDays, format } from "date-fns";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { differenceInCalendarDays, format, startOfMonth, startOfWeek } from "date-fns";
 import {
   Building2,
   Calendar,
   Clock,
+  FileText,
   Flame,
-  MapPin,
-  PlusCircle,
   ShoppingBag,
   Snowflake,
   TrendingUp,
-  Upload,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -44,7 +42,8 @@ import { normalizeText } from "@/utils/normalize";
 import { mapRow } from "@/utils/mapRow";
 import { useManualMappings } from "@/hooks/useManualMappings";
 import { aggregateByCategory, getUnmappedSummary } from "@/utils/aggregate";
-import { formatNumber } from "@/utils/format";
+import { formatCompactPHP, formatNumber } from "@/utils/format";
+import { getPercentChange } from "@/utils/percentChange";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
 import { loadValidationMappingFromPublic } from "@/utils/loadValidationMapping";
 import { preloadMenuReference } from "@/utils/menuReference";
@@ -60,7 +59,22 @@ import { CATEGORIES } from "@/utils/types";
 import {
   detectDateRangeFromFilename,
   detectDateRangeFromRows,
+  type DetectedDateRange,
 } from "@/lib/reports/detectDateRange";
+import { listBranches } from "@/lib/api/branches";
+import { FilterBar, FilterTriggerButton } from "@/components/dashboard/FilterBar";
+import { StatCard } from "@/components/dashboard/StatCard";
+import { SalesOverview } from "@/components/dashboard/SalesOverview";
+import { TopBranches } from "@/components/dashboard/TopBranches";
+import { CategoryBreakdown } from "@/components/dashboard/CategoryBreakdown";
+import { BranchPerformanceTable } from "@/components/dashboard/BranchPerformanceTable";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { findTransactionDateKey } from "@/lib/csv/findTransactionDateKey";
 import { parseTransactionDate } from "@/lib/csv/parseTransactionDate";
 import { formatMonthDisplay, getMonthRange } from "@/utils/aggregateMonthly";
@@ -93,6 +107,8 @@ export default function SummaryPage() {
   // Filters for the main summary view
   const [filterDateRange, setFilterDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [filterBranches, setFilterBranches] = useState<BranchId[]>([]);
+  const [compareMode, setCompareMode] = useState<"previous" | "none">("previous");
+  const [chartGranularity, setChartGranularity] = useState<"weekly" | "daily" | "monthly">("weekly");
 
   // Mapping table (loaded from public/VALIDATION DATA.xlsx, fallback to bundled default)
   const [mappingTable, setMappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
@@ -143,10 +159,36 @@ export default function SummaryPage() {
   // Meta list is light — use a high page size so older months (e.g. January)
   // are not hidden behind the default newest-50 page. When a date filter is
   // set, push it to Supabase as an overlap query.
-  const { data: cachedDailyReportsPage, error: dailyReportsError } = useDailyReportsQuery({
+  const { data: cachedDailyReportsPage, error: dailyReportsError, isFetching: isRefreshingReports } = useDailyReportsQuery({
     dateFrom: fromKey ?? undefined,
     dateTo:   toKey ?? undefined,
     pageSize: 500,
+  });
+
+  const previousPeriodKeys = useMemo(() => {
+    if (!filterDateRange.from) return null;
+    const from = filterDateRange.from;
+    const to = filterDateRange.to ?? from;
+    const days = differenceInCalendarDays(to, from) + 1;
+    const prevTo = new Date(from);
+    prevTo.setDate(prevTo.getDate() - 1);
+    const prevFrom = new Date(prevTo);
+    prevFrom.setDate(prevFrom.getDate() - (days - 1));
+    const toKey_ = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { fromKey: toKey_(prevFrom), toKey: toKey_(prevTo) };
+  }, [filterDateRange]);
+
+  const { data: previousReportsPage } = useDailyReportsQuery({
+    dateFrom: previousPeriodKeys?.fromKey,
+    dateTo: previousPeriodKeys?.toKey,
+    pageSize: 500,
+    enabled: compareMode === "previous" && !!previousPeriodKeys,
+  });
+
+  const { data: directoryBranches } = useQuery({
+    queryKey: queryKeys.branches.adminList({}),
+    queryFn: () => listBranches({}),
   });
 
   // Fetch the full report (rowDetails + unmappedSummary) only when the user
@@ -827,6 +869,150 @@ export default function SummaryPage() {
     uniqueBranches: new Set(filteredReports.map((r) => r.branch)).size,
   }), [combinedSummaryForFilters, filteredReports]);
 
+  const previousCombined = useMemo(() => {
+    if (compareMode !== "previous") return null;
+    const reports = previousReportsPage?.reports ?? [];
+    if (!reports.length || !previousPeriodKeys) return null;
+
+    const totals: Record<string, number> = {};
+    CATEGORIES.forEach((cat) => { totals[cat] = 0; });
+    let grandTotal = 0;
+    const byBranch = new Map<string, number>();
+
+    for (const report of reports) {
+      if (filterBranches.length > 0 && !filterBranches.includes(report.branch)) continue;
+      grandTotal += report.grandTotal;
+      CATEGORIES.forEach((cat) => {
+        totals[cat] = (totals[cat] || 0) + (report.summaryTotalsByCat[cat] || 0);
+      });
+      byBranch.set(report.branch, (byBranch.get(report.branch) || 0) + report.grandTotal);
+    }
+
+    return { totals, grandTotal, byBranch };
+  }, [compareMode, previousReportsPage, previousPeriodKeys, filterBranches]);
+
+  const reportStatus = useMemo(() => {
+    let complete = 0;
+    let pending = 0;
+    let review = 0;
+    for (const report of filteredReports) {
+      if ((report.unmappedRows ?? 0) > 0) review += 1;
+      else if ((report.skippedRows ?? 0) > 0) pending += 1;
+      else complete += 1;
+    }
+    return { complete, pending, review };
+  }, [filteredReports]);
+
+  const branchDirectoryStats = useMemo(() => {
+    const items = directoryBranches?.items ?? [];
+    const inactive = items.filter((b) => !b.isActive).length;
+    const withSales = kpiData.uniqueBranches;
+    return {
+      total: items.length || withSales,
+      activeToday: withSales,
+      inactive,
+    };
+  }, [directoryBranches, kpiData.uniqueBranches]);
+
+  const lastUpdatedLabel = useMemo(() => {
+    const stamps = dailyReports
+      .map((r) => r.updatedAt ?? r.uploadedAt)
+      .filter((n): n is number => typeof n === "number" && n > 0);
+    if (!stamps.length) return null;
+    return format(new Date(Math.max(...stamps)), "MMM d, yyyy • h:mm a");
+  }, [dailyReports]);
+
+  const salesPoints = useMemo(() => {
+    const buckets = new Map<string, { label: string; value: number }>();
+    for (const report of filteredReports) {
+      const dateStr = report.date.slice(0, 10);
+      const date = new Date(`${dateStr}T00:00:00`);
+      if (Number.isNaN(date.getTime())) continue;
+      const eff = getEffectiveTotals(report);
+      let key = dateStr;
+      let label = format(date, "MMM d");
+      if (chartGranularity === "weekly") {
+        const start = startOfWeek(date, { weekStartsOn: 1 });
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        key = format(start, "yyyy-MM-dd");
+        label = `${format(start, "MMM d")}–${format(end, "d")}`;
+      } else if (chartGranularity === "monthly") {
+        const start = startOfMonth(date);
+        key = format(start, "yyyy-MM");
+        label = format(start, "MMM yyyy");
+      }
+      const existing = buckets.get(key);
+      if (existing) existing.value += eff.grandTotal;
+      else buckets.set(key, { label, value: eff.grandTotal });
+    }
+    return [...buckets.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, bucket]) => ({ key, ...bucket }));
+  }, [filteredReports, chartGranularity, getEffectiveTotals]);
+
+  const topBranchRows = useMemo(() => {
+    if (!allBranchesBreakdown) return [];
+    const total = combinedSummaryForFilters?.grandTotal || 0;
+    return [...allBranchesBreakdown]
+      .sort((a, b) => b.grandTotal - a.grandTotal)
+      .slice(0, 5)
+      .map((row) => ({
+        id: row.branchId,
+        name: row.branchName,
+        sales: row.grandTotal,
+        share: total > 0 ? (row.grandTotal / total) * 100 : 0,
+      }));
+  }, [allBranchesBreakdown, combinedSummaryForFilters]);
+
+  const categorySlices = useMemo(() => {
+    if (!combinedSummaryForFilters) return [];
+    return CATEGORIES.map((cat) => ({
+      key: cat,
+      value: (combinedSummaryForFilters.totals[cat] || 0) as number,
+      percent: (combinedSummaryForFilters.percents[cat] || 0) as number,
+    }));
+  }, [combinedSummaryForFilters]);
+
+  const branchTableRows = useMemo(() => {
+    if (!allBranchesBreakdown) return [];
+    const total = combinedSummaryForFilters?.grandTotal || 0;
+    return [...allBranchesBreakdown]
+      .sort((a, b) => b.grandTotal - a.grandTotal)
+      .map((row) => {
+        const prev = previousCombined?.byBranch.get(row.branchId) ?? null;
+        const change = compareMode === "previous" && prev != null
+          ? getPercentChange(prev, row.grandTotal)
+          : getPercentChange(null, row.grandTotal);
+        return {
+          id: row.branchId,
+          name: row.branchName,
+          totals: row.totals,
+          grandTotal: row.grandTotal,
+          share: total > 0 ? (row.grandTotal / total) * 100 : 0,
+          trendTone: change.tone,
+          trendLabel: change.label,
+        };
+      });
+  }, [allBranchesBreakdown, combinedSummaryForFilters, previousCombined, compareMode]);
+
+  const salesTrend = getPercentChange(
+    compareMode === "previous" ? previousCombined?.grandTotal ?? null : null,
+    kpiData.totalSales,
+  );
+  const icedTrend = getPercentChange(
+    compareMode === "previous" ? previousCombined?.totals["ICED"] ?? null : null,
+    kpiData.icedSales,
+  );
+  const hotTrend = getPercentChange(
+    compareMode === "previous" ? previousCombined?.totals["HOT"] ?? null : null,
+    kpiData.hotSales,
+  );
+  const snacksTrend = getPercentChange(
+    compareMode === "previous" ? previousCombined?.totals["SNACKS"] ?? null : null,
+    kpiData.snacksSales,
+  );
+
   const handleMonthSelect = useCallback(
     (monthKey: string) => {
       // Toggle off if the same month is clicked again
@@ -852,95 +1038,67 @@ export default function SummaryPage() {
 
       // Scroll to the filtered totals card for instant feedback
       if (filteredTotalsRef.current) {
-        filteredTotalsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        filteredTotalsRef.current.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
       }
     },
     [selectedMonthKey, previousDateRange, filterDateRange],
   );
 
-  // KPI card definitions (reactive to current filters)
-  const kpiCards = [
-    { label: "Total Sales",  value: `₱${formatNumber(kpiData.totalSales)}`,   icon: TrendingUp,   color: "text-primary",      bg: "bg-primary/10"   },
-    { label: "Reports",      value: kpiData.reportCount.toString(),            icon: Upload,       color: "text-emerald-600",  bg: "bg-emerald-50"   },
-    { label: "Iced",         value: `₱${formatNumber(kpiData.icedSales)}`,    icon: Snowflake,    color: "text-sky-500",      bg: "bg-sky-50"       },
-    { label: "Hot",          value: `₱${formatNumber(kpiData.hotSales)}`,     icon: Flame,        color: "text-orange-500",   bg: "bg-orange-50"    },
-    { label: "Snacks",       value: `₱${formatNumber(kpiData.snacksSales)}`,  icon: ShoppingBag,  color: "text-violet-600",   bg: "bg-violet-50"    },
-    { label: "Branches",     value: kpiData.uniqueBranches.toString(),         icon: Building2,    color: "text-teal-600",     bg: "bg-teal-50"      },
-  ];
+  const dateFilterLabel = filterDateRange.from
+    ? filterDateRange.to
+      ? `${format(filterDateRange.from, "MMM d")} – ${format(filterDateRange.to, "MMM d, yyyy")}`
+      : format(filterDateRange.from, "MMM d, yyyy")
+    : "All dates";
+
+  const icedShare = kpiData.totalSales > 0 ? (kpiData.icedSales / kpiData.totalSales) * 100 : 0;
+  const hotShare = kpiData.totalSales > 0 ? (kpiData.hotSales / kpiData.totalSales) * 100 : 0;
+  const snacksShare = kpiData.totalSales > 0 ? (kpiData.snacksSales / kpiData.totalSales) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* ── Top bar ───────────────────────────────────────────────────────── */}
-      <div className="bg-primary shadow-md">
-        <div className="max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8 py-3 sm:py-4 lg:py-5">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4">
-            {/* Date Range Filter */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full sm:w-auto sm:min-w-[240px] justify-start px-4 sm:px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all text-xs sm:text-sm",
-                    !filterDateRange.from && "text-primary-foreground/70",
-                  )}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {filterDateRange.from ? (
-                    filterDateRange.to ? (
-                      <>
-                        {format(filterDateRange.from, "MMM dd, yyyy")} —{" "}
-                        {format(filterDateRange.to, "MMM dd, yyyy")}
-                      </>
-                    ) : (
-                      format(filterDateRange.from, "MMM dd, yyyy")
-                    )
-                  ) : (
-                    "Filter by date range"
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 max-w-[95vw]" align="start">
-                <CalendarUI
-                  mode="range"
-                  selected={filterDateRange}
-                  onSelect={(range) =>
-                    setFilterDateRange(range || { from: undefined, to: undefined })
-                  }
-                  className="p-2 sm:p-3 pointer-events-auto rounded-2xl"
-                  numberOfMonths={1}
-                />
-              </PopoverContent>
-            </Popover>
-
-            {selectedMonthKey && (
-              <div className="flex items-center gap-2 text-xs bg-primary-foreground/10 text-primary-foreground px-3 py-1.5 rounded-full">
-                <span className="font-semibold tracking-wide">
-                  Month: {formatMonthDisplay(selectedMonthKey)}
-                </span>
+    <div className="overflow-x-hidden pb-8">
+      <div className="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 lg:px-10">
+        <FilterBar
+          dateControl={
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FilterTriggerButton icon={Calendar} className="min-w-[200px]">
+                    {dateFilterLabel}
+                  </FilterTriggerButton>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 max-w-[95vw]" align="start">
+                  <CalendarUI
+                    mode="range"
+                    selected={filterDateRange}
+                    onSelect={(range) =>
+                      setFilterDateRange(range || { from: undefined, to: undefined })
+                    }
+                    className="p-2 sm:p-3 pointer-events-auto rounded-2xl"
+                    numberOfMonths={1}
+                  />
+                </PopoverContent>
+              </Popover>
+              {selectedMonthKey && (
                 <button
                   type="button"
-                  className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary-foreground/20 hover:bg-primary-foreground/30"
+                  className="inline-flex items-center gap-1 rounded-full bg-[#F4F0E5] px-3 py-1 text-xs font-medium text-[#172B4D]"
                   onClick={() => handleMonthSelect(selectedMonthKey)}
                 >
-                  ×
+                  Month: {formatMonthDisplay(selectedMonthKey)}
+                  <span aria-hidden>×</span>
                 </button>
-              </div>
-            )}
-
-            {/* Branch Filter */}
+              )}
+            </div>
+          }
+          branchControl={
             <Popover>
               <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  disabled={isLoadingBranches}
-                  className="w-full sm:w-[220px] justify-start px-4 sm:px-5 py-2.5 h-auto rounded-full bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 transition-all text-xs sm:text-sm"
-                >
-                  <MapPin className="mr-2 h-4 w-4" />
-                  <span className="truncate">{branchFilterLabel}</span>
-                </Button>
+                <FilterTriggerButton icon={Building2} className="min-w-[160px]" disabled={isLoadingBranches}>
+                  {filterBranches.length === 0 ? "All Branches" : branchFilterLabel}
+                </FilterTriggerButton>
               </PopoverTrigger>
               <PopoverContent className="w-[92vw] sm:w-[280px] p-3 rounded-2xl" align="start">
-                <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-card-foreground">Branches</p>
                   {filterBranches.length > 0 && (
                     <button
@@ -952,8 +1110,7 @@ export default function SummaryPage() {
                     </button>
                   )}
                 </div>
-
-                <div className="flex items-center gap-2 py-2 px-2 rounded-xl hover:bg-muted/40">
+                <div className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-muted/40">
                   <Checkbox
                     checked={filterBranches.length === 0}
                     onCheckedChange={(checked) => {
@@ -968,16 +1125,12 @@ export default function SummaryPage() {
                     All branches
                   </button>
                 </div>
-
                 <div className="mt-2 max-h-[260px] overflow-auto pr-1">
                   {branchOptions.map((branch) => {
                     const id = branch.slug as BranchId;
                     const isChecked = filterBranches.includes(id);
                     return (
-                      <div
-                        key={branch.slug}
-                        className="flex items-center gap-2 py-2 px-2 rounded-xl hover:bg-muted/40"
-                      >
+                      <div key={branch.slug} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-muted/40">
                         <Checkbox
                           checked={isChecked}
                           onCheckedChange={(checked) => {
@@ -1004,196 +1157,201 @@ export default function SummaryPage() {
                 </div>
               </PopoverContent>
             </Popover>
+          }
+          compareControl={
+            <Select value={compareMode} onValueChange={(v) => setCompareMode(v as "previous" | "none")}>
+              <SelectTrigger className="h-10 w-[210px] rounded-xl border-border bg-white text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="previous">Compare: Previous Period</SelectItem>
+                <SelectItem value="none">Compare: Off</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+          lastUpdatedLabel={lastUpdatedLabel}
+          onRefresh={() => void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyRoot })}
+          isRefreshing={isRefreshingReports}
+          onAddData={handleOpenAddModal}
+          canAddData={canAddData(role)}
+          extraActions={
+            <Button
+              variant="outline"
+              className="relative h-10 rounded-xl border-border bg-white px-3.5"
+              onClick={() => setIsHistoryOpen(true)}
+            >
+              <Clock className="h-4 w-4" />
+              History
+              {dailyReports.length > 0 && (
+                <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">
+                  {dailyReports.length}
+                </span>
+              )}
+            </Button>
+          }
+        />
 
-            {/* Right-side actions */}
-            <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap sm:flex-nowrap items-center justify-end gap-2 sm:gap-3">
-              {/* History button */}
-              <Button
-                variant="outline"
-                className="relative rounded-full px-4 sm:px-5 py-2.5 h-auto bg-transparent border-2 border-primary-foreground/70 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground transition-all flex items-center gap-2 text-xs sm:text-sm min-h-10"
-                onClick={() => setIsHistoryOpen(true)}
-              >
-                <Clock className="h-4 w-4" />
-                History
-                {dailyReports.length > 0 && (
-                  <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary-foreground text-primary text-[10px] font-bold">
-                    {dailyReports.length}
-                  </span>
-                )}
-              </Button>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <StatCard
+            label="Total Sales"
+            value={formatCompactPHP(kpiData.totalSales)}
+            hint={`Across ${kpiData.uniqueBranches} branch${kpiData.uniqueBranches === 1 ? "" : "es"}`}
+            trendLabel={compareMode === "previous" ? `${salesTrend.label} vs previous period` : undefined}
+            trendTone={salesTrend.tone}
+            icon={TrendingUp}
+          />
+          <StatCard
+            label="Reports"
+            value={String(kpiData.reportCount)}
+            hint={`${reportStatus.complete} complete · ${reportStatus.pending} pending · ${reportStatus.review} review`}
+            icon={FileText}
+            iconClassName="text-[#A67C52]"
+            iconWrapClassName="bg-[#F4EDE3]"
+          />
+          <StatCard
+            label="Iced Sales"
+            value={formatCompactPHP(kpiData.icedSales)}
+            hint={`${icedShare.toFixed(2)}% of total sales`}
+            trendLabel={compareMode === "previous" ? icedTrend.label : undefined}
+            trendTone={icedTrend.tone}
+            icon={Snowflake}
+          />
+          <StatCard
+            label="Hot Sales"
+            value={formatCompactPHP(kpiData.hotSales)}
+            hint={`${hotShare.toFixed(2)}% of total sales`}
+            trendLabel={compareMode === "previous" ? hotTrend.label : undefined}
+            trendTone={hotTrend.tone}
+            icon={Flame}
+            iconClassName="text-[#F7652B]"
+            iconWrapClassName="bg-orange-50"
+          />
+          <StatCard
+            label="Snacks Sales"
+            value={formatCompactPHP(kpiData.snacksSales)}
+            hint={`${snacksShare.toFixed(2)}% of total sales`}
+            trendLabel={compareMode === "previous" ? snacksTrend.label : undefined}
+            trendTone={snacksTrend.tone}
+            icon={ShoppingBag}
+            iconClassName="text-[#7450C8]"
+            iconWrapClassName="bg-violet-50"
+          />
+          <StatCard
+            label="Branches"
+            value={String(branchDirectoryStats.total)}
+            hint={`${branchDirectoryStats.activeToday} active today · ${branchDirectoryStats.inactive} inactive`}
+            icon={Building2}
+            iconClassName="text-[#2997A8]"
+            iconWrapClassName="bg-teal-50"
+          />
+        </div>
 
-              {/* Add Data — hidden for Viewer role */}
-              {canAddData(role) && (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className="xl:col-span-6">
+            <SalesOverview
+              totalLabel="Total Sales"
+              totalValue={formatCompactPHP(kpiData.totalSales)}
+              trendLabel={compareMode === "previous" ? salesTrend.label : undefined}
+              trendPositive={salesTrend.tone === "positive"}
+              granularity={chartGranularity}
+              onGranularityChange={setChartGranularity}
+              points={salesPoints}
+            />
+          </div>
+          <div className="xl:col-span-3">
+            <TopBranches branches={topBranchRows} />
+          </div>
+          <div className="xl:col-span-3">
+            <CategoryBreakdown slices={categorySlices} total={kpiData.totalSales} />
+          </div>
+        </div>
+
+        <div ref={filteredTotalsRef}>
+          <BranchPerformanceTable rows={branchTableRows} />
+        </div>
+
+        {combinedSummaryForFilters && filteredReports.length > 0 && (
+          <div className="saas-card p-4 sm:p-6">
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Detailed breakdown
+            </p>
+            <SummaryTable
+              mode="single"
+              totals={combinedSummaryForFilters.totals as any}
+              quantities={combinedSummaryForFilters.quantities as any}
+              grandTotal={combinedSummaryForFilters.grandTotal}
+              grandQuantity={combinedSummaryForFilters.grandQuantity}
+              percents={combinedSummaryForFilters.percents as any}
+              branchLabel={
+                filterBranches.length === 0
+                  ? "All Branches"
+                  : filterBranches.length === 1
+                    ? getBranchLabel(filterBranches[0])
+                    : `${filterBranches.length} Branches`
+              }
+              branchBreakdown={allBranchesBreakdown ?? undefined}
+            />
+          </div>
+        )}
+
+        {activeReport && (
+          <div className="saas-card p-4 sm:p-6 lg:p-8">
+            <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="mb-2 text-xl font-semibold text-[#172B4D]">
+                  Report preview — {activeReport.date}
+                </h2>
+                <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                  <span className="font-semibold text-primary">{getBranchLabel(activeReport.branch)}</span>
+                  <span>File: <span className="font-medium text-foreground">{activeReport.filename}</span></span>
+                  <span>Rows: <span className="font-medium text-foreground">{activeReport.totalRows}</span></span>
+                  <span className="text-emerald-600">Mapped: {activeReport.mappedRows}</span>
+                  <span className="text-amber-600">Unmapped: {activeReport.unmappedRows}</span>
+                  <span>Skipped: {activeReport.skippedRows}</span>
+                  <span className="font-semibold text-primary">Total: ₱{formatNumber(activeReport.grandTotal)}</span>
+                </div>
+              </div>
+              {canDeleteData(role) && (
                 <Button
-                  size="lg"
-                  className="rounded-full px-4 sm:px-6 py-2.5 h-auto bg-primary-foreground text-primary font-semibold hover:bg-primary-foreground/90 shadow-lg flex items-center gap-2 text-xs sm:text-sm min-h-10"
-                  onClick={handleOpenAddModal}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRequestDeleteReport(activeReport.id)}
+                  className="shrink-0 border-red-200 text-red-600 hover:bg-red-50"
                 >
-                  <PlusCircle className="h-5 w-5" />
-                  ADD DATA
+                  Delete data
                 </Button>
               )}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Main content ──────────────────────────────────────────────────── */}
-      <div className="max-w-[1600px] mx-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-5 lg:py-6">
-
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
-          {kpiCards.map((card) => (
-            <div
-              key={card.label}
-              className="bg-card rounded-2xl shadow-sm border border-border/40 p-4 sm:p-5 min-h-[96px]"
-            >
-              <div className="flex items-center gap-2 mb-2.5">
-                <div className={`rounded-xl p-1.5 ${card.bg}`}>
-                  <card.icon className={`h-3.5 w-3.5 ${card.color}`} />
-                </div>
-                <span className="text-[11px] text-muted-foreground font-medium">
-                  {card.label}
-                </span>
-              </div>
-              <p className={`text-lg sm:text-xl font-bold leading-none ${card.color}`}>
-                {card.value}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Summary + active report */}
-        <div className="space-y-6">
-          {/* Filtered totals */}
-          <div ref={filteredTotalsRef} className="bg-card rounded-2xl sm:rounded-3xl shadow-xl p-4 sm:p-5 lg:p-6 min-w-0">
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-              <div>
-                <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-1">
-                  Summary
-                </p>
-                <h2 className="text-lg sm:text-xl font-bold text-card-foreground">
-                  Filtered totals
-                </h2>
-              </div>
-              <div className="text-left sm:text-right">
-                <p className="text-xs text-muted-foreground">Total sales</p>
-                <p className="text-xl sm:text-2xl font-bold text-primary">
-                  ₱{formatNumber(combinedSummaryForFilters?.grandTotal || 0)}
-                </p>
-              </div>
-            </div>
-            {combinedSummaryForFilters && filteredReports.length > 0 ? (
+            <div className="space-y-6">
               <SummaryTable
                 mode="single"
-                totals={combinedSummaryForFilters.totals as any}
-                quantities={combinedSummaryForFilters.quantities as any}
-                grandTotal={combinedSummaryForFilters.grandTotal}
-                grandQuantity={combinedSummaryForFilters.grandQuantity}
-                percents={combinedSummaryForFilters.percents as any}
-                branchLabel={
-                  filterBranches.length === 0
-                    ? "All Branches"
-                    : filterBranches.length === 1
-                      ? getBranchLabel(filterBranches[0])
-                      : `${filterBranches.length} Branches`
-                }
-                branchBreakdown={allBranchesBreakdown ?? undefined}
+                totals={activeReport.summaryTotalsByCat}
+                quantities={activeReport.summaryQuantitiesByCat}
+                grandTotal={activeReport.grandTotal}
+                grandQuantity={activeReport.grandQuantity}
+                percents={activeReport.percentByCat}
+                branchLabel={getBranchLabel(activeReport.branch)}
               />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No reports match the current filters yet.
-              </p>
-            )}
-          </div>
-
-          {/* Active report detail */}
-          {activeReport && (
-            <div className="bg-card rounded-2xl sm:rounded-3xl shadow-xl p-4 sm:p-6 lg:p-8 min-w-0">
-              <div className="mb-6">
-                <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
-                  <div className="min-w-0">
-                    <h2 className="text-xl sm:text-2xl font-bold text-card-foreground mb-2 break-words">
-                      Report preview — {activeReport.date}
-                    </h2>
-                    <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm text-muted-foreground mb-3">
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4 text-primary" />
-                        <span className="font-semibold text-primary">
-                          {getBranchLabel(activeReport.branch)}
-                        </span>
-                      </span>
-                      <span>
-                        File:{" "}
-                        <span className="font-medium text-card-foreground">
-                          {activeReport.filename}
-                        </span>
-                      </span>
-                      <span>
-                        Rows:{" "}
-                        <span className="font-semibold text-card-foreground">
-                          {activeReport.totalRows}
-                        </span>
-                      </span>
-                      <span className="text-emerald-600 font-medium">
-                        ✓ Mapped: {activeReport.mappedRows}
-                      </span>
-                      <span className="text-amber-600 font-medium">
-                        ⚠ Unmapped: {activeReport.unmappedRows}
-                      </span>
-                      <span>Skipped: {activeReport.skippedRows}</span>
-                      <span className="font-bold text-primary text-base sm:text-lg">
-                        Total: ₱{formatNumber(activeReport.grandTotal)}
-                      </span>
-                    </div>
-                  </div>
-                  {canDeleteData(role) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRequestDeleteReport(activeReport.id)}
-                      className="rounded-full border-red-200 text-red-600 hover:bg-red-50 shrink-0 text-xs sm:text-sm"
-                    >
-                      Delete data
-                    </Button>
-                  )}
+              {isLoadingDetail ? (
+                <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                  Loading transaction details…
                 </div>
-              </div>
-              <div className="space-y-6">
-                <SummaryTable
-                  mode="single"
-                  totals={activeReport.summaryTotalsByCat}
-                  quantities={activeReport.summaryQuantitiesByCat}
-                  grandTotal={activeReport.grandTotal}
-                  grandQuantity={activeReport.grandQuantity}
-                  percents={activeReport.percentByCat}
-                  branchLabel={getBranchLabel(activeReport.branch)}
-                />
-                {isLoadingDetail ? (
-                  <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-                    <svg className="h-4 w-4 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
-                    </svg>
-                    Loading transaction details…
-                  </div>
-                ) : (
-                  <>
-                    <DetailsTable rows={activeReport.rowDetails} />
-                    <UnmappedList items={activeReport.unmappedSummary} />
-                  </>
-                )}
-              </div>
+              ) : (
+                <>
+                  <DetailsTable rows={activeReport.rowDetails} />
+                  <UnmappedList items={activeReport.unmappedSummary} />
+                </>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── History drawer ────────────────────────────────────────────────── */}
       <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
         <SheetContent
           side="right"
-          className="w-full sm:max-w-[420px] p-0 flex flex-col bg-background"
+          className="w-full sm:max-w-[420px] p-0 flex flex-col bg-white"
         >
           <SheetHeader className="px-5 pt-5 pb-4 border-b border-border/60 shrink-0">
             <SheetTitle className="flex items-center gap-2 text-base font-bold">
@@ -1234,7 +1392,7 @@ export default function SummaryPage() {
         }}
       >
         <DialogContent
-          className="w-[95vw] max-w-2xl sm:max-w-3xl rounded-2xl sm:rounded-3xl bg-primary text-primary-foreground border border-white/15 shadow-2xl px-4 sm:px-6 lg:px-8 py-5 sm:py-7 pointer-events-auto"
+          className="w-[95vw] max-w-2xl sm:max-w-3xl rounded-[20px] border border-border bg-white px-4 py-5 text-[#172B4D] shadow-card sm:px-6 lg:px-8 sm:py-7 pointer-events-auto"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             document.body.style.pointerEvents = "";
@@ -1246,19 +1404,19 @@ export default function SummaryPage() {
             if (isGenerating) event.preventDefault();
           }}
         >
-          <DialogHeader className="pb-4 border-b border-white/10 mb-3">
-            <DialogTitle className="text-2xl font-bold tracking-tight">Add new report</DialogTitle>
+          <DialogHeader className="mb-3 border-b border-border pb-4">
+            <DialogTitle className="text-2xl font-semibold tracking-tight">Add new report</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
             {/* Select Branch — native <select> avoids Radix Select+Dialog pointer-events bugs */}
             <div className="space-y-3">
-              <p className="text-sm font-medium text-primary-foreground/90">Select branch</p>
+              <p className="text-sm font-medium text-[#172B4D]">Select branch</p>
               <select
                 value={modalBranch}
                 disabled={isGenerating || isLoadingBranches}
                 onChange={(e) => setModalBranch(e.target.value as BranchId)}
-                className="w-full rounded-full px-5 py-2.5 h-auto bg-primary-foreground text-primary border-none shadow-inner text-sm font-medium outline-none disabled:opacity-70"
+                className="h-11 w-full rounded-[10px] border border-border bg-white px-4 text-sm font-medium text-[#172B4D] outline-none focus:ring-2 focus:ring-ring disabled:opacity-70"
               >
                 <option value="" disabled>
                   {isLoadingBranches ? "Loading branches…" : "Choose a branch"}
@@ -1273,24 +1431,24 @@ export default function SummaryPage() {
 
             {/* Upload CSV */}
             <div className="space-y-3 pb-1">
-              <p className="text-sm font-medium text-primary-foreground/90">Upload transactions CSV</p>
+              <p className="text-sm font-medium text-[#172B4D]">Upload transactions CSV</p>
               <label
                 className={cn(
-                  "flex items-center justify-between px-5 py-3 rounded-full border border-dashed border-white/40 bg-primary-foreground text-primary shadow-sm transition-colors",
+                  "flex items-center justify-between rounded-[12px] border border-dashed border-border bg-[#F7F4EE] px-5 py-3 text-[#172B4D] transition-colors",
                   isGenerating
                     ? "cursor-not-allowed opacity-70"
-                    : "cursor-pointer hover:bg-primary-foreground/95",
+                    : "cursor-pointer hover:bg-[#F0EBE3]",
                 )}
               >
                 <div className="flex flex-col text-left">
                   <span className="text-sm font-medium truncate max-w-[260px]">
                     {modalFile ? modalFile.name : "Choose CSV file"}
                   </span>
-                  <span className="text-xs text-primary/80">
+                  <span className="text-xs text-muted-foreground">
                     Only .csv files are supported
                   </span>
                 </div>
-                <span className="text-xs font-semibold text-primary uppercase tracking-[0.16em]">
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                   Browse
                 </span>
                 <input
@@ -1302,17 +1460,17 @@ export default function SummaryPage() {
                 />
               </label>
               {modalCsvHeaders.length > 0 && (
-                <p className="text-xs text-primary-foreground/80">
+                <p className="text-xs text-muted-foreground">
                   Detected {modalCsvHeaders.length} columns
                   {modalFile ? ` · ${modalCsvData.length.toLocaleString()} rows` : ""} from the
                   uploaded file.
                 </p>
               )}
               {generateBlockedReason && modalFile && (
-                <p className="text-xs text-red-200">{generateBlockedReason}</p>
+                <p className="text-xs text-red-600">{generateBlockedReason}</p>
               )}
               {detectedDateRange.from && !dateDetectionError && (
-                <p className="text-xs text-primary-foreground/80">
+                <p className="text-xs text-muted-foreground">
                   Detected date range:{" "}
                   {detectedDateRange.to &&
                   detectedDateRange.from.getTime() !== detectedDateRange.to.getTime()
@@ -1324,12 +1482,12 @@ export default function SummaryPage() {
                 </p>
               )}
               {dateDetectionError && (
-                <p className="text-xs text-red-200">
+                <p className="text-xs text-red-600">
                   {dateDetectionError}
                 </p>
               )}
               {isGenerating && (
-                <p className="text-xs text-primary-foreground/90">
+                <p className="text-xs text-muted-foreground">
                   Processing transactions… large month files can take a few seconds.
                 </p>
               )}
@@ -1342,7 +1500,7 @@ export default function SummaryPage() {
               variant="outline"
               onClick={handleCloseAddModal}
               disabled={isSaving || isGenerating}
-              className="rounded-full border-white/70 text-primary-foreground bg-transparent hover:bg-white/10"
+              className="rounded-[10px] border-border bg-white text-[#172B4D] hover:bg-muted"
             >
               Cancel
             </Button>
@@ -1351,7 +1509,7 @@ export default function SummaryPage() {
               onClick={() => void handleSubmitReport()}
               disabled={!canGenerate || isSaving || isGenerating}
               title={generateBlockedReason ?? undefined}
-              className="rounded-full bg-white text-primary font-semibold hover:bg-blue-50 shadow-md disabled:bg-white/55 disabled:text-primary/70 disabled:opacity-100"
+              className="rounded-[10px] bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
             >
               {isGenerating ? "Generating…" : "Generate Report"}
             </Button>
@@ -1369,19 +1527,19 @@ export default function SummaryPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md rounded-3xl bg-primary text-primary-foreground border border-white/15 shadow-2xl">
+        <DialogContent className="max-w-md rounded-[20px] border border-border bg-white text-[#172B4D] shadow-card">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold">
               Delete this data?
             </DialogTitle>
           </DialogHeader>
           <div className="mt-3 space-y-3 text-sm">
-            <p className="text-primary-foreground/80">
+            <p className="text-muted-foreground">
               This will permanently remove the uploaded dataset and recomputed results for:
             </p>
             {reportPendingDelete && (
-              <div className="rounded-2xl bg-primary-foreground/10 px-4 py-3 space-y-1.5">
-                <p className="text-xs font-semibold tracking-[0.16em] uppercase text-primary-foreground/70">
+              <div className="space-y-1.5 rounded-[14px] bg-[#F7F4EE] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                   Summary
                 </p>
                 <p className="text-sm">
@@ -1409,7 +1567,7 @@ export default function SummaryPage() {
                 setReportPendingDelete(null);
               }}
               disabled={isDeleting}
-              className="rounded-full border-white/70 text-primary-foreground bg-transparent hover:bg-white/10 px-6"
+              className="rounded-[10px] border-border bg-white px-6 text-[#172B4D] hover:bg-muted"
             >
               Cancel
             </Button>
@@ -1417,7 +1575,7 @@ export default function SummaryPage() {
               variant="destructive"
               onClick={handleConfirmDeleteReport}
               disabled={isDeleting}
-              className="rounded-full px-6 font-semibold"
+              className="rounded-[10px] px-6 font-semibold"
             >
               {isDeleting ? "Deleting…" : "Delete data"}
             </Button>

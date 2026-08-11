@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -142,22 +142,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto px-8 py-8">
-      <Card className="rounded-3xl shadow-xl p-8 space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2 flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <div className="bg-primary/10 rounded-2xl p-4">
-              <SettingsIcon className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-card-foreground">Settings</h2>
-              <p className="text-muted-foreground">
-                Configure system preferences and branches.
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 py-6">
+      <Card className="p-6 sm:p-8 space-y-8">
 
         {/* Branches section */}
         <section className="space-y-4">
@@ -172,12 +158,12 @@ export default function SettingsPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-foreground/80 pointer-events-none" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search branches…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="rounded-full pl-9 bg-primary text-primary-foreground placeholder:text-primary-foreground/80 border-transparent shadow-sm"
+                className="rounded-[10px] pl-9 bg-white"
               />
             </div>
 
@@ -197,7 +183,7 @@ export default function SettingsPage() {
               </div>
               <Button
                 onClick={openAddBranch}
-                className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+                className="rounded-[10px]"
               >
                 + Add Branch
               </Button>

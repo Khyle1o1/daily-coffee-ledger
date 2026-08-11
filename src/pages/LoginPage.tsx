@@ -203,12 +203,12 @@ export default function LoginPage() {
 
   if (showResetForm) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center px-4">
+      <div className="flex h-full items-center justify-center overflow-y-auto bg-background px-4">
         <div className="w-full max-w-md">
           {/* Back to Login */}
           <Button
             variant="ghost"
-            className="text-primary-foreground hover:bg-primary-foreground/10 mb-4"
+            className="mb-4 text-[#172B4D] hover:bg-white"
             onClick={() => setShowResetForm(false)}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -216,7 +216,7 @@ export default function LoginPage() {
           </Button>
 
           {/* Reset Form Card */}
-          <div className="bg-card rounded-3xl shadow-2xl p-8">
+          <div className="saas-card p-8">
             <div className="text-center mb-8">
               <div className="bg-primary/10 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Coffee className="h-8 w-8 text-primary" strokeWidth={2.5} />
@@ -267,12 +267,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-primary flex items-center justify-center px-4">
+    <div className="flex h-full items-center justify-center overflow-y-auto bg-background px-4">
       <div className="w-full max-w-md">
         {/* Back to Landing */}
         <Button
           variant="ghost"
-          className="text-primary-foreground hover:bg-primary-foreground/10 mb-4"
+          className="mb-4 text-[#172B4D] hover:bg-white"
           onClick={() => navigate('/')}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -280,7 +280,7 @@ export default function LoginPage() {
         </Button>
 
         {/* Login Card */}
-        <div className="bg-card rounded-3xl shadow-2xl p-8">
+        <div className="saas-card p-8">
           <div className="text-center mb-8">
             <div className="bg-primary/10 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
               <Coffee className="h-8 w-8 text-primary" strokeWidth={2.5} />

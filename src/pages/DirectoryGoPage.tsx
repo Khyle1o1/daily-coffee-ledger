@@ -63,7 +63,7 @@ export default function DirectoryGoPage() {
   }, [id]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="flex min-h-0 flex-1 items-center justify-center bg-background px-4 py-16">
       <Card className="rounded-3xl shadow-xl p-10 max-w-md w-full text-center">
         {status === 'loading' && (
           <>
