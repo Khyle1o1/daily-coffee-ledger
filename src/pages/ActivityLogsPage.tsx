@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { GroupedBranchSelectItems } from '@/components/branch/GroupedBranchSelectItems';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/auth/useAuth';
 import { listAuditLogs } from '@/services/auditService';
@@ -323,9 +324,13 @@ export default function ActivityLogsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All branches</SelectItem>
-                {branchOptions.map(b => (
-                  <SelectItem key={b.slug} value={b.slug}>{b.label}</SelectItem>
-                ))}
+                <GroupedBranchSelectItems
+                  options={branchOptions.map((b) => ({
+                    value: b.slug,
+                    label: b.label,
+                    category: b.category,
+                  }))}
+                />
               </SelectContent>
             </Select>
 

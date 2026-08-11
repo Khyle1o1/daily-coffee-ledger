@@ -1,3 +1,5 @@
+import type { BranchCategory } from "@/lib/branchCategory";
+
 export type Branch = {
   id: string;
   code: string;
@@ -6,5 +8,6 @@ export type Branch = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  category: BranchCategory;
 };
 

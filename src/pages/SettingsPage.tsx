@@ -6,10 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/auth/useAuth';
 import { useNavigate } from 'react-router-dom';
 import type { Branch } from '@/types/branch';
+import type { BranchCategory } from '@/lib/branchCategory';
 import { BranchesTable } from '@/components/settings/BranchesTable';
 import { BranchModal } from '@/components/settings/BranchModal';
 import { MappingManagementSection } from '@/components/settings/MappingManagementSection';
@@ -31,6 +39,7 @@ export default function SettingsPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 350);
   const [activeOnly, setActiveOnly] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState<BranchCategory | 'all'>('all');
   const [page, setPage] = useState(1);
 
   const [showBranchModal, setShowBranchModal] = useState(false);
@@ -55,8 +64,12 @@ export default function SettingsPage() {
     enabled: isAdmin,
   });
 
-  const allBranches = (branchesResult?.items ?? []) as Branch[];
-  const total = branchesResult?.total ?? allBranches.length;
+  const loadedBranches = (branchesResult?.items ?? []) as Branch[];
+  const allBranches =
+    categoryFilter === 'all'
+      ? loadedBranches
+      : loadedBranches.filter((branch) => branch.category === categoryFilter);
+  const total = allBranches.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * PAGE_SIZE;
@@ -75,7 +88,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, activeOnly]);
+  }, [debouncedSearch, activeOnly, categoryFilter]);
 
   useEffect(() => {
     if (!branchesError) return;
@@ -168,6 +181,19 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
+              <Select
+                value={categoryFilter}
+                onValueChange={(value) => setCategoryFilter(value as BranchCategory | 'all')}
+              >
+                <SelectTrigger className="w-[160px] rounded-[10px] bg-white text-sm font-medium">
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  <SelectItem value="internal">Internal</SelectItem>
+                  <SelectItem value="external">External</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="flex items-center gap-2">
                 <Switch
                   id="branches-active-only"
@@ -199,7 +225,7 @@ export default function SettingsPage() {
             onPageChange={setPage}
             onEdit={openEditBranch}
             onAdd={openAddBranch}
-            hasFilters={Boolean(debouncedSearch)}
+            hasFilters={Boolean(debouncedSearch) || categoryFilter !== 'all'}
           />
         </section>
 

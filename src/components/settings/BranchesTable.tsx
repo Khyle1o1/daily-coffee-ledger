@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Branch } from '@/types/branch';
+import { branchCategoryLabel } from '@/lib/branchCategory';
 
 interface BranchesTableProps {
   branches: Branch[];
@@ -87,9 +88,19 @@ export function BranchesTable({
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span className="font-semibold text-sm text-card-foreground truncate">
                         {branch.name}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0',
+                          branch.category === 'external'
+                            ? 'bg-orange-100 text-orange-800'
+                            : 'bg-teal-100 text-teal-800',
+                        )}
+                      >
+                        {branchCategoryLabel(branch.category)}
                       </span>
                       <span className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground shrink-0">
                         {branch.code}

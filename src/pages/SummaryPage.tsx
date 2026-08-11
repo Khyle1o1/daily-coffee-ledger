@@ -31,6 +31,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { GroupedBranchCheckboxList } from "@/components/branch/GroupedBranchCheckboxList";
+import { GroupedBranchOptGroups } from "@/components/branch/GroupedBranchSelectItems";
+import { mergeSelectedIds } from "@/lib/branchCategory";
 
 import SummaryTable from "@/components/SummaryTable";
 import DetailsTable from "@/components/DetailsTable";
@@ -1126,34 +1129,42 @@ export default function SummaryPage() {
                   </button>
                 </div>
                 <div className="mt-2 max-h-[260px] overflow-auto pr-1">
-                  {branchOptions.map((branch) => {
-                    const id = branch.slug as BranchId;
-                    const isChecked = filterBranches.includes(id);
-                    return (
-                      <div key={branch.slug} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-muted/40">
-                        <Checkbox
-                          checked={isChecked}
-                          onCheckedChange={(checked) => {
-                            setFilterBranches((prev) => {
-                              if (checked) return prev.includes(id) ? prev : [...prev, id];
-                              return prev.filter((b) => b !== id);
-                            });
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="flex-1 text-left text-sm text-card-foreground"
-                          onClick={() => {
-                            setFilterBranches((prev) =>
-                              prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id],
-                            );
-                          }}
-                        >
-                          {branch.label}
-                        </button>
-                      </div>
-                    );
-                  })}
+                  <GroupedBranchCheckboxList
+                    options={branchOptions}
+                    selectedIds={filterBranches}
+                    getItemId={(branch) => branch.slug}
+                    onToggleGroup={(ids, select) => {
+                      setFilterBranches(mergeSelectedIds(filterBranches, ids, select) as BranchId[]);
+                    }}
+                    renderItem={(branch) => {
+                      const id = branch.slug as BranchId;
+                      const isChecked = filterBranches.includes(id);
+                      return (
+                        <div key={branch.slug} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-muted/40">
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              setFilterBranches((prev) => {
+                                if (checked) return prev.includes(id) ? prev : [...prev, id];
+                                return prev.filter((b) => b !== id);
+                              });
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="flex-1 text-left text-sm text-card-foreground"
+                            onClick={() => {
+                              setFilterBranches((prev) =>
+                                prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id],
+                              );
+                            }}
+                          >
+                            {branch.label}
+                          </button>
+                        </div>
+                      );
+                    }}
+                  />
                 </div>
               </PopoverContent>
             </Popover>
@@ -1421,11 +1432,13 @@ export default function SummaryPage() {
                 <option value="" disabled>
                   {isLoadingBranches ? "Loading branches…" : "Choose a branch"}
                 </option>
-                {branchOptions.map((branch) => (
-                  <option key={branch.slug} value={branch.slug}>
-                    {branch.label}
-                  </option>
-                ))}
+                <GroupedBranchOptGroups
+                  options={branchOptions.map((branch) => ({
+                    value: branch.slug,
+                    label: branch.label,
+                    category: branch.category,
+                  }))}
+                />
               </select>
             </div>
 

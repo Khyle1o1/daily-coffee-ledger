@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
+import { getBranchCategory, type BranchCategory } from '@/lib/branchCategory';
 
 export const LIVE_BRANCHES_QUERY_KEY = ['live-branches'] as const;
 
@@ -15,6 +16,7 @@ export interface BranchOption {
   slug: string;
   label: string;
   code: string;
+  category: BranchCategory;
 }
 
 async function fetchActiveBranches(): Promise<BranchOption[]> {
@@ -28,12 +30,18 @@ async function fetchActiveBranches(): Promise<BranchOption[]> {
     throw new Error(`Failed to fetch branches: ${error.message}`);
   }
 
-  return ((data as any[]) ?? []).map((row) => ({
-    uuid: row.id as string,
-    slug: row.name as string,
-    label: ((row.label || row.name) as string),
-    code: ((row.code || '') as string),
-  }));
+  return ((data as any[]) ?? []).map((row) => {
+    const slug = row.name as string;
+    const label = ((row.label || row.name) as string);
+    const code = ((row.code || '') as string);
+    return {
+      uuid: row.id as string,
+      slug,
+      label,
+      code,
+      category: getBranchCategory(label, code, slug),
+    };
+  });
 }
 
 /**

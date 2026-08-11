@@ -2,6 +2,7 @@ import { supabase, handleSupabaseError } from '@/lib/supabaseClient';
 import type { Database } from '@/lib/supabase.types';
 import type { Branch } from '@/types/branch';
 import { requireAdminUser, requireAuthUser } from '@/lib/api/authGuards';
+import { getBranchCategory } from '@/lib/branchCategory';
 
 type BranchRow = Database['public']['Tables']['branches']['Row'] & {
   code?: string | null;
@@ -10,15 +11,18 @@ type BranchRow = Database['public']['Tables']['branches']['Row'] & {
 };
 
 function mapBranch(row: BranchRow): Branch {
+  const code = (row.code ?? '').toString();
+  const label = row.label;
   return {
     id: row.id,
-    code: (row.code ?? '').toString(),
+    code,
     // Use label as the human-friendly branch name in the admin UI
-    name: row.label,
+    name: label,
     address: (row as any).address ?? null,
     isActive: (row as any).is_active !== false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    category: getBranchCategory(label, code, row.name),
   };
 }
 

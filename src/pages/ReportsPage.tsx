@@ -31,6 +31,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { GroupedBranchCheckboxList } from "@/components/branch/GroupedBranchCheckboxList";
+import { mergeSelectedIds } from "@/lib/branchCategory";
 import { useToast } from "@/hooks/use-toast";
 
 import ReportCanvas, { type ReportCanvasData } from "@/components/reports/ReportCanvas";
@@ -731,37 +733,45 @@ export default function ReportsPage() {
                     </div>
 
                     <div className="mt-2 max-h-[260px] overflow-auto pr-1">
-                      {branchOptions.map((b) => {
-                        const id = b.slug as BranchId;
-                        const isChecked = filterBranches.includes(id);
-                        return (
-                          <div
-                            key={b.slug}
-                            className="flex items-center gap-2 py-2 px-2 rounded-xl hover:bg-slate-50"
-                          >
-                            <Checkbox
-                              checked={isChecked}
-                              onCheckedChange={(checked) => {
-                                setFilterBranches((prev) => {
-                                  if (checked) return prev.includes(id) ? prev : [...prev, id];
-                                  return prev.filter((x) => x !== id);
-                                });
-                              }}
-                            />
-                            <button
-                              type="button"
-                              className="flex-1 text-left text-sm text-slate-900"
-                              onClick={() => {
-                                setFilterBranches((prev) =>
-                                  prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-                                );
-                              }}
+                      <GroupedBranchCheckboxList
+                        options={branchOptions}
+                        selectedIds={filterBranches}
+                        getItemId={(b) => b.slug}
+                        onToggleGroup={(ids, select) => {
+                          setFilterBranches(mergeSelectedIds(filterBranches, ids, select) as BranchId[]);
+                        }}
+                        renderItem={(b) => {
+                          const id = b.slug as BranchId;
+                          const isChecked = filterBranches.includes(id);
+                          return (
+                            <div
+                              key={b.slug}
+                              className="flex items-center gap-2 py-2 px-2 rounded-xl hover:bg-slate-50"
                             >
-                              {b.label}
-                            </button>
-                          </div>
-                        );
-                      })}
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={(checked) => {
+                                  setFilterBranches((prev) => {
+                                    if (checked) return prev.includes(id) ? prev : [...prev, id];
+                                    return prev.filter((x) => x !== id);
+                                  });
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="flex-1 text-left text-sm text-slate-900"
+                                onClick={() => {
+                                  setFilterBranches((prev) =>
+                                    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+                                  );
+                                }}
+                              >
+                                {b.label}
+                              </button>
+                            </div>
+                          );
+                        }}
+                      />
                     </div>
                   </PopoverContent>
                 </Popover>

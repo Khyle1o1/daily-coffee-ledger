@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GroupedBranchSelectItems } from "@/components/branch/GroupedBranchSelectItems";
 import { useToast } from "@/hooks/use-toast";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
 import { useAuth } from "@/auth/useAuth";
@@ -347,11 +348,13 @@ export default function DailyCashLedgerReportPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Branches</SelectItem>
-                  {branchOptions.map((b) => (
-                      <SelectItem key={b.uuid} value={b.uuid}>
-                        {b.label}
-                      </SelectItem>
-                  ))}
+                  <GroupedBranchSelectItems
+                    options={branchOptions.map((b) => ({
+                      value: b.uuid,
+                      label: b.label,
+                      category: b.category,
+                    }))}
+                  />
                 </SelectContent>
               </Select>
             </FilterField>
@@ -445,11 +448,13 @@ export default function DailyCashLedgerReportPage() {
                   <SelectValue placeholder="Branch" />
                 </SelectTrigger>
                 <SelectContent>
-                  {branchOptions.map((b) => (
-                    <SelectItem key={b.uuid} value={b.uuid}>
-                      {b.label}
-                    </SelectItem>
-                  ))}
+                  <GroupedBranchSelectItems
+                    options={branchOptions.map((b) => ({
+                      value: b.uuid,
+                      label: b.label,
+                      category: b.category,
+                    }))}
+                  />
                 </SelectContent>
               </Select>
             </FilterField>

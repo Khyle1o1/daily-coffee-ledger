@@ -49,6 +49,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GroupedBranchSelectItems } from "@/components/branch/GroupedBranchSelectItems";
+import { getBranchCategory } from "@/lib/branchCategory";
 import { useToast } from "@/hooks/use-toast";
 import { useDailyReportsQuery } from "@/hooks/queries/useDailyReportsQuery";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
@@ -329,11 +331,13 @@ export default function MonthlyBranchReportPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Branches</SelectItem>
-                  {branchesForFilters.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.label}
-                    </SelectItem>
-                  ))}
+                  <GroupedBranchSelectItems
+                    options={branchesForFilters.map((b) => ({
+                      value: b.id,
+                      label: b.label,
+                      category: getBranchCategory(b.label, b.id),
+                    }))}
+                  />
                 </SelectContent>
               </Select>
             </FilterField>
@@ -364,7 +368,7 @@ export default function MonthlyBranchReportPage() {
                     variant="outline"
                     className={cn(
                       "w-[230px] justify-start rounded-xl border-border bg-white hover:bg-muted/70",
-                      !dateRange.from && "text-muted-foreground",
+                      !dateRange.from && "text-[#667085]",
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -422,7 +426,7 @@ export default function MonthlyBranchReportPage() {
                 <Button
                   variant="outline"
                   disabled={!generated?.hasData}
-                  className="rounded-[10px] border-border bg-white text-[#172B4D] hover:bg-muted"
+                  className="rounded-[10px] border-[#172B4D]/35 bg-white font-semibold text-[#172B4D] hover:bg-[#F4F0E5] disabled:opacity-80 disabled:text-[#172B4D]/70"
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Export Report
@@ -463,7 +467,7 @@ export default function MonthlyBranchReportPage() {
               </PopoverContent>
             </Popover>
           </div>
-          <p className="mt-3 text-sm text-white/90">
+          <p className="mt-3 text-sm font-medium text-[#667085]">
             Months and branches are detected from uploaded ledger data only — empty periods are omitted.
             {discovered.months.length > 0 && (
               <>
@@ -485,7 +489,7 @@ export default function MonthlyBranchReportPage() {
           <div className="rounded-3xl bg-card shadow-xl border border-border/50 px-8 py-16 text-center text-[#0e2d49]">
             <BarChart3 className="h-10 w-10 mx-auto text-[#0e2d49]/70" />
             <h2 className="mt-4 text-xl font-bold text-[#0e2d49]">Monthly Branch Report</h2>
-            <p className="mt-2 text-sm text-[#0e2d49]/70 max-w-md mx-auto">
+            <p className="mx-auto mt-2 max-w-md text-sm text-[#667085]">
               Choose year, month, branch, and category, then click Generate Report to view
               sales performance from real ledger uploads.
             </p>
@@ -506,7 +510,7 @@ export default function MonthlyBranchReportPage() {
           <>
             {/* Overview */}
             <section>
-              <h2 className="text-sm font-semibold tracking-[0.16em] uppercase text-white mb-3 print:text-[#0e2d49]">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#172B4D]">
                 Monthly Overview
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
@@ -542,7 +546,7 @@ export default function MonthlyBranchReportPage() {
                   }
                 />
               </div>
-              <p className="mt-3 text-sm text-white/90">
+              <p className="mt-3 text-sm font-medium text-[#667085]">
                 Filters: {filterLabel(generated)} · Generated{" "}
                 {new Date(generated.generatedAt).toLocaleString()}
               </p>
@@ -870,7 +874,7 @@ export default function MonthlyBranchReportPage() {
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground px-1">
+      <Label className="px-1 text-[11px] font-semibold uppercase tracking-wider text-[#172B4D]">
         {label}
       </Label>
       {children}
