@@ -676,6 +676,19 @@ const CATEGORY_DETAIL_PAGES: {
   { key: "addOnsDetail",   displayName: "ADDON"   },
 ];
 
+const BOTTOM_CATEGORY_DETAIL_PAGES: {
+  key: keyof Pick<
+    ComputedHQSyncPack,
+    "packagingDetail" | "promoDetail" | "merchDetail" | "loyaltyCardDetail"
+  >;
+  displayName: string;
+}[] = [
+  { key: "packagingDetail",   displayName: "PACKAGING" },
+  { key: "promoDetail",       displayName: "PROMO" },
+  { key: "merchDetail",       displayName: "MERCH" },
+  { key: "loyaltyCardDetail", displayName: "LOYALTY CARD" },
+];
+
 const CHANNEL_PAGES: {
   key: keyof Pick<ComputedHQSyncPack, "top5Drinks" | "top5Pastry" | "top5AddOn">;
 }[] = [
@@ -724,6 +737,17 @@ export default function HQSyncPackReport({
           />
         );
       })}
+
+      {/* Bottom pages — Packaging, Promo, Merch, Loyalty Card */}
+      {BOTTOM_CATEGORY_DETAIL_PAGES.map((p) => (
+        <ProductMixCategoryDetailPage
+          key={p.key}
+          data={data[p.key]}
+          displayName={p.displayName}
+          dateRangeLabel={dateRangeLabel}
+          compareLabel={compareLabel}
+        />
+      ))}
     </div>
   );
 }

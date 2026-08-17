@@ -1007,7 +1007,7 @@ export default function ReportsPage() {
                   <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#1e3a5f]/20 bg-[#1e3a5f]/5">
                     <div className="h-2 w-2 rounded-full bg-[#C05A1F]" />
                     <p className="text-xs text-[#1e3a5f] font-semibold">
-                      Generates 8 pages: Overview · ICED · HOT · Pastries · Add-Ons · Top 5 Drinks · Pastry · Add-On by channel
+                      Generates 12 pages: Overview · ICED · HOT · Pastries · Add-Ons · Top 5 Drinks · Pastry · Add-On by channel · Packaging · Promo · Merch · Loyalty Card
                     </p>
                   </div>
                 )}

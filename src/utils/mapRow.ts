@@ -235,7 +235,8 @@ function buildOptionCandidates(rawOption: string, categoryCandidates: string[]):
 const ADD_ON_MISC_OPTION_FALLBACK: Record<string, { mappedCat: Category; mappedItemName: string }> = {
   [normalizeText("Cereal Crunch")]: { mappedCat: "ADD-ONS", mappedItemName: "Cereal Crunch" },
   [normalizeText("Coconut Water")]: { mappedCat: "ADD-ONS", mappedItemName: "Coconut Water" },
-  [normalizeText("Creatine Wheyl")]: { mappedCat: "ADD-ONS", mappedItemName: "Creatine Wheyl" },
+  [normalizeText("Creatine Wheyl")]: { mappedCat: "ADD-ONS", mappedItemName: "Krea Creatine Wheyl" },
+  [normalizeText("Krea Creatine Wheyl")]: { mappedCat: "ADD-ONS", mappedItemName: "Krea Creatine Wheyl" },
   [normalizeText("Decaf Espresso Shot")]: { mappedCat: "ADD-ONS", mappedItemName: "Decaf Espresso Shot" },
   [normalizeText("Espresso Shot")]: { mappedCat: "ADD-ONS", mappedItemName: "Espresso Shot" },
   [normalizeText("Matcha Powder")]: { mappedCat: "ADD-ONS", mappedItemName: "Matcha Powder" },
@@ -246,20 +247,31 @@ const ADD_ON_MISC_OPTION_FALLBACK: Record<string, { mappedCat: Category; mappedI
 
 const ITEM_ALIASES: Record<string, string[]> = {
   [normalizeText("dirty cereal")]: [normalizeText("dirty cereal milk")],
+  [normalizeText("dirty cereal milk")]: [normalizeText("dirty cereal")],
   [normalizeText("double chocolate chip cookie")]: [normalizeText("double chocolate chip cookies")],
+  [normalizeText("double chocolate chip cookies")]: [normalizeText("double chocolate chip cookie")],
   [normalizeText("peanut butter protein latte")]: [normalizeText("pb protein latte")],
+  [normalizeText("pb protein latte")]: [normalizeText("peanut butter protein latte")],
   [normalizeText("cocochata")]: [normalizeText("coco chata")],
+  [normalizeText("coco chata")]: [normalizeText("cocochata")],
   [normalizeText("truffle salt bread")]: [normalizeText("truffle cheese salt bread")],
+  [normalizeText("truffle cheese salt bread")]: [normalizeText("truffle salt bread")],
   [normalizeText("oatmeal crunch protein bar")]: [normalizeText("oatmeal cookie protein bar")],
+  [normalizeText("oatmeal cookie protein bar")]: [normalizeText("oatmeal crunch protein bar")],
   [normalizeText("chocolate salt bread")]: [normalizeText("dark chocolate salt bread")],
+  [normalizeText("dark chocolate salt bread")]: [normalizeText("chocolate salt bread")],
   [normalizeText("dc tote bag")]: [normalizeText("dc tote bag"), normalizeText("Dc Tote Bag")],
   [normalizeText("bring your own tumbler")]: [normalizeText("bring your own tumbler")],
   [normalizeText("16oz iced dabba cups")]: [normalizeText("16oz iced dabba cup")],
   [normalizeText("12oz iced dabba cups")]: [normalizeText("12oz iced dabba cup")],
   [normalizeText("straw")]: [normalizeText("rice straw")],
+  [normalizeText("rice straw")]: [normalizeText("straw")],
   [normalizeText("16oz hot paper cups")]: [normalizeText("16oz paper cup")],
   [normalizeText("12oz hot paper cups")]: [normalizeText("12oz paper cup")],
   [normalizeText("delivery | straw")]: [normalizeText("delivery | rice straw")],
+  [normalizeText("delivery | rice straw")]: [normalizeText("delivery | straw")],
+  [normalizeText("creatine wheyl")]: [normalizeText("krea creatine wheyl")],
+  [normalizeText("krea creatine wheyl")]: [normalizeText("creatine wheyl")],
   [normalizeText("salted carmael")]: [normalizeText("salted caramel")],
 };
 
@@ -641,6 +653,9 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
         ].filter(Boolean),
       ),
     );
+    for (const key of [...addOnItemKeys]) {
+      for (const alias of ITEM_ALIASES[key] ?? []) addOnItemKeys.push(alias);
+    }
     const p5 = findExact(addOnsCats, addOnItemKeys, [""]);
     if (p5) return resolveMapped(p5);
     const miscFb = ADD_ON_MISC_OPTION_FALLBACK[normalizeText(rawOptTrim)];

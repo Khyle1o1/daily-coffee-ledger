@@ -124,7 +124,7 @@ export default function SummaryPage() {
   const [compareMode, setCompareMode] = useState<"previous" | "none">("previous");
   const [chartGranularity, setChartGranularity] = useState<"weekly" | "daily" | "monthly">("weekly");
 
-  // Mapping table (loaded from public/VALIDATION DATA.xlsx, fallback to bundled default)
+  // Mapping table (loaded from public/Validation.xlsx, fallback to bundled default)
   const [mappingTable, setMappingTable] = useState<MappingEntry[]>(DEFAULT_MAPPING);
   const { manualEntries } = useManualMappings();
 

@@ -60,6 +60,10 @@ export interface ComputedHQSyncPack {
   hotDetail: ComputedProductMix;
   pastriesDetail: ComputedProductMix;
   addOnsDetail: ComputedProductMix;
+  packagingDetail: ComputedProductMix;
+  promoDetail: ComputedProductMix;
+  merchDetail: ComputedProductMix;
+  loyaltyCardDetail: ComputedProductMix;
   top5Drinks: HQTop5ByChannel;
   top5Pastry: HQTop5ByChannel;
   top5AddOn: HQTop5ByChannel;
@@ -163,11 +167,15 @@ export function computeHQSyncPack(
 ): ComputedHQSyncPack {
   return {
     overview:       computeCategoryTotals(reports, filters),
-    icedDetail:     sortProductMixByQtyDesc(computeProductTotals(reports, filters, "ICED")),
-    hotDetail:      sortProductMixByQtyDesc(computeProductTotals(reports, filters, "HOT")),
-    pastriesDetail: sortProductMixByQtyDesc(computeProductTotals(reports, filters, "SNACKS")),
-    addOnsDetail:   sortProductMixByQtyDesc(computeProductTotals(reports, filters, "ADD-ONS")),
-    top5Drinks:     buildChannelTop5(reports, filters, HQ_DRINK_CATS,  "DRINKS"),
+    icedDetail:        sortProductMixByQtyDesc(computeProductTotals(reports, filters, "ICED")),
+    hotDetail:         sortProductMixByQtyDesc(computeProductTotals(reports, filters, "HOT")),
+    pastriesDetail:    sortProductMixByQtyDesc(computeProductTotals(reports, filters, "SNACKS")),
+    addOnsDetail:      sortProductMixByQtyDesc(computeProductTotals(reports, filters, "ADD-ONS")),
+    packagingDetail:   sortProductMixByQtyDesc(computeProductTotals(reports, filters, "PACKAGING")),
+    promoDetail:       sortProductMixByQtyDesc(computeProductTotals(reports, filters, "PROMO")),
+    merchDetail:       sortProductMixByQtyDesc(computeProductTotals(reports, filters, "MERCH")),
+    loyaltyCardDetail: sortProductMixByQtyDesc(computeProductTotals(reports, filters, "LOYALTY CARD")),
+    top5Drinks:        buildChannelTop5(reports, filters, HQ_DRINK_CATS,  "DRINKS"),
     top5Pastry:     buildChannelTop5(reports, filters, HQ_PASTRY_CATS, "PASTRY"),
     top5AddOn:      buildChannelTop5(reports, filters, HQ_ADDON_CATS,  "ADD-ON"),
     cupsData:       computeCupsData(reports, filters),

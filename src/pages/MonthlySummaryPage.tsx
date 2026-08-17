@@ -13,6 +13,7 @@ import MonthlyUnmappedList from "@/components/MonthlyUnmappedList";
 import { normalizeText } from "@/utils/normalize";
 import { parseCsvFile } from "@/utils/parseCsv";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
+import { loadValidationMappingFromPublic } from "@/utils/loadValidationMapping";
 import { preloadMenuReference } from "@/utils/menuReference";
 import { computeMonthlyReport } from "@/utils/aggregateMonthly";
 import { formatNumber } from "@/utils/format";
@@ -37,6 +38,18 @@ export default function MonthlySummaryPage() {
 
   useEffect(() => {
     void preloadMenuReference();
+  }, []);
+
+  useEffect(() => {
+    const loadValidation = async () => {
+      try {
+        const liveTable = await loadValidationMappingFromPublic();
+        setMappingTable(liveTable);
+      } catch (error) {
+        console.warn("Failed to load validation mapping from workbook; using bundled default.", error);
+      }
+    };
+    void loadValidation();
   }, []);
 
   useEffect(() => {

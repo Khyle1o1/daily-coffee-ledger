@@ -87,10 +87,9 @@ describe("PROMO items stay PROMO", () => {
     expect(r.categoryConflict).toBeUndefined();
   });
 
-  it("PROMO + Gcash Food → PROMO", () => {
+  it("PROMO + Gcash Food is dropped from the new validation table", () => {
     const r = mapRow(row("PROMO", "Gcash Food", "100 pesos off"), DEFAULT_MAPPING);
-    expect(r.status).toBe("MAPPED");
-    expect(r.mappedCat).toBe("PROMO");
+    expect(r.status).toBe("UNMAPPED");
   });
 });
 
@@ -154,79 +153,73 @@ describe("DEL - SIGNATURES and delivery category aliases", () => {
     expect(r.mappedItemName).toBe("Hojicha Cold Foam");
   });
 
-  it("maps PACKAGING + Less Ice → PACKAGING / Less Ice", () => {
+  it("maps PACKAGING + Less Ice → ADD-ONS / Less Ice", () => {
     const r = mapRow(row("PACKAGING", "Less Ice", ""), DEFAULT_MAPPING);
     expect(r.status).toBe("MAPPED");
-    expect(r.mappedCat).toBe("PACKAGING");
+    expect(r.mappedCat).toBe("ADD-ONS");
     expect(r.mappedItemName).toBe("Less Ice");
   });
 
-  it("maps PACKAGING + Less Sweet → PACKAGING / Less Sweet", () => {
+  it("maps PACKAGING + Less Sweet → ADD-ONS / Less Sweet", () => {
     const r = mapRow(row("PACKAGING", "Less Sweet", ""), DEFAULT_MAPPING);
     expect(r.status).toBe("MAPPED");
-    expect(r.mappedCat).toBe("PACKAGING");
+    expect(r.mappedCat).toBe("ADD-ONS");
     expect(r.mappedItemName).toBe("Less Sweet");
   });
 
-  it("maps PACKAGING modifiers No Sugar / Splenda / No Ice / One Pump / Warm", () => {
+  it("maps PACKAGING modifiers No Sugar / Splenda / No Ice / One Pump / Warm → ADD-ONS", () => {
     for (const item of ["No Sugar", "Splenda", "No Ice", "One Pump", "Warm"]) {
       const r = mapRow(row("PACKAGING", item, ""), DEFAULT_MAPPING);
       expect(r.status).toBe("MAPPED");
-      expect(r.mappedCat).toBe("PACKAGING");
+      expect(r.mappedCat).toBe("ADD-ONS");
       expect(r.mappedItemName).toBe(item);
     }
   });
 
-  it("maps PACKAGING + Stirrer / Half-Shot Espresso", () => {
+  it("maps PACKAGING + Stirrer / Half-Shot Espresso → ADD-ONS", () => {
     for (const item of ["Stirrer", "Half-Shot Espresso"]) {
       const r = mapRow(row("PACKAGING", item, ""), DEFAULT_MAPPING);
       expect(r.status).toBe("MAPPED");
-      expect(r.mappedCat).toBe("PACKAGING");
+      expect(r.mappedCat).toBe("ADD-ONS");
       expect(r.mappedItemName).toBe(item);
     }
   });
 
-  it("maps PACKAGING + Extra Hot", () => {
+  it("maps PACKAGING + Extra Hot → ADD-ONS", () => {
     const r = mapRow(row("PACKAGING", "Extra Hot", ""), DEFAULT_MAPPING);
     expect(r.status).toBe("MAPPED");
-    expect(r.mappedCat).toBe("PACKAGING");
+    expect(r.mappedCat).toBe("ADD-ONS");
     expect(r.mappedItemName).toBe("Extra Hot");
   });
 
-  it("maps PROMO + Klook Kreators + Free Drink 16oz Iced", () => {
+  it("maps PROMO + Klook Kreators as unmapped after validation replace", () => {
     const r = mapRow(row("PROMO", "Klook Kreators", "Free Drink 16oz Iced"), DEFAULT_MAPPING);
-    expect(r.status).toBe("MAPPED");
-    expect(r.mappedCat).toBe("PROMO");
-    expect(r.mappedItemName).toBe("Klook Kreators");
+    expect(r.status).toBe("UNMAPPED");
   });
 
-  it("maps PROMO + Kiehl'sVoucher → PROMO / Kiehl'sVoucher", () => {
+  it("maps PROMO + Kiehl'sVoucher as unmapped after validation replace", () => {
     const r = mapRow(row("PROMO", "Kiehl'sVoucher", ""), DEFAULT_MAPPING);
-    expect(r.status).toBe("MAPPED");
-    expect(r.mappedCat).toBe("PROMO");
-    expect(r.mappedItemName).toBe("Kiehl'sVoucher");
+    expect(r.status).toBe("UNMAPPED");
   });
 
-  it("maps PROMO + Kiehl'sVoucher with curly apostrophe", () => {
+  it("maps PROMO + Kiehl'sVoucher with curly apostrophe as unmapped", () => {
     const curly = "Kiehl\u2019sVoucher";
     const r = mapRow(row("PROMO", curly, ""), DEFAULT_MAPPING);
-    expect(r.status).toBe("MAPPED");
-    expect(r.mappedCat).toBe("PROMO");
-    expect(normalizeText(r.mappedItemName)).toBe(normalizeText("Kiehl'sVoucher"));
+    expect(r.status).toBe("UNMAPPED");
   });
 
-  it("maps PACKAGING + Sugar Granules", () => {
+  it("maps PACKAGING + Sugar Granules → ADD-ONS", () => {
     const r = mapRow(row("PACKAGING", "Sugar Granules", ""), DEFAULT_MAPPING);
     expect(r.status).toBe("MAPPED");
-    expect(r.mappedCat).toBe("PACKAGING");
+    expect(r.mappedCat).toBe("ADD-ONS");
     expect(r.mappedItemName).toBe("Sugar Granules");
   });
 
-  it("maps ADD ONS + ADD ONS MISC + Creatine Wheyl → ADD-ONS / Creatine Wheyl", () => {
+  it("maps ADD ONS + ADD ONS MISC + Creatine Wheyl → ADD-ONS / Krea Creatine Wheyl", () => {
     const r = mapRow(row("ADD ONS", "ADD ONS MISC", "Creatine Wheyl"), DEFAULT_MAPPING);
     expect(r.status).toBe("MAPPED");
     expect(r.mappedCat).toBe("ADD-ONS");
-    expect(r.mappedItemName).toBe("Creatine Wheyl");
+    expect(r.mappedItemName).toBe("Krea Creatine Wheyl");
   });
 
   it("maps ADD ONS + ADD ONS MISC + Decaf Espresso Shot → ADD-ONS / Decaf Espresso Shot", () => {
@@ -318,6 +311,34 @@ describe("DEL - SIGNATURES and delivery category aliases", () => {
     expect(r.status).toBe("MAPPED");
     expect(r.mappedCat).toBe("SNACKS");
     expect(r.mappedItemName).toBe("Blitz Bar");
+  });
+
+  it("maps DOT SIGNATURES + Coco Americano + Iced Regular (12oz) → ICED", () => {
+    const r = mapRow(row("DOT SIGNATURES", "Coco Americano", "Iced Regular (12oz)"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
+    expect(r.mappedItemName).toBe("Coco Americano");
+  });
+
+  it("maps PROMO + GO Free Drink - Americano iced → ICED", () => {
+    const r = mapRow(row("PROMO", "GO Free Drink - Americano", "Iced Regular (12oz)"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("ICED");
+    expect(r.mappedItemName).toBe("GO Free Drink - Americano");
+  });
+
+  it("maps LOYALTY CARD + LC Free 16oz → LOYALTY CARD", () => {
+    const r = mapRow(row("LOYALTY CARD", "LC Free 16oz"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("LOYALTY CARD");
+    expect(r.mappedItemName).toBe("LC Free 16oz");
+  });
+
+  it("maps MERCH + Gift Card Sleeves → MERCH", () => {
+    const r = mapRow(row("MERCH", "Gift Card Sleeves"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("MERCH");
+    expect(r.mappedItemName).toBe("Gift Card Sleeves");
   });
 });
 

@@ -1,17 +1,19 @@
 import * as XLSX from "xlsx";
-import { normalizeText } from "./normalize";
-import { normalizeOption } from "./defaultMapping";
-import type { MappingEntry, Category } from "./types";
+import { toMappingEntries, type ValidationRow } from "./validationMapping";
+import type { MappingEntry } from "./types";
 
-interface ValidationRow {
-  mappedName: string;
-  category: string;
-  item: string;
-  option: string;
-}
+const VALIDATION_URL = "/Validation.xlsx";
+const PREFERRED_SHEET = "MENU 8172026";
+
+const MAPPED_NAME_KEYS = ["validation", "mapped name", "mappedname", "mapped_name"];
+const CATEGORY_KEYS = ["category"];
+const ITEM_KEYS = ["item"];
+const OPTION_KEYS = ["option"];
 
 function pick(row: Record<string, unknown>, keys: string[]): string {
-  for (const key of keys) {
+  const wanted = new Set(keys.map((k) => k.trim().toLowerCase()));
+  for (const key of Object.keys(row)) {
+    if (!wanted.has(key.trim().toLowerCase())) continue;
     const value = row[key];
     if (value == null) continue;
     const text = String(value).trim();
@@ -25,38 +27,38 @@ function toRows(sheet: XLSX.WorkSheet): ValidationRow[] {
 
   return records
     .map((r) => ({
-      mappedName: pick(r, ["Mapped Name", "mappedName", "mapped_name", "MappedName"]),
-      category: pick(r, ["Category", "category"]),
-      item: pick(r, ["Item", "item"]),
-      option: pick(r, ["Option", "option"]),
+      mappedName: pick(r, MAPPED_NAME_KEYS),
+      category: pick(r, CATEGORY_KEYS),
+      item: pick(r, ITEM_KEYS),
+      option: pick(r, OPTION_KEYS),
     }))
     .filter((r) => r.mappedName && r.category && r.item);
 }
 
-function toMappingEntries(rows: ValidationRow[]): MappingEntry[] {
-  return rows.map((r) => ({
-    mappedName: r.mappedName as Category,
-    category: r.category,
-    item: r.item,
-    option: r.option ?? "",
-    catNorm: normalizeText(r.category),
-    itemNorm: normalizeText(r.item),
-    optionNorm: normalizeOption(r.option ?? ""),
-  }));
+function pickSheet(wb: XLSX.WorkBook): XLSX.WorkSheet {
+  const preferred = wb.Sheets[PREFERRED_SHEET];
+  if (preferred && toRows(preferred).length) return preferred;
+
+  for (const name of wb.SheetNames) {
+    const sheet = wb.Sheets[name];
+    if (sheet && toRows(sheet).length) return sheet;
+  }
+
+  throw new Error("No usable rows found in validation mapping workbook.");
+}
+
+export function mappingEntriesFromWorkbook(buf: ArrayBuffer | Uint8Array): MappingEntry[] {
+  const wb = XLSX.read(buf, { type: "array" });
+  if (!wb.SheetNames.length) throw new Error("Validation mapping workbook is empty.");
+  const rows = toRows(pickSheet(wb));
+  if (!rows.length) throw new Error("No usable rows found in validation mapping workbook.");
+  return toMappingEntries(rows);
 }
 
 export async function loadValidationMappingFromPublic(): Promise<MappingEntry[]> {
-  const res = await fetch("/VALIDATION DATA.xlsx", { cache: "no-store" });
+  const res = await fetch(VALIDATION_URL, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch validation mapping file.");
 
   const buf = await res.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const firstSheetName = wb.SheetNames[0];
-  if (!firstSheetName) throw new Error("Validation mapping workbook is empty.");
-
-  const sheet = wb.Sheets[firstSheetName];
-  const rows = toRows(sheet);
-  if (!rows.length) throw new Error("No usable rows found in validation mapping workbook.");
-
-  return toMappingEntries(rows);
+  return mappingEntriesFromWorkbook(buf);
 }

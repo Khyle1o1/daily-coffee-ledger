@@ -23,7 +23,7 @@ export const EMPTY_ROWS_TOP = 7;
 export const EMPTY_ROWS_MIDDLE = 3;
 
 /**
- * One row from VALIDATION DATA.xlsx.
+ * One row from public/Validation.xlsx.
  *
  * The validation file is the authoritative mapping source.
  * Matching is done on Category + Item + Option (all three fields).

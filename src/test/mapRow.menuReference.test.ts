@@ -57,7 +57,7 @@ describe("mapRow menu reference coverage", () => {
     const result = mapRow(row("DOT SNACKS", "Double Chocolate Chip Cookie"), DEFAULT_MAPPING);
     expect(result.status).toBe("MAPPED");
     expect(result.mappedCat).toBe("SNACKS");
-    expect(result.mappedItemName).toBe("Double Chocolate Chip Cookies");
+    expect(result.mappedItemName).toBe("Double Chocolate Chip Cookie");
   });
 
   it("maps D/E: ADD ONS bucket options as item names", () => {
@@ -77,7 +77,7 @@ describe("mapRow menu reference coverage", () => {
     const result = mapRow(row("PACKAGING", "Delivery | Rice Straw"), DEFAULT_MAPPING);
     expect(result.status).toBe("MAPPED");
     expect(result.mappedCat).toBe("PACKAGING");
-    expect(result.mappedItemName).toBe("Delivery | Rice Straw");
+    expect(result.mappedItemName).toBe("Delivery | Straw");
   });
 
   it("maps G: FREE Gift Card Sleeves remains distinct item", () => {
@@ -109,7 +109,7 @@ describe("mapRow menu reference coverage", () => {
 
     expect(cocochata.status).toBe("MAPPED");
     expect(cocochata.mappedCat).toBe("ICED");
-    expect(cocochata.mappedItemName).toBe("Coco Chata");
+    expect(cocochata.mappedItemName).toBe("CocoChata");
   });
 
   it("maps newly-seen validation item label variants", () => {
@@ -144,22 +144,22 @@ describe("mapRow menu reference coverage", () => {
 
     expect(doubleChocolateCookie.status).toBe("MAPPED");
     expect(doubleChocolateCookie.mappedCat).toBe("SNACKS");
-    expect(doubleChocolateCookie.mappedItemName).toBe("Double Chocolate Chip Cookies");
+    expect(doubleChocolateCookie.mappedItemName).toBe("Double Chocolate Chip Cookie");
 
     expect(truffleSaltBread.status).toBe("MAPPED");
     expect(truffleSaltBread.mappedCat).toBe("SNACKS");
-    expect(truffleSaltBread.mappedItemName).toBe("Truffle Cheese Salt Bread");
+    expect(truffleSaltBread.mappedItemName).toBe("Truffle Salt Bread");
 
     expect(oatmealCrunchBar.status).toBe("MAPPED");
     expect(oatmealCrunchBar.mappedCat).toBe("SNACKS");
-    expect(oatmealCrunchBar.mappedItemName).toBe("Oatmeal Cookie Protein Bar");
+    expect(oatmealCrunchBar.mappedItemName).toBe("Oatmeal Crunch Protein Bar");
 
     expect(chocolateSaltBread.status).toBe("MAPPED");
     expect(chocolateSaltBread.mappedCat).toBe("SNACKS");
-    expect(chocolateSaltBread.mappedItemName).toBe("Dark Chocolate Salt Bread");
+    expect(chocolateSaltBread.mappedItemName).toBe("Chocolate Salt Bread");
 
     expect(peanutButterProtein.status).toBe("MAPPED");
     expect(peanutButterProtein.mappedCat).toBe("ICED");
-    expect(peanutButterProtein.mappedItemName).toBe("PB Protein Latte");
+    expect(peanutButterProtein.mappedItemName).toBe("Peanut Butter Protein Latte");
   });
 });

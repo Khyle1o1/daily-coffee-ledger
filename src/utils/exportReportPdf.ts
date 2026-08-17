@@ -383,8 +383,20 @@ export async function exportReportPdf(
       { label: "Product Mix_ADD-ON", data: hq.addOnsDetail },
     ];
 
-    // Pages 2-5: each category section on a new page
-    for (const section of detailSections) {
+    const bottomDetailSections: Array<{
+      label: string;
+      data: ComputedHQSyncPack["icedDetail"];
+    }> = [
+      { label: "Product Mix_PACKAGING", data: hq.packagingDetail },
+      { label: "Product Mix_PROMO", data: hq.promoDetail },
+      { label: "Product Mix_MERCH", data: hq.merchDetail },
+      { label: "Product Mix_LOYALTY CARD", data: hq.loyaltyCardDetail },
+    ];
+
+    const renderProductMixSection = (section: {
+      label: string;
+      data: ComputedHQSyncPack["icedDetail"];
+    }) => {
       doc.addPage("a4", "landscape");
       const hasCompare = section.data.products.some((p) => p.compareQty !== undefined);
       const sectionTitle = `${section.label}   ${formatPHPPdf(section.data.totalSales)}`;
@@ -443,7 +455,10 @@ export async function exportReportPdf(
         },
         showHead: "everyPage",
       });
-    }
+    };
+
+    // Pages 2-5: each category section on a new page
+    for (const section of detailSections) renderProductMixSection(section);
 
     // Pages 6-8: Running Sales Mix (by channel section)
     doc.addPage("a4", "landscape");
@@ -452,6 +467,9 @@ export async function exportReportPdf(
     renderHqTop5Section(doc, marginLeft, pageWidth, dateRangeLabel, branchLabel, "Pastry", hq.top5Pastry);
     doc.addPage("a4", "landscape");
     renderHqTop5Section(doc, marginLeft, pageWidth, dateRangeLabel, branchLabel, "Add-On", hq.top5AddOn);
+
+    // Bottom pages: Packaging, Promo, Merch, Loyalty Card
+    for (const section of bottomDetailSections) renderProductMixSection(section);
   }
 
   else if (reportType === "PRODUCT_MIX" && productMixByCategory) {

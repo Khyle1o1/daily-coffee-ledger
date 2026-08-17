@@ -27,6 +27,7 @@ import { mapRow } from "@/utils/mapRow";
 import { aggregateByCategory, getUnmappedSummary, reapplyMappingsToDailyReport } from "@/utils/aggregate";
 import { formatNumber } from "@/utils/format";
 import { DEFAULT_MAPPING } from "@/utils/defaultMapping";
+import { loadValidationMappingFromPublic } from "@/utils/loadValidationMapping";
 import { preloadMenuReference } from "@/utils/menuReference";
 import { computeMonthlyReport, getMonthKey } from "@/utils/aggregateMonthly";
 import type { DailyReport, MappingEntry, ColumnMapping, RawRow, BranchId, ViewMode } from "@/utils/types";
@@ -87,6 +88,18 @@ const Index = () => {
   // ============================================================================
   useEffect(() => {
     void preloadMenuReference();
+  }, []);
+
+  useEffect(() => {
+    const loadValidation = async () => {
+      try {
+        const liveTable = await loadValidationMappingFromPublic();
+        setMappingTable(liveTable);
+      } catch (error) {
+        console.warn("Failed to load validation mapping from workbook; using bundled default.", error);
+      }
+    };
+    void loadValidation();
   }, []);
 
   useEffect(() => {
