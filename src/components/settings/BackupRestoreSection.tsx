@@ -1,7 +1,9 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Upload, Loader2 } from "lucide-react";
+import { Download, Upload, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -22,6 +24,9 @@ import {
   restoreBackupPack,
   type BackupPack,
 } from "@/services/backupService";
+import { wipeOperationalData } from "@/services/dataWipeService";
+
+const WIPE_CONFIRM_TEXT = "WIPE";
 
 interface BackupRestoreSectionProps {
   onRestored?: () => void;
@@ -37,12 +42,23 @@ export function BackupRestoreSection({ onRestored }: BackupRestoreSectionProps) 
   const [parsing, setParsing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [pendingPack, setPendingPack] = useState<BackupPack | null>(null);
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const [wipeConfirm, setWipeConfirm] = useState("");
+  const [wiping, setWiping] = useState(false);
 
   const refreshAfterRestore = () => {
     invalidateBranches();
     void queryClient.invalidateQueries({ queryKey: ["branches"] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyRoot });
     void queryClient.invalidateQueries({ queryKey: ["directory"] });
+    onRestored?.();
+  };
+
+  const refreshAfterWipe = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyRoot });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.reports.generatedRoot });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    void queryClient.invalidateQueries({ queryKey: ["audit"] });
     onRestored?.();
   };
 
@@ -111,8 +127,33 @@ export function BackupRestoreSection({ onRestored }: BackupRestoreSectionProps) 
     }
   };
 
+  const handleWipe = async () => {
+    if (wipeConfirm !== WIPE_CONFIRM_TEXT || wiping) return;
+    setWiping(true);
+    try {
+      const result = await wipeOperationalData();
+      setWipeOpen(false);
+      setWipeConfirm("");
+      refreshAfterWipe();
+      toast({
+        title: "Operational data wiped",
+        description:
+          `${result.reportsDaily} daily reports, ${result.reportsMonthly} monthly reports, ` +
+          `${result.ledger} ledger days, and ${result.auditLogs} audit logs removed.`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Wipe failed",
+        description: error instanceof Error ? error.message : "An error occurred",
+      });
+    } finally {
+      setWiping(false);
+    }
+  };
+
   const counts = pendingPack ? backupPackCounts(pendingPack) : null;
-  const busy = downloading || parsing || restoring;
+  const busy = downloading || parsing || restoring || wiping;
 
   return (
     <section className="space-y-4">
@@ -171,6 +212,33 @@ export function BackupRestoreSection({ onRestored }: BackupRestoreSectionProps) 
         />
       </div>
 
+      <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+        <div>
+          <h4 className="text-sm font-semibold text-card-foreground">Danger zone</h4>
+          <p className="text-sm text-muted-foreground mt-0.5 max-w-2xl">
+            Permanently delete daily reports, monthly reports, cash ledger entries,
+            and audit logs. Users, branches, mappings, and directory links are kept.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => {
+            setWipeConfirm("");
+            setWipeOpen(true);
+          }}
+          disabled={busy}
+          className="rounded-full"
+        >
+          {wiping ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4 mr-2" />
+          )}
+          {wiping ? "Wiping…" : "Wipe operational data"}
+        </Button>
+      </div>
+
       <AlertDialog
         open={pendingPack !== null}
         onOpenChange={(open) => {
@@ -204,6 +272,56 @@ export function BackupRestoreSection({ onRestored }: BackupRestoreSectionProps) 
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
               {restoring ? "Restoring…" : "Restore"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={wipeOpen}
+        onOpenChange={(open) => {
+          if (wiping) return;
+          setWipeOpen(open);
+          if (!open) setWipeConfirm("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Wipe operational data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. Daily reports, monthly reports, cash ledger
+              entries, and audit logs will be deleted. Users, branches, mappings,
+              and directory links will not be touched.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="wipe-confirm" className="text-sm text-slate-700">
+              Type <span className="font-mono font-semibold">{WIPE_CONFIRM_TEXT}</span> to confirm
+            </Label>
+            <Input
+              id="wipe-confirm"
+              value={wipeConfirm}
+              onChange={(event) => setWipeConfirm(event.target.value)}
+              disabled={wiping}
+              autoComplete="off"
+              placeholder={WIPE_CONFIRM_TEXT}
+              className="bg-white text-slate-900"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={wiping}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleWipe()}
+              disabled={wiping || wipeConfirm !== WIPE_CONFIRM_TEXT}
+            >
+              {wiping ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              {wiping ? "Wiping…" : "Wipe data"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
