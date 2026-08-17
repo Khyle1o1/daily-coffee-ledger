@@ -7,6 +7,7 @@ import {
   Clock,
   FileText,
   Flame,
+  Loader2,
   ShoppingBag,
   Snowflake,
   TrendingUp,
@@ -29,6 +30,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { GroupedBranchCheckboxList } from "@/components/branch/GroupedBranchCheckboxList";
@@ -133,6 +144,8 @@ export default function SummaryPage() {
   // Preview modal state
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewReport, setPreviewReport] = useState<DailyReport | null>(null);
+  const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
+  const [confirmRejectOpen, setConfirmRejectOpen] = useState(false);
 
   // Delete confirmation state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -536,10 +549,11 @@ export default function SummaryPage() {
   };
 
   const handleConfirmAndSave = async () => {
-    if (!previewReport || !detectedDateRange.from) return;
+    if (!previewReport || !detectedDateRange.from || isSaving) return;
 
     try {
       setIsSaving(true);
+      setConfirmSaveOpen(false);
 
       const endDate = detectedDateRange.to || detectedDateRange.from;
       const dateStr = format(detectedDateRange.from, "yyyy-MM-dd");
@@ -584,6 +598,7 @@ export default function SummaryPage() {
 
       setActiveReportId(savedReportWithId.id);
       setIsPreviewOpen(false);
+      setPreviewReport(null);
       resetAddModal();
       void queryClient.invalidateQueries({ queryKey: queryKeys.reports.dailyRoot });
 
@@ -615,6 +630,15 @@ export default function SummaryPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleRejectPreview = () => {
+    if (isSaving) return;
+    setConfirmRejectOpen(false);
+    setIsPreviewOpen(false);
+    setPreviewReport(null);
+    resetAddModal();
+    document.body.style.pointerEvents = "";
   };
 
   const handleRequestDeleteReport = useCallback(
@@ -1597,7 +1621,17 @@ export default function SummaryPage() {
       </Dialog>
 
       {/* Preview Modal */}
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+      <Dialog
+        open={isPreviewOpen}
+        onOpenChange={(open) => {
+          if (isSaving) return;
+          if (!open) {
+            setConfirmRejectOpen(true);
+            return;
+          }
+          setIsPreviewOpen(open);
+        }}
+      >
         <DialogContent className="w-[96vw] max-w-[1200px] max-h-[90vh] rounded-2xl bg-white text-slate-900 border border-[#E2E8F0] shadow-2xl px-3 sm:px-5 lg:px-6 py-4 sm:py-5 flex flex-col">
           <DialogHeader className="pb-3 border-b border-border/60 mb-4">
             <DialogTitle className="text-xl font-semibold tracking-tight">
@@ -1684,22 +1718,94 @@ export default function SummaryPage() {
           <DialogFooter className="mt-4 pt-4 border-t border-[#E2E8F0] flex justify-end gap-3">
             <Button
               variant="outline"
-              onClick={() => setIsPreviewOpen(false)}
+              onClick={() => setConfirmRejectOpen(true)}
               disabled={isSaving}
               className="border-[#CBD5E1] text-[#475569] hover:bg-[#F8FAFC]"
             >
               Cancel / Reject
             </Button>
             <Button
-              onClick={handleConfirmAndSave}
+              onClick={() => setConfirmSaveOpen(true)}
               disabled={isSaving}
               className="bg-[#2B67B2] hover:bg-[#1F4E8C] text-white"
             >
-              Confirm &amp; Save
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Confirm & Save"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmSaveOpen}
+        onOpenChange={(open) => {
+          if (isSaving) return;
+          setConfirmSaveOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save this report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {previewReport
+                ? `This will save the ${getBranchLabel(previewReport.branch)} report and add it to your dashboard.`
+                : "This will save the report and add it to your dashboard."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isSaving}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmAndSave();
+              }}
+              className="bg-[#2B67B2] text-white hover:bg-[#1F4E8C]"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Yes, save report"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmRejectOpen}
+        onOpenChange={(open) => {
+          if (isSaving) return;
+          setConfirmRejectOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this preview?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The report will not be saved. You can upload the file again if you change your mind.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRejectPreview}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
