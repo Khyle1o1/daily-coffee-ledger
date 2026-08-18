@@ -1,5 +1,10 @@
 import { CATEGORIES, type BranchId, type Category, type DailyReport } from "@/utils/types";
 import { formatMonthDisplay } from "@/utils/aggregateMonthly";
+import {
+  hasDailyBreakdown,
+  sliceDailyBreakdown,
+  sliceDailyBreakdownByMonth,
+} from "@/lib/reports/dailyBreakdown";
 
 export type CategoryFilter = Category | "all";
 
@@ -95,6 +100,16 @@ function addTotals(
   }
 }
 
+function monthSliceForReport(report: DailyReport, monthKey: string) {
+  if (hasDailyBreakdown(report)) {
+    return sliceDailyBreakdownByMonth(report.dailyBreakdown, monthKey);
+  }
+  return {
+    totals: cloneTotals(report.summaryTotalsByCat),
+    grandTotal: report.grandTotal,
+  };
+}
+
 function salesForCategory(
   totals: Record<Category, number>,
   grandTotal: number,
@@ -125,6 +140,22 @@ export function monthsOverlappingRange(startYmd: string, endYmd: string): string
     }
   }
   return out;
+}
+
+function maxYmd(a?: string | null, b?: string | null): string | null {
+  const aa = a?.slice(0, 10) || null;
+  const bb = b?.slice(0, 10) || null;
+  if (!aa) return bb;
+  if (!bb) return aa;
+  return aa >= bb ? aa : bb;
+}
+
+function minYmd(a?: string | null, b?: string | null): string | null {
+  const aa = a?.slice(0, 10) || null;
+  const bb = b?.slice(0, 10) || null;
+  if (!aa) return bb;
+  if (!bb) return aa;
+  return aa <= bb ? aa : bb;
 }
 
 function reportOverlapsDateRange(
@@ -226,33 +257,46 @@ export function computeMonthlyBranchReport(
 
     uniqueReports.set(r.id, r);
 
-    const reportEntry = {
+    for (const monthKey of months) {
+      const sliced = hasDailyBreakdown(r)
+        ? sliceDailyBreakdown(
+            r.dailyBreakdown,
+            maxYmd(filters.dateFrom, `${monthKey}-01`),
+            minYmd(filters.dateTo, `${monthKey}-31`),
+          )
+        : monthSliceForReport(r, monthKey);
+      applyCell(monthKey, r, sliced);
+    }
+  }
+
+  function applyCell(
+    monthKey: string,
+    r: DailyReport,
+    sliced: { totals: Record<Category, number>; grandTotal: number },
+  ) {
+    const key = `${monthKey}::${r.branch}`;
+    let cell = cellMap.get(key);
+    if (!cell) {
+      cell = {
+        totals: emptyTotals(),
+        grandTotal: 0,
+        reports: [],
+        reportIds: new Set(),
+      };
+      cellMap.set(key, cell);
+    }
+    if (cell.reportIds.has(r.id)) return;
+    cell.reportIds.add(r.id);
+    addTotals(cell.totals, sliced.totals);
+    cell.grandTotal += sliced.grandTotal;
+    cell.reports.push({
       id: r.id,
       date: r.date,
       dateRangeEnd: r.dateRangeEnd ?? r.date,
       filename: r.filename,
-      grandTotal: r.grandTotal,
-      totals: cloneTotals(r.summaryTotalsByCat),
-    };
-
-    for (const monthKey of months) {
-      const key = `${monthKey}::${r.branch}`;
-      let cell = cellMap.get(key);
-      if (!cell) {
-        cell = {
-          totals: emptyTotals(),
-          grandTotal: 0,
-          reports: [],
-          reportIds: new Set(),
-        };
-        cellMap.set(key, cell);
-      }
-      if (cell.reportIds.has(r.id)) continue;
-      cell.reportIds.add(r.id);
-      addTotals(cell.totals, r.summaryTotalsByCat);
-      cell.grandTotal += r.grandTotal;
-      cell.reports.push(reportEntry);
-    }
+      grandTotal: sliced.grandTotal,
+      totals: cloneTotals(sliced.totals),
+    });
   }
 
   const tableRows: MonthlyBranchTableRow[] = Array.from(cellMap.entries())
@@ -296,8 +340,19 @@ export function computeMonthlyBranchReport(
   let uniqueTotalSales = 0;
   const uniqueBranchSales = new Map<BranchId, number>();
   for (const r of uniqueReports.values()) {
-    const totals = cloneTotals(r.summaryTotalsByCat);
-    const sales = salesForCategory(totals, r.grandTotal, filters.category);
+    let from = filters.dateFrom;
+    let to = filters.dateTo;
+    if (filters.monthKey !== "all") {
+      from = maxYmd(from, `${filters.monthKey}-01`);
+      to = minYmd(to, `${filters.monthKey}-31`);
+    } else if (filters.year !== "all") {
+      from = maxYmd(from, `${filters.year}-01-01`);
+      to = minYmd(to, `${filters.year}-12-31`);
+    }
+    const sliced = hasDailyBreakdown(r)
+      ? sliceDailyBreakdown(r.dailyBreakdown, from, to)
+      : { totals: cloneTotals(r.summaryTotalsByCat), grandTotal: r.grandTotal };
+    const sales = salesForCategory(sliced.totals, sliced.grandTotal, filters.category);
     if (filters.category !== "all" && sales <= 0) continue;
     uniqueTotalSales += sales;
     uniqueBranchSales.set(r.branch, (uniqueBranchSales.get(r.branch) ?? 0) + sales);
@@ -446,47 +501,71 @@ export function computeBranchDrillDown(
 
   const monthlyMap = new Map<string, { totals: Record<Category, number>; grandTotal: number }>();
   const totals = emptyTotals();
-  let grandTotal = 0;
   const seen = new Set<string>();
+  const daily: Array<{
+    date: string;
+    dateRangeEnd: string;
+    filename: string;
+    totals: Record<Category, number>;
+    grandTotal: number;
+  }> = [];
 
-  const daily = branchReports
-    .filter((r) => {
-      if (seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
-    })
-    .map((r) => {
-      const t = cloneTotals(r.summaryTotalsByCat);
-      addTotals(totals, r.summaryTotalsByCat);
-      grandTotal += r.grandTotal;
+  for (const r of branchReports) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
 
-      // Attribute monthly breakdown by overlapping months (for drill context)
-      const start = r.date.slice(0, 10);
-      const end = (r.dateRangeEnd ?? r.date).slice(0, 10);
-      const months =
-        monthKey !== "all"
-          ? [monthKey]
-          : monthsOverlappingRange(start, end);
-
-      for (const mk of months) {
+    if (hasDailyBreakdown(r)) {
+      const days = Object.keys(r.dailyBreakdown!)
+        .filter((day) => monthKey === "all" || day.slice(0, 7) === monthKey)
+        .sort();
+      for (const day of days) {
+        const cell = r.dailyBreakdown![day];
+        addTotals(totals, cell.totals);
+        const mk = day.slice(0, 7);
         let m = monthlyMap.get(mk);
         if (!m) {
           m = { totals: emptyTotals(), grandTotal: 0 };
           monthlyMap.set(mk, m);
         }
-        addTotals(m.totals, r.summaryTotalsByCat);
-        m.grandTotal += r.grandTotal;
+        addTotals(m.totals, cell.totals);
+        m.grandTotal += cell.grandTotal;
+        daily.push({
+          date: day,
+          dateRangeEnd: day,
+          filename: r.filename,
+          totals: cloneTotals(cell.totals),
+          grandTotal: cell.grandTotal,
+        });
       }
+      continue;
+    }
 
-      return {
-        date: r.date,
-        dateRangeEnd: r.dateRangeEnd ?? r.date,
-        filename: r.filename,
-        totals: t,
-        grandTotal: r.grandTotal,
-      };
-    })
-    .sort((a, b) => a.date.localeCompare(b.date));
+    const t = cloneTotals(r.summaryTotalsByCat);
+    addTotals(totals, r.summaryTotalsByCat);
+    const start = r.date.slice(0, 10);
+    const end = (r.dateRangeEnd ?? r.date).slice(0, 10);
+    const months =
+      monthKey !== "all" ? [monthKey] : monthsOverlappingRange(start, end);
+    for (const mk of months) {
+      let m = monthlyMap.get(mk);
+      if (!m) {
+        m = { totals: emptyTotals(), grandTotal: 0 };
+        monthlyMap.set(mk, m);
+      }
+      addTotals(m.totals, r.summaryTotalsByCat);
+      m.grandTotal += r.grandTotal;
+    }
+    daily.push({
+      date: r.date,
+      dateRangeEnd: r.dateRangeEnd ?? r.date,
+      filename: r.filename,
+      totals: t,
+      grandTotal: r.grandTotal,
+    });
+  }
+
+  daily.sort((a, b) => a.date.localeCompare(b.date));
+  const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
 
   const monthly = Array.from(monthlyMap.entries())
     .map(([mk, v]) => ({

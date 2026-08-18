@@ -1,8 +1,9 @@
-import type { DailyReport, BranchId, ViewMode } from "@/utils/types";
+import type { DailyReport, ViewMode } from "@/utils/types";
 import { formatNumber } from "@/utils/format";
 import { Calendar, MapPin, CalendarDays, Trash2 } from "lucide-react";
 import { getAvailableMonths } from "@/utils/aggregateMonthly";
 import { useLiveBranches } from "@/hooks/useLiveBranches";
+import { calendarDaysForReport, dayTotalsForReport } from "@/lib/reports/dailyBreakdown";
 
 interface Props {
   reports: DailyReport[];
@@ -14,16 +15,24 @@ interface Props {
   onDelete?: (reportId: string) => void;
 }
 
-// Group reports by date
-function groupByDate(reports: DailyReport[]): Record<string, DailyReport[]> {
+/** One history card per calendar day the upload actually contains. */
+function groupByCalendarDay(reports: DailyReport[]): Record<string, DailyReport[]> {
   const grouped: Record<string, DailyReport[]> = {};
-  reports.forEach(report => {
-    if (!grouped[report.date]) {
-      grouped[report.date] = [];
+  for (const report of reports) {
+    const days = calendarDaysForReport(report);
+    for (const day of days) {
+      if (!grouped[day]) grouped[day] = [];
+      grouped[day].push(report);
     }
-    grouped[report.date].push(report);
-  });
+  }
   return grouped;
+}
+
+function rangeLabel(report: DailyReport): string | null {
+  const start = report.date.slice(0, 10);
+  const end = (report.dateRangeEnd ?? report.date).slice(0, 10);
+  if (!end || end === start) return null;
+  return `${start} → ${end}`;
 }
 
 export default function DailyHistoryList({ 
@@ -48,7 +57,7 @@ export default function DailyHistoryList({
     );
   }
 
-  const groupedReports = groupByDate(reports);
+  const groupedReports = groupByCalendarDay(reports);
   const sortedDates = Object.keys(groupedReports).sort((a, b) => b.localeCompare(a));
   const availableMonths = getAvailableMonths(reports);
 
@@ -61,7 +70,10 @@ export default function DailyHistoryList({
         </h3>
         {sortedDates.map(date => {
           const dateReports = groupedReports[date].sort((a, b) => a.branch.localeCompare(b.branch));
-          const dateTotalAmount = dateReports.reduce((sum, r) => sum + r.grandTotal, 0);
+          const dateTotalAmount = dateReports.reduce(
+            (sum, r) => sum + dayTotalsForReport(r, date).grandTotal,
+            0,
+          );
           
           return (
             <div key={date} className="space-y-1.5">
@@ -81,10 +93,12 @@ export default function DailyHistoryList({
                 {dateReports.map(report => {
                   const branchLabel = getBranchLabel(report.branch);
                   const isActive = activeReportId === report.id && viewMode === "daily";
+                  const dayCell = dayTotalsForReport(report, date);
+                  const span = rangeLabel(report);
                   
                   return (
                     <button
-                      key={report.id}
+                      key={`${date}::${report.id}`}
                       onClick={() => onSelect(report.id)}
                       className={`w-full text-left p-2 rounded-lg transition-all shadow-sm ${
                         isActive
@@ -101,7 +115,7 @@ export default function DailyHistoryList({
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className={`text-xs font-bold ${isActive ? 'text-primary-foreground' : 'text-primary'}`}>
-                            ₱{formatNumber(report.grandTotal)}
+                            ₱{formatNumber(dayCell.grandTotal)}
                           </span>
                           {onDelete && (
                             <span
@@ -131,10 +145,15 @@ export default function DailyHistoryList({
                         </div>
                       </div>
                       
+                      {span && (
+                        <p className={`text-[10px] mb-1 ${isActive ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                          {span}
+                        </p>
+                      )}
                       {/* Category chips */}
                       <div className="flex flex-wrap gap-1">
                         {(["ICED", "HOT", "SNACKS", "ADD-ONS"] as const).map(cat => (
-                          report.summaryTotalsByCat[cat] > 0 && (
+                          dayCell.totals[cat] > 0 && (
                             <span
                               key={cat}
                               className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold ${
@@ -143,7 +162,7 @@ export default function DailyHistoryList({
                                   : 'bg-muted text-muted-foreground'
                               }`}
                             >
-                              {cat}: {formatNumber(report.summaryTotalsByCat[cat])}
+                              {cat}: {formatNumber(dayCell.totals[cat])}
                             </span>
                           )
                         ))}

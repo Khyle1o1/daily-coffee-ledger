@@ -105,6 +105,16 @@ export interface SummaryRow {
   rowType: "empty" | "totals" | "quantities" | "percent"; // type of row
 }
 
+/** Compact per-calendar-day totals stored on a DailyReport (survives the meta view). */
+export interface DayTotals {
+  totals: Record<Category, number>;
+  quantities: Record<Category, number>;
+  grandTotal: number;
+  grandQuantity: number;
+}
+
+export type DailyBreakdownMap = Record<string, DayTotals>;
+
 export interface DailyReport {
   id: string; // unique identifier for this record
   date: string; // report date — the START of the uploaded date range (YYYY-MM-DD)
@@ -126,6 +136,12 @@ export interface DailyReport {
   percentByCat: Record<Category, number>;
   rowDetails: ProcessedRow[];
   unmappedSummary: UnmappedSummary[];
+  /**
+   * Per-calendar-day category totals from rowDetails.transactionDate.
+   * Kept in summary_json (not stripped by reports_daily_meta) so list/history
+   * /monthly views can slice a Jan–Feb upload without loading every line.
+   */
+  dailyBreakdown?: DailyBreakdownMap;
 }
 
 export interface ColumnMapping {

@@ -44,5 +44,31 @@ describe("posReportCoverage", () => {
     expect(json.totalRows).toBe(1);
     expect(json.grandTotal).toBe(10);
     expect((json.summaryTotalsByCat as Record<string, number>).PACKAGING).toBe(10);
+    expect(json.dailyBreakdown).toEqual({
+      "2026-07-05": {
+        totals: {
+          ICED: 0,
+          HOT: 0,
+          SNACKS: 0,
+          "ADD-ONS": 0,
+          MERCH: 0,
+          PROMO: 0,
+          "LOYALTY CARD": 0,
+          PACKAGING: 10,
+        },
+        quantities: {
+          ICED: 0,
+          HOT: 0,
+          SNACKS: 0,
+          "ADD-ONS": 0,
+          MERCH: 0,
+          PROMO: 0,
+          "LOYALTY CARD": 0,
+          PACKAGING: 2,
+        },
+        grandTotal: 10,
+        grandQuantity: 2,
+      },
+    });
   });
 });

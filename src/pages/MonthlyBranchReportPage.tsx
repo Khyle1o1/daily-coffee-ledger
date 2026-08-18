@@ -835,17 +835,17 @@ export default function MonthlyBranchReportPage() {
               </div>
 
               <div>
-                <h4 className="font-semibold text-sm mb-2 text-[#0e2d49]">Daily / upload ranges</h4>
+                <h4 className="font-semibold text-sm mb-2 text-[#0e2d49]">Calendar days</h4>
                 <table className="w-full text-sm text-[#0e2d49]">
                   <thead>
                     <tr className="text-left text-[#0e2d49]/65 border-b">
-                      <th className="py-1">Date range</th>
+                      <th className="py-1">Date</th>
                       <th className="py-1 text-right">Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {drillDown.daily.map((d) => (
-                      <tr key={d.date + d.filename} className="border-b border-border/40">
+                    {drillDown.daily.map((d, i) => (
+                      <tr key={`${d.date}-${d.filename}-${i}`} className="border-b border-border/40">
                         <td className="py-1.5">
                           <div>
                             {d.date}

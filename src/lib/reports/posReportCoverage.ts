@@ -1,4 +1,5 @@
 import { CATEGORIES, type Category, type ProcessedRow } from "@/utils/types";
+import { buildDailyBreakdown } from "@/lib/reports/dailyBreakdown";
 
 /** Local calendar day (browser TZ) — matches Cash Ledger derive. */
 export function toLocalYmd(d: Date): string {
@@ -99,5 +100,6 @@ export function rebuildSummaryJsonFromRowDetails(
     grandQuantity,
     percentByCat,
     unmappedSummary,
+    dailyBreakdown: buildDailyBreakdown(keptRows),
   };
 }

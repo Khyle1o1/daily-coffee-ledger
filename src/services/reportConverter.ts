@@ -27,6 +27,7 @@ export function dailyReportToJSON(report: DailyReport): DailySummaryJSON {
     unmappedSummary: report.unmappedSummary,
     filename: report.filename,
     uploadedAt: report.uploadedAt,
+    dailyBreakdown: report.dailyBreakdown,
   };
 }
 
@@ -59,6 +60,7 @@ export function dailyReportFromRow(row: DailyReportRow): DailyReport {
       transactionDate: r.transactionDate ? new Date(r.transactionDate as any) : undefined,
     })),
     unmappedSummary: json.unmappedSummary,
+    dailyBreakdown: json.dailyBreakdown as DailyReport["dailyBreakdown"],
   };
 }
 
@@ -107,6 +109,7 @@ export function dailyReportMetaFromRow(row: DailyReportListRow): DailyReport {
     // The detail query (getDailyReport) populates these when needed.
     rowDetails:             [],
     unmappedSummary:        [],
+    dailyBreakdown:         json.dailyBreakdown as DailyReport["dailyBreakdown"],
   };
 }
 

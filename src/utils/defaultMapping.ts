@@ -164,6 +164,12 @@ const RAW: [string, string, string, string][] = [
   // ── HOT / DOT SIGNATURES ──
   ["HOT","DOT SIGNATURES","Chocolate Milk","Hot Regular 12oz."],
   ["HOT","DOT SIGNATURES","Chocolate Milk","Hot Large 16oz."],
+  ["HOT","DOT SIGNATURES","Hojicha Oat Latte","Hot Regular 12oz."],
+  ["HOT","DOT SIGNATURES","Hojicha Oat Latte","Hot Regular 12oz. l Almond"],
+  ["HOT","DOT SIGNATURES","Hojicha Oat Latte","Hot Regular 12oz. l Dairy"],
+  ["HOT","DOT SIGNATURES","Hojicha Oat Latte","Hot Large 16 oz. (+10)"],
+  ["HOT","DOT SIGNATURES","Hojicha Oat Latte","Hot Large 16 oz. (+10) l Almond"],
+  ["HOT","DOT SIGNATURES","Hojicha Oat Latte","Hot Large 16 oz. (+10) l Dairy"],
 
   // ── ICED / DOT SIGNATURES ──
   ["ICED","DOT SIGNATURES","Coco Americano","Iced Regular (12oz)"],
@@ -463,6 +469,12 @@ const RAW: [string, string, string, string][] = [
   ["ICED","DEL - SIGNATURES","Hojicha Oat Latte","Iced Large (16oz)"],
   ["ICED","DEL - SIGNATURES","Hojicha Oat Latte","Iced Large (16oz) l Almond"],
   ["ICED","DEL - SIGNATURES","Hojicha Oat Latte","Iced Large (16oz) l Dairy"],
+  ["HOT","DEL - SIGNATURES","Hojicha Oat Latte","Hot Regular 12oz."],
+  ["HOT","DEL - SIGNATURES","Hojicha Oat Latte","Hot Regular 12oz. l Almond"],
+  ["HOT","DEL - SIGNATURES","Hojicha Oat Latte","Hot Regular 12oz. l Dairy"],
+  ["HOT","DEL - SIGNATURES","Hojicha Oat Latte","Hot Large 16 oz. (+10)"],
+  ["HOT","DEL - SIGNATURES","Hojicha Oat Latte","Hot Large 16 oz. (+10) l Almond"],
+  ["HOT","DEL - SIGNATURES","Hojicha Oat Latte","Hot Large 16 oz. (+10) l Dairy"],
   ["ICED","DEL - SIGNATURES","Horchata","Iced Regular (12oz) l Dairy"],
   ["ICED","DEL - SIGNATURES","Horchata","Iced Regular (12oz) l Almond"],
   ["ICED","DEL - SIGNATURES","Horchata","Iced Regular (12oz) l Oat"],

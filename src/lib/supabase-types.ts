@@ -302,4 +302,10 @@ export interface DailySummaryJSON {
   unmappedSummary: any[];
   filename: string;
   uploadedAt: number;
+  dailyBreakdown?: Record<string, {
+    totals: Record<string, number>;
+    quantities: Record<string, number>;
+    grandTotal: number;
+    grandQuantity: number;
+  }>;
 }

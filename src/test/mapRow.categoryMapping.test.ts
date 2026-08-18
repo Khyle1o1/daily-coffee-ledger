@@ -129,6 +129,42 @@ describe("Beverage categories", () => {
     expect(r.status).toBe("MAPPED");
     expect(r.mappedCat).toBe("HOT");
   });
+
+  it("DOT SIGNATURES + Hojicha Oat Latte + Hot Regular 12 oz. → HOT", () => {
+    const r = mapRow(
+      row("DOT SIGNATURES", "Hojicha Oat Latte", "Hot Regular 12 oz."),
+      DEFAULT_MAPPING,
+    );
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("HOT");
+    expect(r.mappedItemName).toBe("Hojicha Oat Latte");
+  });
+
+  it("DOT SIGNATURES + Hojicha Oat Latte + Hot Large 16 oz. (+10) → HOT", () => {
+    const r = mapRow(
+      row("DOT SIGNATURES", "Hojicha Oat Latte", "Hot Large 16 oz. (+10)"),
+      DEFAULT_MAPPING,
+    );
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("HOT");
+    expect(r.mappedItemName).toBe("Hojicha Oat Latte");
+  });
+
+  it("DOT SIGNATURES + Hojicha Oat Latte iced options stay ICED", () => {
+    const regular = mapRow(
+      row("DOT SIGNATURES", "Hojicha Oat Latte", "Iced Regular (12oz)"),
+      DEFAULT_MAPPING,
+    );
+    expect(regular.status).toBe("MAPPED");
+    expect(regular.mappedCat).toBe("ICED");
+
+    const large = mapRow(
+      row("DOT SIGNATURES", "Hojicha Oat Latte", "Iced Large (16oz)"),
+      DEFAULT_MAPPING,
+    );
+    expect(large.status).toBe("MAPPED");
+    expect(large.mappedCat).toBe("ICED");
+  });
 });
 
 describe("DEL - SIGNATURES and delivery category aliases", () => {

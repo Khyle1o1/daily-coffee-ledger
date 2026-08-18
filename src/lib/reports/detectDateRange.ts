@@ -1,3 +1,6 @@
+import { findTransactionDateKey } from "@/lib/csv/findTransactionDateKey";
+import { parseTransactionDate } from "@/lib/csv/parseTransactionDate";
+
 export interface DetectedDateRange {
   start: Date;
   end: Date;
@@ -24,35 +27,16 @@ export function detectDateRangeFromRows(
 ): DetectedDateRange | null {
   if (!rows.length) return null;
 
-  const candidateKeys = [
-    "date",
-    "datetime",
-    "transaction_date",
-    "transactionDate",
-    "created_at",
-    "createdAt",
-    "order_date",
-    "orderDate",
-    "timestamp",
-  ];
-
-  const keys = Object.keys(rows[0] ?? {});
-  const dateKey =
-    candidateKeys.find((k) => keys.includes(k)) ??
-    keys.find((k) => {
-      const lower = k.toLowerCase();
-      return lower.includes("date") || lower.includes("time");
-    });
-
+  const headers = Object.keys(rows[0] ?? {});
+  const dateKey = findTransactionDateKey(headers);
   if (!dateKey) return null;
 
   let min = Infinity;
   let max = -Infinity;
 
   for (const r of rows) {
-    const raw = r[dateKey];
-    if (!raw) continue;
-    const d = new Date(String(raw).replace(" ", "T"));
+    const d = parseTransactionDate(r[dateKey]);
+    if (!d) continue;
     const t = d.getTime();
     if (Number.isNaN(t)) continue;
     min = Math.min(min, t);
@@ -62,4 +46,3 @@ export function detectDateRangeFromRows(
   if (!isFinite(min) || !isFinite(max)) return null;
   return { start: new Date(min), end: new Date(max) };
 }
-

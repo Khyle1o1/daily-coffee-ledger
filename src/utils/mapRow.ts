@@ -510,6 +510,23 @@ function lookupCatItemUnique(
   return idx.catItemUnique.get(makeCatItemKey(catNorm, itemNorm));
 }
 
+type OptionTemperature = "hot" | "iced";
+
+function optionTemperature(text: string): OptionTemperature | null {
+  const lower = (text ?? "").toLowerCase();
+  const hasIced = /\biced\b/.test(lower);
+  const hasHot = /\bhot\b/.test(lower);
+  if (hasIced === hasHot) return null;
+  return hasIced ? "iced" : "hot";
+}
+
+function mappedNameConflictsWithOptionTemp(mappedName: string, posOption: string): boolean {
+  const temp = optionTemperature(posOption);
+  if (temp === "hot" && mappedName === "ICED") return true;
+  if (temp === "iced" && mappedName === "HOT") return true;
+  return false;
+}
+
 /**
  * Last-resort mapping when the validation table has no row but the POS category
  * is clearly a signature line and the option text names iced vs hot.
@@ -521,13 +538,11 @@ function inferSignatureOrAddOnFallback(
 ): ProcessedRow | null {
   const optRaw = row.option.trim();
   if (!optRaw || !pass2Cats.some(isSignatureLikeCategory)) return null;
-  const lower = optRaw.toLowerCase();
-  const hasIced = /\biced\b/.test(lower);
-  const hasHot = /\bhot\b/.test(lower);
-  if (hasIced === hasHot) return null;
+  const temp = optionTemperature(optRaw);
+  if (!temp) return null;
   const itemTrim = row.rawItemName.trim();
   if (!itemTrim) return null;
-  if (hasIced) return mapped(row, rowSales, "ICED", itemTrim, "fallback_signature_option_iced");
+  if (temp === "iced") return mapped(row, rowSales, "ICED", itemTrim, "fallback_signature_option_iced");
   return mapped(row, rowSales, "HOT", itemTrim, "fallback_signature_option_hot");
 }
 
@@ -684,6 +699,7 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
   }
 
   // PASS 6: menu-confirmed candidate expansion (no fuzzy guessing)
+  const posTemp = optionTemperature(row.option);
   for (const c of pass2Cats) {
     for (const i of pass4Items) {
       const menuCatItemKey = makeMenuReferenceCategoryItemKey(c, i);
@@ -692,6 +708,8 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
 
       const menuDrivenOptions = new Set<string>(pass3Opts);
       for (const menuOption of menuOptions) {
+        const menuTemp = optionTemperature(menuOption);
+        if (posTemp && menuTemp && posTemp !== menuTemp) continue;
         for (const candidate of buildOptionCandidates(menuOption, [c])) {
           menuDrivenOptions.add(candidate);
           if (menuRef.validTriples.has(makeMenuReferenceTripleKey(c, i, candidate))) {
@@ -700,12 +718,15 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
         }
       }
       const p6 = findExact([c], [i], Array.from(menuDrivenOptions));
-      if (p6) return resolveMapped(p6);
+      if (p6 && !mappedNameConflictsWithOptionTemp(p6.mappedName, row.option)) {
+        return resolveMapped(p6);
+      }
     }
   }
 
   // PASS 7: cat+item fallback only when exactly one validation OUTPUT exists.
   // Skip add-on buckets — the option is the product; collapsing options is wrong.
+  // Skip ICED/HOT collapse when the POS option temperature disagrees.
   if (!isAddOnsBucketItem(itemNorm) && !resolveAddOnBucketItem(catNorm, itemNorm, optNorm)) {
     const seenCatItem = new Set<string>();
     for (const c of pass2Cats) {
@@ -714,7 +735,9 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
         if (seenCatItem.has(catItemKey)) continue;
         seenCatItem.add(catItemKey);
         const unique = lookupCatItemUnique(idx, c, i);
-        if (unique) return resolveMapped(unique);
+        if (unique && !mappedNameConflictsWithOptionTemp(unique.mappedName, row.option)) {
+          return resolveMapped(unique);
+        }
       }
     }
   }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format, startOfMonth, startOfWeek } from "date-fns";
 import {
@@ -75,6 +75,13 @@ import {
   detectDateRangeFromRows,
   type DetectedDateRange,
 } from "@/lib/reports/detectDateRange";
+import {
+  buildDailyBreakdown,
+  calendarDaysForReport,
+  dayTotalsForReport,
+  effectiveTotalsFromReport,
+} from "@/lib/reports/dailyBreakdown";
+import { contentDateBoundsFromRowDetails } from "@/lib/reports/posReportCoverage";
 import { listBranches } from "@/lib/api/branches";
 import { FilterBar, FilterTriggerButton } from "@/components/dashboard/FilterBar";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -316,10 +323,10 @@ export default function SummaryPage() {
           });
         }
 
-        // Date range detection: filename first, then rows
+        // Date range: row min/max first so a Jan–Feb file is not stuck on the filename.
+        const fromRows = detectDateRangeFromRows(data);
         const fromFilename = detectDateRangeFromFilename(file.name);
-        const fromRows = !fromFilename ? detectDateRangeFromRows(data) : null;
-        const range: DetectedDateRange | null = fromFilename || fromRows;
+        const range: DetectedDateRange | null = fromRows || fromFilename;
 
         if (!range) {
           setDateDetectionError(
@@ -436,9 +443,13 @@ export default function SummaryPage() {
     };
 
     const rawRows: RawRow[] = [];
+    let skippedDates = 0;
     for (const r of modalCsvData) {
       const d = dateKey ? parseTransactionDate(r[dateKey]) : null;
-      if (!d) continue;
+      if (!d) {
+        skippedDates += 1;
+        continue;
+      }
       debugDates.push(d);
       rawRows.push({
         rawCategory: r[mapping.rawCategory] || "",
@@ -479,6 +490,13 @@ export default function SummaryPage() {
       return null;
     }
 
+    if (skippedDates > 0) {
+      toast({
+        title: "Some rows skipped",
+        description: `${skippedDates} row(s) had no valid transaction date and were not included.`,
+      });
+    }
+
     const sortedDebug = [...debugDates].sort((a, b) => a.getTime() - b.getTime());
     console.log("[DateDebug] Parsed transaction dates summary", {
       dateKeyUsed: dateKey,
@@ -492,11 +510,22 @@ export default function SummaryPage() {
     const processed = rawRows.map((r) => mapRow(r, effectiveMappingTable));
     const { totals, quantities, grandTotal, grandQuantity, percents } = aggregateByCategory(processed);
     const unmappedSummary = getUnmappedSummary(processed);
+    const dailyBreakdown = buildDailyBreakdown(processed);
+    const bounds = contentDateBoundsFromRowDetails(processed);
+    const rowDateStr = bounds?.start ?? dateStr;
+    const rowDateEndStr = bounds?.end ?? dateEndStr;
+
+    if (rowDateStr !== dateStr || rowDateEndStr !== dateEndStr) {
+      setDetectedDateRange({
+        from: new Date(`${rowDateStr}T00:00:00`),
+        to: new Date(`${rowDateEndStr}T23:59:59`),
+      });
+    }
 
     const report: DailyReport = {
       id: "",
-      date: dateStr,
-      dateRangeEnd: dateEndStr,
+      date: rowDateStr,
+      dateRangeEnd: rowDateEndStr,
       branch: modalBranch,
       filename: modalFile.name,
       uploadedAt: Date.now(),
@@ -511,6 +540,7 @@ export default function SummaryPage() {
       percentByCat: percents,
       rowDetails: processed,
       unmappedSummary,
+      dailyBreakdown,
     };
 
     // Attach date range information using normalizeText to ensure stability (optional metadata)
@@ -555,9 +585,8 @@ export default function SummaryPage() {
       setIsSaving(true);
       setConfirmSaveOpen(false);
 
-      const endDate = detectedDateRange.to || detectedDateRange.from;
-      const dateStr = format(detectedDateRange.from, "yyyy-MM-dd");
-      const dateEndStr = format(endDate, "yyyy-MM-dd");
+      const dateStr = previewReport.date;
+      const dateEndStr = previewReport.dateRangeEnd ?? previewReport.date;
 
       const branchUuid = getBranchUuid(previewReport.branch);
       if (!branchUuid) {
@@ -695,62 +724,12 @@ export default function SummaryPage() {
   }, [reportPendingDelete, activeReportId, getBranchLabel, queryClient, toast]);
 
   /**
-   * For a single report, aggregate only the rowDetails whose transactionDate
-   * falls within [fromKey, toKey].  Falls back to the pre-computed totals when
-   * rows carry no transactionDate (legacy uploads) so those are never silently
-   * zeroed out.
+   * For a single report, aggregate only the calendar days whose transactionDate
+   * falls within [fromKey, toKey]. Prefers dailyBreakdown (list/meta payload).
+   * Falls back to rowDetails, then full-file totals for legacy uploads.
    */
   const getEffectiveTotals = useCallback(
-    (report: DailyReport) => {
-      // If no date filter is active, always use the pre-computed totals.
-      if (!fromKey) {
-        return {
-          totals: report.summaryTotalsByCat,
-          quantities: report.summaryQuantitiesByCat,
-          grandTotal: report.grandTotal,
-          grandQuantity: report.grandQuantity,
-        };
-      }
-
-      const reportStart = report.date.slice(0, 10);
-      const reportEnd   = (report.dateRangeEnd ?? report.date).slice(0, 10);
-
-      // Report is entirely within the selected range — pre-computed totals are exact.
-      if (reportStart >= fromKey && reportEnd <= toKey!) {
-        return {
-          totals: report.summaryTotalsByCat,
-          quantities: report.summaryQuantitiesByCat,
-          grandTotal: report.grandTotal,
-          grandQuantity: report.grandQuantity,
-        };
-      }
-
-      // Report partially overlaps — re-aggregate from row-level transaction dates.
-      const rowsWithDate = report.rowDetails.filter((r) => r.transactionDate != null);
-      if (rowsWithDate.length === 0) {
-        // Legacy report: no per-row dates stored — use pre-computed totals as fallback.
-        return {
-          totals: report.summaryTotalsByCat,
-          quantities: report.summaryQuantitiesByCat,
-          grandTotal: report.grandTotal,
-          grandQuantity: report.grandQuantity,
-        };
-      }
-
-      const filteredRows = rowsWithDate.filter((row) => {
-        const d = row.transactionDate!;
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return key >= fromKey && key <= toKey!;
-      });
-
-      const agg = aggregateByCategory(filteredRows);
-      return {
-        totals: agg.totals,
-        quantities: agg.quantities,
-        grandTotal: agg.grandTotal,
-        grandQuantity: agg.grandQuantity,
-      };
-    },
+    (report: DailyReport) => effectiveTotalsFromReport(report, fromKey, toKey),
     [fromKey, toKey],
   );
 
@@ -908,11 +887,16 @@ export default function SummaryPage() {
 
     for (const report of reports) {
       if (filterBranches.length > 0 && !filterBranches.includes(report.branch)) continue;
-      grandTotal += report.grandTotal;
+      const eff = effectiveTotalsFromReport(
+        report,
+        previousPeriodKeys.fromKey,
+        previousPeriodKeys.toKey,
+      );
+      grandTotal += eff.grandTotal;
       CATEGORIES.forEach((cat) => {
-        totals[cat] = (totals[cat] || 0) + (report.summaryTotalsByCat[cat] || 0);
+        totals[cat] = (totals[cat] || 0) + (eff.totals[cat] || 0);
       });
-      byBranch.set(report.branch, (byBranch.get(report.branch) || 0) + report.grandTotal);
+      byBranch.set(report.branch, (byBranch.get(report.branch) || 0) + eff.grandTotal);
     }
 
     return { totals, grandTotal, byBranch };
@@ -952,31 +936,34 @@ export default function SummaryPage() {
   const salesPoints = useMemo(() => {
     const buckets = new Map<string, { label: string; value: number }>();
     for (const report of filteredReports) {
-      const dateStr = report.date.slice(0, 10);
-      const date = new Date(`${dateStr}T00:00:00`);
-      if (Number.isNaN(date.getTime())) continue;
-      const eff = getEffectiveTotals(report);
-      let key = dateStr;
-      let label = format(date, "MMM d");
-      if (chartGranularity === "weekly") {
-        const start = startOfWeek(date, { weekStartsOn: 1 });
-        const end = new Date(start);
-        end.setDate(end.getDate() + 6);
-        key = format(start, "yyyy-MM-dd");
-        label = `${format(start, "MMM d")}–${format(end, "d")}`;
-      } else if (chartGranularity === "monthly") {
-        const start = startOfMonth(date);
-        key = format(start, "yyyy-MM");
-        label = format(start, "MMM yyyy");
+      const days = calendarDaysForReport(report);
+      for (const dateStr of days) {
+        if (fromKey && (dateStr < fromKey || dateStr > (toKey ?? fromKey))) continue;
+        const date = new Date(`${dateStr}T00:00:00`);
+        if (Number.isNaN(date.getTime())) continue;
+        const daySales = dayTotalsForReport(report, dateStr).grandTotal;
+        let key = dateStr;
+        let label = format(date, "MMM d");
+        if (chartGranularity === "weekly") {
+          const start = startOfWeek(date, { weekStartsOn: 1 });
+          const end = new Date(start);
+          end.setDate(end.getDate() + 6);
+          key = format(start, "yyyy-MM-dd");
+          label = `${format(start, "MMM d")}–${format(end, "d")}`;
+        } else if (chartGranularity === "monthly") {
+          const start = startOfMonth(date);
+          key = format(start, "yyyy-MM");
+          label = format(start, "MMM yyyy");
+        }
+        const existing = buckets.get(key);
+        if (existing) existing.value += daySales;
+        else buckets.set(key, { label, value: daySales });
       }
-      const existing = buckets.get(key);
-      if (existing) existing.value += eff.grandTotal;
-      else buckets.set(key, { label, value: eff.grandTotal });
     }
     return [...buckets.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, bucket]) => ({ key, ...bucket }));
-  }, [filteredReports, chartGranularity, getEffectiveTotals]);
+  }, [filteredReports, chartGranularity, fromKey, toKey]);
 
   const topBranchRows = useMemo(() => {
     if (!allBranchesBreakdown) return [];
@@ -1707,6 +1694,74 @@ export default function SummaryPage() {
                   branchLabel={getBranchLabel(previewReport.branch)}
                 />
               </div>
+
+              {/* Per-calendar-day totals */}
+              {previewReport.dailyBreakdown &&
+                Object.keys(previewReport.dailyBreakdown).length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm p-4 border border-[#E2E8F0]">
+                  <h3 className="text-sm font-semibold text-[#0e2d49] mb-3">By date</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-muted-foreground border-b">
+                          <th className="py-1.5 pr-3 font-medium">Date</th>
+                          <th className="py-1.5 pr-3 font-medium text-right">Qty</th>
+                          <th className="py-1.5 font-medium text-right">Sales</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const days = Object.keys(previewReport.dailyBreakdown).sort();
+                          const monthKeys = [...new Set(days.map((d) => d.slice(0, 7)))];
+                          const showMonthSubs = monthKeys.length > 1;
+                          const rows: ReactNode[] = [];
+                          for (const monthKey of monthKeys) {
+                            const monthDays = days.filter((d) => d.slice(0, 7) === monthKey);
+                            let monthSales = 0;
+                            let monthQty = 0;
+                            for (const day of monthDays) {
+                              const cell = previewReport.dailyBreakdown![day];
+                              monthSales += cell.grandTotal;
+                              monthQty += cell.grandQuantity;
+                              const d = new Date(`${day}T00:00:00`);
+                              rows.push(
+                                <tr key={day} className="border-b border-border/40">
+                                  <td className="py-1.5 pr-3">{format(d, "MMM dd, yyyy")}</td>
+                                  <td className="py-1.5 pr-3 text-right tabular-nums">
+                                    {formatNumber(cell.grandQuantity)}
+                                  </td>
+                                  <td className="py-1.5 text-right tabular-nums font-medium">
+                                    ₱{formatNumber(cell.grandTotal)}
+                                  </td>
+                                </tr>,
+                              );
+                            }
+                            if (showMonthSubs) {
+                              const [y, m] = monthKey.split("-").map(Number);
+                              const label = new Date(y, m - 1, 1).toLocaleDateString("en-US", {
+                                month: "long",
+                                year: "numeric",
+                              });
+                              rows.push(
+                                <tr key={`sub-${monthKey}`} className="border-b border-border bg-muted/40">
+                                  <td className="py-1.5 pr-3 font-semibold">{label} total</td>
+                                  <td className="py-1.5 pr-3 text-right tabular-nums font-semibold">
+                                    {formatNumber(monthQty)}
+                                  </td>
+                                  <td className="py-1.5 text-right tabular-nums font-semibold">
+                                    ₱{formatNumber(monthSales)}
+                                  </td>
+                                </tr>,
+                              );
+                            }
+                          }
+                          return rows;
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Details table card */}
               <div className="bg-white rounded-2xl shadow-sm p-4 border border-[#E2E8F0]">

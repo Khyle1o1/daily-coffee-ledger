@@ -1,5 +1,6 @@
 import { mapRow } from "./mapRow";
 import { CATEGORIES, type Category, type DailyReport, type MappingEntry, type ProcessedRow, type UnmappedSummary } from "./types";
+import { buildDailyBreakdown } from "@/lib/reports/dailyBreakdown";
 
 export function aggregateByCategory(rows: ProcessedRow[]) {
   const totals: Record<Category, number> = {} as any;
@@ -67,6 +68,7 @@ export function reapplyMappingsToDailyReport(
     grandQuantity,
     percentByCat: percents,
     unmappedSummary,
+    dailyBreakdown: buildDailyBreakdown(processed),
   };
 }
 

@@ -1,4 +1,5 @@
 import { CATEGORIES, BRANCHES, type Category, type DailyReport, type MonthlyReport, type BranchId, type UnmappedSummary } from "./types";
+import { calendarDaysForReport, dayTotalsForReport } from "@/lib/reports/dailyBreakdown";
 
 // Default label resolver using the legacy hardcoded constant (kept for fallback).
 function defaultGetBranchLabel(slug: string): string {
@@ -244,20 +245,24 @@ function computeDailyBreakdown(reports: DailyReport[]) {
 }
 
 /**
- * Get all available months from reports (sorted newest first)
+ * Get all available months from reports (sorted newest first).
+ * Months come from each calendar day in dailyBreakdown, not the upload start date.
  */
 export function getAvailableMonths(reports: DailyReport[]): { monthKey: string; displayMonth: string; totalAmount: number }[] {
-  const grouped = groupReportsByMonth(reports);
-  
-  return Object.keys(grouped)
-    .sort((a, b) => b.localeCompare(a)) // Sort descending (newest first)
-    .map(monthKey => {
-      const monthReports = grouped[monthKey];
-      const totalAmount = monthReports.reduce((sum, r) => sum + r.grandTotal, 0);
-      return {
-        monthKey,
-        displayMonth: formatMonthDisplay(monthKey),
-        totalAmount,
-      };
-    });
+  const monthTotals = new Map<string, number>();
+  for (const report of reports) {
+    const days = calendarDaysForReport(report);
+    for (const day of days) {
+      const monthKey = getMonthKey(day);
+      monthTotals.set(monthKey, (monthTotals.get(monthKey) ?? 0) + dayTotalsForReport(report, day).grandTotal);
+    }
+  }
+
+  return Array.from(monthTotals.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([monthKey, totalAmount]) => ({
+      monthKey,
+      displayMonth: formatMonthDisplay(monthKey),
+      totalAmount,
+    }));
 }
