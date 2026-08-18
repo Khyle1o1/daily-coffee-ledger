@@ -284,7 +284,7 @@ export default function UserManagementPage() {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 py-6">
+    <div className="w-full px-5 sm:px-8 lg:px-10 py-6">
       <Card className="p-6 sm:p-8">
         <div className="mb-8 flex items-center justify-end">
           <Button

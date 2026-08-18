@@ -252,7 +252,7 @@ export default function ActivityLogsPage() {
   if (loading || !isAdmin) return null;
 
   return (
-    <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 py-6">
+    <div className="w-full px-5 sm:px-8 lg:px-10 py-6">
       <Card className="space-y-6 p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">

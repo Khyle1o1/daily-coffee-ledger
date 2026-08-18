@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { differenceInCalendarDays, format, startOfMonth, startOfWeek } from "date-fns";
+import { differenceInCalendarDays, format } from "date-fns";
 import {
   Building2,
   Calendar,
@@ -81,6 +81,7 @@ import {
   dayTotalsForReport,
   effectiveTotalsFromReport,
 } from "@/lib/reports/dailyBreakdown";
+import { bucketSalesChartPoints } from "@/lib/reports/salesChartBuckets";
 import { contentDateBoundsFromRowDetails } from "@/lib/reports/posReportCoverage";
 import { listBranches } from "@/lib/api/branches";
 import { FilterBar, FilterTriggerButton } from "@/components/dashboard/FilterBar";
@@ -934,35 +935,18 @@ export default function SummaryPage() {
   }, [dailyReports]);
 
   const salesPoints = useMemo(() => {
-    const buckets = new Map<string, { label: string; value: number }>();
+    const dayValues: Array<{ dateStr: string; value: number }> = [];
     for (const report of filteredReports) {
       const days = calendarDaysForReport(report);
       for (const dateStr of days) {
         if (fromKey && (dateStr < fromKey || dateStr > (toKey ?? fromKey))) continue;
-        const date = new Date(`${dateStr}T00:00:00`);
-        if (Number.isNaN(date.getTime())) continue;
-        const daySales = dayTotalsForReport(report, dateStr).grandTotal;
-        let key = dateStr;
-        let label = format(date, "MMM d");
-        if (chartGranularity === "weekly") {
-          const start = startOfWeek(date, { weekStartsOn: 1 });
-          const end = new Date(start);
-          end.setDate(end.getDate() + 6);
-          key = format(start, "yyyy-MM-dd");
-          label = `${format(start, "MMM d")}–${format(end, "d")}`;
-        } else if (chartGranularity === "monthly") {
-          const start = startOfMonth(date);
-          key = format(start, "yyyy-MM");
-          label = format(start, "MMM yyyy");
-        }
-        const existing = buckets.get(key);
-        if (existing) existing.value += daySales;
-        else buckets.set(key, { label, value: daySales });
+        dayValues.push({
+          dateStr,
+          value: dayTotalsForReport(report, dateStr).grandTotal,
+        });
       }
     }
-    return [...buckets.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, bucket]) => ({ key, ...bucket }));
+    return bucketSalesChartPoints(dayValues, chartGranularity);
   }, [filteredReports, chartGranularity, fromKey, toKey]);
 
   const topBranchRows = useMemo(() => {
@@ -1070,7 +1054,7 @@ export default function SummaryPage() {
 
   return (
     <div className="overflow-x-hidden pb-8">
-      <div className="mx-auto max-w-[1600px] space-y-6 px-5 py-6 sm:px-8 lg:px-10">
+      <div className="w-full space-y-6 px-5 py-6 sm:px-8 lg:px-10">
         <FilterBar
           dateControl={
             <div className="flex flex-wrap items-center gap-2">

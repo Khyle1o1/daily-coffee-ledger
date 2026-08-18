@@ -631,7 +631,7 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col pb-8">
-      <div className="flex-1 max-w-[1600px] mx-auto w-full px-5 sm:px-8 lg:px-10 py-6">
+      <div className="flex-1 w-full px-5 sm:px-8 lg:px-10 py-6">
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           <Link
             to="/app/daily-cash-ledger"

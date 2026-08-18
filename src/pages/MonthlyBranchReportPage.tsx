@@ -277,7 +277,7 @@ export default function MonthlyBranchReportPage() {
     <div className="pb-8">
       {/* Filters */}
       <div className="print:hidden">
-        <div className="max-w-[1600px] mx-auto px-5 sm:px-8 lg:px-10 pt-6">
+        <div className="w-full px-5 sm:px-8 lg:px-10 pt-6">
           <div className="saas-card flex flex-wrap items-end gap-3 p-4">
             <FilterField label="Year">
               <Select
@@ -484,7 +484,7 @@ export default function MonthlyBranchReportPage() {
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-6 py-8 space-y-6 text-[#0e2d49]" ref={printRef}>
+      <div className="w-full px-6 py-8 space-y-6 text-[#0e2d49]" ref={printRef}>
         {!generated && (
           <div className="rounded-3xl bg-card shadow-xl border border-border/50 px-8 py-16 text-center text-[#0e2d49]">
             <BarChart3 className="h-10 w-10 mx-auto text-[#0e2d49]/70" />
