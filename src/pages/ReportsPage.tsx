@@ -305,13 +305,21 @@ export default function ReportsPage() {
         branchIds ? `branches: ${branchIds.join(",")}` : "all branches",
       );
 
+      const includeRowDetails = reportType !== "CATEGORY_PERFORMANCE";
+
       const rows = await queryClient.fetchQuery({
-        queryKey: [...computeKey, "overlap-v2", "month-windows-v1"] as const,
+        queryKey: [
+          ...computeKey,
+          "overlap-v2",
+          "compute-slim-rpc-v1",
+          includeRowDetails ? "with-rows" : "agg-only",
+        ] as const,
         queryFn:  () =>
           fetchDailyReportsForComputeRange({
             dateFrom:  fetchBounds.dateFrom,
             dateTo:    fetchBounds.dateTo,
             branchIds,
+            includeRowDetails,
           }),
         staleTime: 60_000, // 1 minute — reuse cache for repeated generates
       });

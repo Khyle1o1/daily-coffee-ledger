@@ -4,6 +4,7 @@ import { filterRowsByDateRange } from "./filterRowsByDateRange";
 import type { Top5ByChannel } from "./computeTop5ByChannel";
 import { computeTop5ByChannelFromRows } from "./computeTop5ByChannel";
 import { getPercentChange } from "@/utils/percentChange";
+import { hasDailyBreakdown, sliceDailyBreakdown } from "./dailyBreakdown";
 
 // ============================================================================
 // Filter types
@@ -103,7 +104,27 @@ function getActiveCats(filters: ReportFilters): Category[] {
     : [...CATEGORIES];
 }
 
+const getRowsMemo = new WeakMap<object, Map<string, ProcessedRow[]>>();
+
+function serializeFiltersForRows(filters: ReportFilters): string {
+  const cats = getActiveCats(filters).slice().sort().join(",");
+  const branch =
+    Array.isArray(filters.branchId)
+      ? filters.branchId.slice().sort().join(",")
+      : String(filters.branchId);
+  return `${branch}|${filters.dateFrom}|${filters.dateTo}|${cats}`;
+}
+
 function getRows(reports: DailyReport[], filters: ReportFilters): ProcessedRow[] {
+  const cacheKey = serializeFiltersForRows(filters);
+  let cache = getRowsMemo.get(reports);
+  if (!cache) {
+    cache = new Map();
+    getRowsMemo.set(reports, cache);
+  }
+  const hit = cache.get(cacheKey);
+  if (hit) return hit;
+
   const activeCats = getActiveCats(filters);
   const byBranch = filterReportsByBranch(reports, filters.branchId);
 
@@ -114,39 +135,48 @@ function getRows(reports: DailyReport[], filters: ReportFilters): ProcessedRow[]
     r.rowDetails.filter((row) => row.transactionDate instanceof Date),
   );
 
-  if (allRows.length === 0) {
-    console.warn("[DateDebug] No rows have a valid transactionDate for filters", {
-      filters,
-    });
-  } else {
-    const dates = allRows
-      .map((r) => r.transactionDate as Date)
-      .filter((d) => !Number.isNaN(d.getTime()));
-    if (dates.length) {
-      const sorted = dates.sort((a, b) => a.getTime() - b.getTime());
-      console.log("[DateDebug] Dataset span before range filter", {
-        min: sorted[0].toISOString(),
-        max: sorted[sorted.length - 1].toISOString(),
-        count: dates.length,
+  if (import.meta.env.DEV) {
+    if (allRows.length === 0) {
+      console.warn("[DateDebug] No rows have a valid transactionDate for filters", {
+        filters,
       });
+    } else {
+      let min = Infinity;
+      let max = -Infinity;
+      for (const r of allRows) {
+        const t = (r.transactionDate as Date).getTime();
+        if (Number.isNaN(t)) continue;
+        if (t < min) min = t;
+        if (t > max) max = t;
+      }
+      if (Number.isFinite(min) && Number.isFinite(max)) {
+        console.log("[DateDebug] Dataset span before range filter", {
+          min: new Date(min).toISOString(),
+          max: new Date(max).toISOString(),
+          count: allRows.length,
+        });
+      }
     }
   }
 
   const inRange = filterRowsByDateRange(allRows, start, end);
 
-  if (inRange.length === 0 && allRows.length > 0) {
+  if (import.meta.env.DEV && inRange.length === 0 && allRows.length > 0) {
     console.warn("[DateDebug] 0 rows matched selected range", {
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
     });
   }
 
-  return inRange.filter(
+  const rows = inRange.filter(
     (row) =>
       row.status === "MAPPED" &&
       row.mappedCat !== null &&
       activeCats.includes(row.mappedCat as Category),
   );
+
+  cache.set(cacheKey, rows);
+  return rows;
 }
 
 export function getRowsForFilters(
@@ -386,6 +416,45 @@ export function computeCategoryPerformance(
   reports: DailyReport[],
   filters: ReportFilters
 ): ComputedCategoryPerformance {
+  // Prefer dailyBreakdown (no rowDetails needed) when every report has it.
+  const allHaveBreakdown = reports.length > 0 && reports.every(hasDailyBreakdown);
+  if (allHaveBreakdown) {
+    const activeCats = getActiveCats(filters);
+    const byBranch = filterReportsByBranch(reports, filters.branchId);
+    const salesMap: Partial<Record<Category, number>> = {};
+    const qtyMap: Partial<Record<Category, number>> = {};
+
+    for (const report of byBranch) {
+      const sliced = sliceDailyBreakdown(
+        report.dailyBreakdown,
+        filters.dateFrom,
+        filters.dateTo,
+      );
+      for (const cat of activeCats) {
+        salesMap[cat] = (salesMap[cat] ?? 0) + (sliced.totals[cat] ?? 0);
+        qtyMap[cat] = (qtyMap[cat] ?? 0) + (sliced.quantities[cat] ?? 0);
+      }
+    }
+
+    const grandTotal = Object.values(salesMap).reduce(
+      (a: number, b: number) => a + b,
+      0,
+    );
+    const categories: CategoryTotal[] = activeCats
+      .map((cat) => {
+        const sales = salesMap[cat] ?? 0;
+        return {
+          category: cat,
+          sales,
+          qty: qtyMap[cat] ?? 0,
+          percent: grandTotal > 0 ? (sales / grandTotal) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.sales - a.sales);
+
+    return { categories, grandTotal };
+  }
+
   const result = computeCategoryTotals(reports, filters);
   return {
     categories: result.categoryTotals,

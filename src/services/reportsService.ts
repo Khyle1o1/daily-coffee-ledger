@@ -25,16 +25,15 @@ import {
 /** Default page size for paginated list queries. */
 export const PAGE_SIZE = 50;
 
-/** Reports per request when loading full summary_json for compute. */
-export const COMPUTE_CHUNK_SIZE = 8;
+/** Reports per request when falling back to table select (RPC prefers whole-range). */
+export const COMPUTE_CHUNK_SIZE = 25;
 
-/** Hard cap on overlapping report rows per month window (protects Supabase CPU/RAM). */
+/** Hard cap on overlapping report rows for a single RPC / month-window fetch. */
 export const MAX_COMPUTE_REPORTS = 40;
 
 /**
- * Soft ceiling on slimmed compute payload per month window.
- * Month windows already bound PostgREST load; this only stops extreme single-month blobs.
- * Raw multi-branch months often exceed 15 MB before slimming — not a date-range issue.
+ * Soft ceiling on slimmed compute payload per fetch window.
+ * Server-side RPC already prunes rowDetails; this stops extreme multi-branch blobs.
  */
 export const MAX_COMPUTE_PAYLOAD_BYTES = 48 * 1024 * 1024;
 
@@ -43,6 +42,9 @@ export const MAX_GENERATE_SPAN_DAYS = 366;
 
 /** Max unique reports after merging all month windows for a long-range generate. */
 export const MAX_COMPUTE_RANGE_REPORTS = 150;
+
+/** Parallel month-window fetches when RPC is unavailable or over the row cap. */
+const COMPUTE_WINDOW_CONCURRENCY = 3;
 
 /** Fields compute paths need from each rowDetail (drops verbose mapping debug). */
 const COMPUTE_ROW_DETAIL_KEYS = [
@@ -571,84 +573,165 @@ export async function listAllDailyReports(
   }
 }
 
-/**
- * Fetch full daily reports (including rowDetails + unmappedSummary) for a
- * specific date range and optional branch filter.
- *
- * Use this ONLY when compute functions need row-level transaction data
- * (product mix, pour-it-forward, HQ sync pack, channel sales summary, etc.).
- * Do NOT call this for list rendering — use listAllDailyReports() instead.
- *
- * IMPORTANT: filter by date-range *overlap*, not report_date alone.
- * Dual-month uploads (e.g. report_date=2026-06-01, range Jun 1–Jul 31) must
- * still be loaded when generating a July-only HQ report — compute then filters
- * rowDetails by transactionDate.
- *
- * Health: results are fetched in chunks, slimmed for compute, and soft-capped
- * by row count + payload size per month window so a wide generate cannot tip
- * Supabase via one unbounded multi-month select.
- *
- * @param dateFrom   inclusive lower bound for the selected period (YYYY-MM-DD)
- * @param dateTo     inclusive upper bound for the selected period (YYYY-MM-DD)
- * @param branchIds  optional list of branch UUIDs to restrict the query
- */
-export async function fetchDailyReportsForCompute(params: {
+type ComputeFetchParams = {
   dateFrom: string;
   dateTo: string;
   branchIds?: string[];
-}): Promise<DailyReportRow[]> {
-  const { dateFrom, dateTo, branchIds } = params;
+  /** When false, RPC omits rowDetails (aggregate-only reports). Default true. */
+  includeRowDetails?: boolean;
+};
+
+type ComputeSlimRpcRow = {
+  id: string;
+  branch_id: string;
+  report_date: string;
+  date_range_start: string;
+  date_range_end: string;
+  transactions_file_name: string | null;
+  mapping_file_name: string | null;
+  summary_json: DailySummaryJSON | null;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  branch_name: string | null;
+  branch_label: string | null;
+};
+
+function mapComputeSlimRpcRow(row: ComputeSlimRpcRow): DailyReportRow {
+  return {
+    id: row.id,
+    branch_id: row.branch_id,
+    report_date: row.report_date,
+    date_range_start: row.date_range_start,
+    date_range_end: row.date_range_end,
+    transactions_file_name: row.transactions_file_name,
+    mapping_file_name: row.mapping_file_name,
+    summary_json: row.summary_json as any,
+    user_id: row.user_id,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    branch: {
+      id: row.branch_id,
+      name: row.branch_name || "greenbelt",
+      label: row.branch_label || row.branch_name || "Greenbelt",
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    },
+  };
+}
+
+function estimateRowBytes(row: DailyReportRow): number {
+  try {
+    return JSON.stringify(row.summary_json ?? {}).length + 256;
+  } catch {
+    return 256;
+  }
+}
+
+/**
+ * Prefer server-side slim RPC (migration 025): overlap filter + prune/project
+ * rowDetails before the payload crosses Kong.
+ */
+export async function fetchDailyReportsForComputeSlim(
+  params: ComputeFetchParams,
+): Promise<DailyReportRow[] | null> {
+  const { dateFrom, dateTo, branchIds, includeRowDetails = true } = params;
+  const t0 = performance.now();
+
+  const { data, error } = await supabase.rpc("reports_daily_compute_slim", {
+    p_date_from: dateFrom,
+    p_date_to: dateTo,
+    p_branch_ids: branchIds && branchIds.length > 0 ? branchIds : null,
+    p_include_row_details: includeRowDetails,
+  });
+
+  if (error) {
+    // Missing RPC / schema cache — caller falls back to table select.
+    console.warn(
+      `[fetchDailyReportsForComputeSlim] RPC unavailable (${error.message}); using table fallback`,
+    );
+    return null;
+  }
+
+  const rows = ((data as ComputeSlimRpcRow[]) ?? []).map((row) => {
+    const mapped = mapComputeSlimRpcRow(row);
+    return includeRowDetails
+      ? slimSummaryJsonForCompute(mapped)
+      : {
+          ...mapped,
+          summary_json: {
+            ...(mapped.summary_json as DailySummaryJSON),
+            rowDetails: [],
+            unmappedSummary: [],
+          },
+        };
+  });
+  if (rows.length > MAX_COMPUTE_RANGE_REPORTS) {
+    throw new Error(
+      `Too many overlapping reports (${rows.length}) across the selected range. ` +
+        `Narrow the date range or select fewer branches (max ${MAX_COMPUTE_RANGE_REPORTS}).`,
+    );
+  }
+
+  let approxBytes = 0;
+  for (const row of rows) approxBytes += estimateRowBytes(row);
+  if (approxBytes > MAX_COMPUTE_PAYLOAD_BYTES) {
+    throw new Error(
+      `Report payload too large (~${Math.round(approxBytes / (1024 * 1024))} MB). ` +
+        `Select fewer branches (max ~${Math.round(MAX_COMPUTE_PAYLOAD_BYTES / (1024 * 1024))} MB).`,
+    );
+  }
+
+  const elapsed = Math.round(performance.now() - t0);
+  if (import.meta.env.DEV) {
+    console.log(
+      `[fetchDailyReportsForComputeSlim] ✅ ${rows.length} rows in ${elapsed}ms ` +
+        `(~${Math.round(approxBytes / 1024)} KB) — overlap ${dateFrom} → ${dateTo}` +
+        (includeRowDetails ? "" : " (no rowDetails)"),
+    );
+  } else {
+    console.log(
+      `[fetchDailyReportsForComputeSlim] ✅ ${rows.length} rows in ${elapsed}ms — ${dateFrom} → ${dateTo}`,
+    );
+  }
+
+  return rows;
+}
+
+/**
+ * Table-select fallback for one date window (used when RPC is missing or
+ * when splitting a large range into month windows).
+ */
+export async function fetchDailyReportsForCompute(params: ComputeFetchParams): Promise<DailyReportRow[]> {
+  const { dateFrom, dateTo, branchIds, includeRowDetails = true } = params;
   const t0 = performance.now();
 
   try {
-    let countQuery = supabase
-      .from('reports_daily')
-      .select('id', { count: 'exact', head: true })
-      .lte('date_range_start', dateTo)
-      .gte('date_range_end', dateFrom);
-
-    if (branchIds && branchIds.length > 0) {
-      countQuery = countQuery.in('branch_id', branchIds);
-    }
-
-    const { count, error: countError } = await countQuery;
-    if (countError) {
-      throw new Error(`Failed to count reports for compute: ${countError.message}`);
-    }
-
-    const total = count ?? 0;
-    if (total > MAX_COMPUTE_REPORTS) {
-      throw new Error(
-        `Too many overlapping reports (${total}). Narrow the date range or select fewer branches (max ${MAX_COMPUTE_REPORTS}).`,
-      );
-    }
-
     const selectCols =
-      'id, branch_id, report_date, date_range_start, date_range_end, ' +
-      'transactions_file_name, mapping_file_name, summary_json, user_id, ' +
-      'created_at, updated_at, ' +
-      'branch:branches(id, name, label, created_at, updated_at)';
+      "id, branch_id, report_date, date_range_start, date_range_end, " +
+      "transactions_file_name, mapping_file_name, summary_json, user_id, " +
+      "created_at, updated_at, " +
+      "branch:branches(id, name, label, created_at, updated_at)";
 
     const all: DailyReportRow[] = [];
     let offset = 0;
+    let approxBytes = 0;
 
-    while (offset < total || (total === 0 && offset === 0)) {
-      if (total === 0) break;
-
+    while (true) {
       const from = offset;
-      const to = Math.min(offset + COMPUTE_CHUNK_SIZE - 1, total - 1);
+      const to = offset + COMPUTE_CHUNK_SIZE - 1;
 
       let query = supabase
-        .from('reports_daily')
+        .from("reports_daily")
         .select(selectCols)
-        .lte('date_range_start', dateTo)
-        .gte('date_range_end', dateFrom)
-        .order('date_range_start', { ascending: true })
-        .order('branch_id', { ascending: true })
+        .lte("date_range_start", dateTo)
+        .gte("date_range_end", dateFrom)
+        .order("date_range_start", { ascending: true })
+        .order("branch_id", { ascending: true })
         .range(from, to);
 
       if (branchIds && branchIds.length > 0) {
-        query = query.in('branch_id', branchIds);
+        query = query.in("branch_id", branchIds);
       }
 
       const { data, error } = await query;
@@ -657,12 +740,30 @@ export async function fetchDailyReportsForCompute(params: {
         throw new Error(`Failed to fetch reports for compute: ${error.message}`);
       }
 
-      const rows = ((data as DailyReportRow[]) ?? []).map(slimSummaryJsonForCompute);
-      all.push(...rows);
+      const raw = (data as DailyReportRow[]) ?? [];
+      if (raw.length === 0) break;
 
-      // Measure after slim — raw summary_json often looks "too big" before dropping
-      // unmappedSummary / unused rowDetail fields; date span is handled by month windows.
-      const approxBytes = JSON.stringify(all).length;
+      for (const row of raw) {
+        const slimmed = slimSummaryJsonForCompute(row);
+        const prepared = includeRowDetails
+          ? pruneSummaryJsonRowDetails(slimmed, dateFrom, dateTo)
+          : {
+              ...slimmed,
+              summary_json: {
+                ...(slimmed.summary_json as DailySummaryJSON),
+                rowDetails: [],
+                unmappedSummary: [],
+              },
+            };
+        all.push(prepared);
+        approxBytes += estimateRowBytes(prepared);
+      }
+
+      if (all.length > MAX_COMPUTE_REPORTS) {
+        throw new Error(
+          `Too many overlapping reports (${all.length}). Narrow the date range or select fewer branches (max ${MAX_COMPUTE_REPORTS}).`,
+        );
+      }
       if (approxBytes > MAX_COMPUTE_PAYLOAD_BYTES) {
         throw new Error(
           `Report payload too large (~${Math.round(approxBytes / (1024 * 1024))} MB) for one month window. ` +
@@ -671,18 +772,17 @@ export async function fetchDailyReportsForCompute(params: {
       }
 
       console.log(
-        `[fetchDailyReportsForCompute] chunk ${from}-${to}: ${rows.length} rows ` +
+        `[fetchDailyReportsForCompute] chunk ${from}-${to}: ${raw.length} rows ` +
           `(~${Math.round(approxBytes / 1024)} KB cumulative, slimmed)`,
       );
 
       offset += COMPUTE_CHUNK_SIZE;
-      if (rows.length === 0) break;
+      if (raw.length < COMPUTE_CHUNK_SIZE) break;
     }
 
     const elapsed = Math.round(performance.now() - t0);
-    const approxKb = Math.round(JSON.stringify(all).length / 1024);
     console.log(
-      `[fetchDailyReportsForCompute] ✅ ${all.length} rows in ${elapsed}ms (~${approxKb} KB) — overlap ${dateFrom} → ${dateTo}`,
+      `[fetchDailyReportsForCompute] ✅ ${all.length} rows in ${elapsed}ms (~${Math.round(approxBytes / 1024)} KB) — overlap ${dateFrom} → ${dateTo}`,
     );
 
     return all;
@@ -692,41 +792,80 @@ export async function fetchDailyReportsForCompute(params: {
   }
 }
 
-/**
- * Long-range compute fetch: load overlapping reports month-by-month, dedupe by id,
- * then prune out-of-range rowDetails so year-long generates stay client-safe.
- *
- * Per-window caps (40 rows / ~15 MB) still protect PostgREST; the merge ceiling
- * is MAX_COMPUTE_RANGE_REPORTS unique reports.
- */
-export async function fetchDailyReportsForComputeRange(params: {
-  dateFrom: string;
-  dateTo: string;
-  branchIds?: string[];
-}): Promise<DailyReportRow[]> {
-  const { dateFrom, dateTo, branchIds } = params;
-  const t0 = performance.now();
-  const windows = iterMonthWindows(dateFrom, dateTo);
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
 
+  async function worker() {
+    while (next < items.length) {
+      const idx = next++;
+      results[idx] = await mapper(items[idx]);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, Math.max(items.length, 1)) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Long-range compute fetch.
+ *
+ * Prefer one `reports_daily_compute_slim` RPC for the whole span (server prunes
+ * rowDetails). Falls back to parallel month windows when the RPC is missing.
+ */
+export async function fetchDailyReportsForComputeRange(
+  params: ComputeFetchParams,
+): Promise<DailyReportRow[]> {
+  const { dateFrom, dateTo, branchIds, includeRowDetails = true } = params;
+  const t0 = performance.now();
+
+  const viaRpc = await fetchDailyReportsForComputeSlim({
+    dateFrom,
+    dateTo,
+    branchIds,
+    includeRowDetails,
+  });
+  if (viaRpc) {
+    const elapsed = Math.round(performance.now() - t0);
+    console.log(
+      `[fetchDailyReportsForComputeRange] ✅ ${viaRpc.length} reports via RPC in ${elapsed}ms — ${dateFrom} → ${dateTo}`,
+    );
+    return viaRpc;
+  }
+
+  const windows = iterMonthWindows(dateFrom, dateTo);
   if (windows.length === 0) return [];
 
   const byId = new Map<string, DailyReportRow>();
 
-  for (const window of windows) {
-    console.log(
-      `[fetchDailyReportsForComputeRange] window ${window.dateFrom} → ${window.dateTo}`,
-    );
-    const rows = await fetchDailyReportsForCompute({
-      dateFrom: window.dateFrom,
-      dateTo: window.dateTo,
-      branchIds,
-    });
+  const windowResults = await mapPool(
+    windows,
+    COMPUTE_WINDOW_CONCURRENCY,
+    async (window) => {
+      console.log(
+        `[fetchDailyReportsForComputeRange] window ${window.dateFrom} → ${window.dateTo}`,
+      );
+      return fetchDailyReportsForCompute({
+        dateFrom: window.dateFrom,
+        dateTo: window.dateTo,
+        branchIds,
+        includeRowDetails,
+      });
+    },
+  );
 
+  for (const rows of windowResults) {
     for (const row of rows) {
-      // Keep the first slimmed copy — dual-month uploads appear in adjacent windows.
       if (!byId.has(row.id)) byId.set(row.id, row);
     }
-
     if (byId.size > MAX_COMPUTE_RANGE_REPORTS) {
       throw new Error(
         `Too many overlapping reports (${byId.size}) across the selected range. ` +
@@ -736,14 +875,27 @@ export async function fetchDailyReportsForComputeRange(params: {
   }
 
   const merged = Array.from(byId.values()).map((row) =>
-    pruneSummaryJsonRowDetails(row, dateFrom, dateTo),
+    includeRowDetails
+      ? pruneSummaryJsonRowDetails(row, dateFrom, dateTo)
+      : {
+          ...row,
+          summary_json: {
+            ...(row.summary_json as DailySummaryJSON),
+            rowDetails: [],
+            unmappedSummary: [],
+          },
+        },
   );
 
   const elapsed = Math.round(performance.now() - t0);
-  const approxKb = Math.round(JSON.stringify(merged).length / 1024);
+  const approxKb = import.meta.env.DEV
+    ? Math.round(JSON.stringify(merged).length / 1024)
+    : null;
   console.log(
     `[fetchDailyReportsForComputeRange] ✅ ${merged.length} unique reports ` +
-      `in ${elapsed}ms (~${approxKb} KB) across ${windows.length} month window(s) — ${dateFrom} → ${dateTo}`,
+      `in ${elapsed}ms` +
+      (approxKb != null ? ` (~${approxKb} KB)` : "") +
+      ` across ${windows.length} month window(s) — ${dateFrom} → ${dateTo}`,
   );
 
   return merged;

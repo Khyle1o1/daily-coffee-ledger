@@ -55,11 +55,11 @@ export function dailyReportFromRow(row: DailyReportRow): DailyReport {
     grandTotal: json.grandTotal,
     grandQuantity: json.grandQuantity,
     percentByCat: json.percentByCat,
-    rowDetails: json.rowDetails.map((r) => ({
+    rowDetails: (json.rowDetails ?? []).map((r) => ({
       ...r,
       transactionDate: r.transactionDate ? new Date(r.transactionDate as any) : undefined,
     })),
-    unmappedSummary: json.unmappedSummary,
+    unmappedSummary: json.unmappedSummary ?? [],
     dailyBreakdown: json.dailyBreakdown as DailyReport["dailyBreakdown"],
   };
 }

@@ -2,17 +2,16 @@
 
 ## 1) Connection Pooling (Critical)
 
-Use pooled Postgres in backend/serverless/scripts:
+Use pooled Postgres in backend/serverless/scripts when a direct URL is available.
 
-`DATABASE_URL=postgresql://<user>:<password>@<project-ref>.pooler.supabase.com:6543/postgres`
+Coolify / Hostinger self-hosted stacks usually **do not expose Postgres publicly**.
+In that case:
 
-Do not use direct host/port for application traffic:
+- App traffic goes through Kong → PostgREST (`SUPABASE_URL` + anon/service keys)
+- SQL migrations / audits use Kong **`/pg/query`** via `scripts/apply-migration-pg-query.mjs`
+  and `scripts/audit-report-perf.mjs` (not `DATABASE_URL` on localhost)
 
-- `...supabase.co:5432`
-
-Encode special characters in the DB password (`#`, `@`, etc.) as URL percent-encoding (e.g. `#` → `%23`).
-
-The SPA talks to Supabase via PostgREST (anon/service keys), not `DATABASE_URL`. Scripts that run SQL (migrations) use the pooled URL.
+Encode special characters in any DB password (`#`, `@`, etc.) as URL percent-encoding (e.g. `#` → `%23`).
 
 If you add a Node/Next/Laravel backend, reuse a singleton client instead of creating one per request.
 
@@ -25,43 +24,68 @@ If you add a Node/Next/Laravel backend, reuse a singleton client instead of crea
 - Daily list uses `staleTime: 60s` and does **not** force `refetchOnMount: "always"`.
 - React Query persist only stores light keys (daily list, branches, directory) — never compute/detail blobs (`buster: v4-health-light-cache`).
 
-## 3) Report generate payload caps (Critical)
+## 3) Report generate payload (Critical)
 
-`fetchDailyReportsForCompute` loads full `summary_json` (including `rowDetails`). That is the main overload path.
+Generate prefers the **`reports_daily_compute_slim`** RPC (migration `025`):
 
-App safeguards:
+- Overlap filter on `date_range_start` / `date_range_end`
+- Drops `unmappedSummary`
+- Prunes `rowDetails` to the selected date window
+- Projects only the ~18 compute fields (not the full ~362 KB/row blobs)
+- `p_include_row_details = false` for Category Performance (uses `dailyBreakdown`)
 
-- Date-range **overlap** fetch (so dual-month uploads still work), chunked (8 reports/request).
-- Long spans (up to **366 days** / ~1 year) use `fetchDailyReportsForComputeRange`: **month-by-month** windows, dedupe by report id, then prune `rowDetails` outside the selected bounds.
-- Hard cap **per month window**: max **40** overlapping report rows / ~**48 MB** slimmed JSON (not a date-range limit).
-- After each chunk, drop `unmappedSummary` and unused `rowDetails` fields before the size check.
-- Hard cap after merge: max **150** unique reports across the full span; then prune `rowDetails` outside the selected bounds.
-- UI blocks only spans **> 366 days**; spans **> 62 days** show an info toast (“fetching month by month”).
+On Coolify (CPU/TOAST-bound, ~128MB `shared_buffers`), migrations `025b`/`025c` keep
+**date-pruning + drop `unmappedSummary`** in the RPC (with a fast path when the
+report range is fully inside the window) and leave field projection to the
+browser (`slimSummaryJsonForCompute`) — cheaper than rebuilding every jsonb
+element on the VPS.
+
+Measured on Coolify (Aug 2026 window, 41 reports):
+
+| Path | Time | Payload |
+|------|------|---------|
+| Raw `reports_daily` select | ~70s | ~71 MB |
+| Slim RPC (rowDetails) | ~20–40s | ~42 MB |
+| Agg-only RPC (`p_include_row_details=false`) | ~0.5s | ~0.3 MB |
+
+Fallback (RPC missing): month windows with concurrency 3, chunk size **25**,
+client-side slim/prune. Caps: **40** rows per window, **150** unique across range,
+~**48 MB** slimmed JSON.
 
 Watch the browser console:
 
 ```
-[fetchDailyReportsForComputeRange] window 2026-01-01 → 2026-01-31
-[fetchDailyReportsForCompute] chunk 0-7: … (~KB cumulative, slimmed)
-[fetchDailyReportsForCompute] ✅ N rows in Xms (~Y KB)
-[fetchDailyReportsForComputeRange] ✅ M unique reports … across K month window(s)
+[fetchDailyReportsForComputeSlim] ✅ N rows in Xms …
+[fetchDailyReportsForComputeRange] ✅ N reports via RPC in Xms — …
 ```
 
-If you still hit a per-month payload cap, select fewer branches (date range is already split by month).
+Bench wire size:
+
+```
+node scripts/bench-compute-fetch.mjs 2026-08-01 2026-08-25
+```
 
 ## 4) Query and Index Optimization
 
-Run migrations:
+Run / verify:
 
 - `015_performance_indexes.sql` — frequent WHERE / JOIN / ORDER BY
 - `017_reports_daily_list_index.sql` — list sort
-- `020_reports_daily_overlap_index.sql` — GiST on `daterange(date_range_start, date_range_end)` for compute overlap
+- `025_report_perf_indexes_and_compute_rpc.sql` — drops unused GIN on full `summary_json`
+  and the unused expression GiST; adds `(date_range_end, date_range_start)` and
+  `(branch_id, date_range_end, date_range_start)`; adds `reports_daily_compute_slim`
 
-Prefer `reports_daily_meta` for list UIs (strips `rowDetails` / `unmappedSummary` on the wire). Avoid `SELECT *` on list endpoints.
+Audit live Coolify DB:
+
+```
+node scripts/audit-report-perf.mjs
+```
+
+Prefer `reports_daily_meta` for list UIs (strips `rowDetails` / `unmappedSummary` on the wire).
 
 ## 5) Find and Kill Long-Running Queries
 
-Run in Supabase SQL Editor:
+Run in Supabase SQL Editor (or `/pg/query`):
 
 ```sql
 select pid, now() - query_start as duration, query, state
@@ -98,19 +122,24 @@ useEffect(() => {
 
 ## 7) Monitoring Checklist
 
-Supabase Dashboard:
+Coolify / Hostinger:
 
-- Database -> Query Performance
-- Reports -> CPU / RAM / Connections
+- Service CPU / RAM for `supabase-db` and `supabase-rest`
+- Kong proxy read timeouts on large generate responses
+
+Postgres defaults on small VPS are often too low for JSONB TOAST:
+
+- `shared_buffers` / `effective_cache_size` default **128MB** — raise when the host has RAM
+- `work_mem` default **4MB**
 
 Interpretation:
 
-- High CPU -> optimize slow queries / shrink JSON payloads.
-- High connections -> fix pooling/reuse.
-- Slow query traces -> add/adjust indexes and avoid full scans.
+- High CPU -> shrink JSON payloads (use the slim RPC); avoid GIN on full `summary_json`
+- High connections -> fix pooling/reuse
+- Slow generate with small row counts -> wire size / Kong latency, not index misses
 
-## 8) Free Tier Notes
+## 8) Free Tier / Small VPS Notes
 
-- Expect occasional cold starts and paused project behavior.
-- Avoid heavy background jobs and aggressive polling.
-- Upgrade if this system is production critical.
+- Expect occasional cold starts and paused behavior on free hosted tiers
+- On Coolify VPS, prefer the slim RPC path and avoid unbounded multi-month selects
+- Upgrade CPU/RAM if generate remains CPU-bound after payload cuts

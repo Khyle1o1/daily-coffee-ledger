@@ -44,9 +44,13 @@ function encodeDatabaseUrl(raw) {
   return `${m[1]}${encodeURIComponent(decodeURIComponent(m[2]))}${m[3]}`;
 }
 
+const dbUrl = encodeDatabaseUrl(process.env.DATABASE_URL);
+const isLocal =
+  /@127\.0\.0\.1:|@localhost:|@\[::1\]:/i.test(dbUrl || '') ||
+  /sslmode=disable/i.test(dbUrl || '');
 const client = new pg.Client({
-  connectionString: encodeDatabaseUrl(process.env.DATABASE_URL),
-  ssl: { rejectUnauthorized: false },
+  connectionString: dbUrl,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
 });
 
 await client.connect();
