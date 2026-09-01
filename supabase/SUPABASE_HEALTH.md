@@ -48,9 +48,9 @@ Measured on Coolify (Aug 2026 window, 41 reports):
 | Slim RPC (rowDetails) | ~20–40s | ~42 MB |
 | Agg-only RPC (`p_include_row_details=false`) | ~0.5s | ~0.3 MB |
 
-Fallback (RPC missing): month windows with concurrency 3, chunk size **25**,
-client-side slim/prune. Caps: **40** rows per window, **150** unique across range,
-~**48 MB** slimmed JSON.
+Fallback (RPC missing or >48 MB per request): month windows + **branch batches**
+(3 branches per request), concurrency 3. Caps: **40** rows per request,
+**150** unique reports, ~**48 MB** per HTTP call, ~**384 MB** merged in browser.
 
 Watch the browser console:
 

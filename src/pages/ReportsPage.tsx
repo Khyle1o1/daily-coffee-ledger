@@ -284,10 +284,11 @@ export default function ReportsPage() {
         return;
       }
 
-      if (fetchSpanDays > 62) {
+      if (fetchSpanDays > 62 || filterBranches.length === 0) {
         toast({
-          title: "Large range",
-          description: "Fetching month by month — this may take a minute.",
+          title: "Large report",
+          description:
+            "Fetching in batches (by month and branch if needed). This may take a minute.",
         });
       }
 
@@ -311,7 +312,7 @@ export default function ReportsPage() {
         queryKey: [
           ...computeKey,
           "overlap-v2",
-          "compute-slim-rpc-v1",
+          "compute-slim-rpc-v2",
           includeRowDetails ? "with-rows" : "agg-only",
         ] as const,
         queryFn:  () =>

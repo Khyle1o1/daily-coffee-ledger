@@ -32,10 +32,16 @@ export const COMPUTE_CHUNK_SIZE = 25;
 export const MAX_COMPUTE_REPORTS = 40;
 
 /**
- * Soft ceiling on slimmed compute payload per fetch window.
- * Server-side RPC already prunes rowDetails; this stops extreme multi-branch blobs.
+ * Soft ceiling per HTTP/RPC request (one month or one branch batch).
+ * Long generates split into multiple requests and merge client-side.
  */
 export const MAX_COMPUTE_PAYLOAD_BYTES = 48 * 1024 * 1024;
+
+/** Hard ceiling on merged in-memory payload after all windows/batches. */
+export const MAX_COMPUTE_MERGED_PAYLOAD_BYTES = 384 * 1024 * 1024;
+
+/** Max branches per RPC when a single month window exceeds MAX_COMPUTE_PAYLOAD_BYTES. */
+const COMPUTE_BRANCH_BATCH_SIZE = 3;
 
 /** Max calendar days for a single generate (primary or fetch-bounds span). */
 export const MAX_GENERATE_SPAN_DAYS = 366;
@@ -620,17 +626,28 @@ function mapComputeSlimRpcRow(row: ComputeSlimRpcRow): DailyReportRow {
   };
 }
 
-function estimateRowBytes(row: DailyReportRow): number {
-  try {
-    return JSON.stringify(row.summary_json ?? {}).length + 256;
-  } catch {
-    return 256;
+function chunkArray<T>(items: T[], size: number): T[][] {
+  if (size <= 0) return [items];
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
   }
+  return out;
+}
+
+function payloadTooLargeMessage(approxBytes: number, scope: string): string {
+  return (
+    `Report payload too large (~${Math.round(approxBytes / (1024 * 1024))} MB) ${scope}. ` +
+    `Try fewer branches or a shorter range (max ~${Math.round(MAX_COMPUTE_PAYLOAD_BYTES / (1024 * 1024))} MB per request).`
+  );
 }
 
 /**
  * Prefer server-side slim RPC (migration 025): overlap filter + prune/project
  * rowDetails before the payload crosses Kong.
+ *
+ * Returns null when RPC is missing or the slimmed payload exceeds the per-request
+ * cap (caller should split by month and/or branch batch).
  */
 export async function fetchDailyReportsForComputeSlim(
   params: ComputeFetchParams,
@@ -646,9 +663,8 @@ export async function fetchDailyReportsForComputeSlim(
   });
 
   if (error) {
-    // Missing RPC / schema cache — caller falls back to table select.
     console.warn(
-      `[fetchDailyReportsForComputeSlim] RPC unavailable (${error.message}); using table fallback`,
+      `[fetchDailyReportsForComputeSlim] RPC unavailable (${error.message}); will split or use table fallback`,
     );
     return null;
   }
@@ -676,10 +692,10 @@ export async function fetchDailyReportsForComputeSlim(
   let approxBytes = 0;
   for (const row of rows) approxBytes += estimateRowBytes(row);
   if (approxBytes > MAX_COMPUTE_PAYLOAD_BYTES) {
-    throw new Error(
-      `Report payload too large (~${Math.round(approxBytes / (1024 * 1024))} MB). ` +
-        `Select fewer branches (max ~${Math.round(MAX_COMPUTE_PAYLOAD_BYTES / (1024 * 1024))} MB).`,
+    console.warn(
+      `[fetchDailyReportsForComputeSlim] payload ~${Math.round(approxBytes / (1024 * 1024))} MB exceeds per-request cap; splitting`,
     );
+    return null;
   }
 
   const elapsed = Math.round(performance.now() - t0);
@@ -696,6 +712,65 @@ export async function fetchDailyReportsForComputeSlim(
   }
 
   return rows;
+}
+
+function estimateRowBytes(row: DailyReportRow): number {
+  try {
+    return JSON.stringify(row.summary_json ?? {}).length + 256;
+  } catch {
+    return 256;
+  }
+}
+
+/**
+ * One overlap slice: RPC → table chunks → branch batches (when payload is huge).
+ */
+async function fetchComputeSlice(params: ComputeFetchParams): Promise<DailyReportRow[]> {
+  const viaRpc = await fetchDailyReportsForComputeSlim(params);
+  if (viaRpc) return viaRpc;
+
+  try {
+    const viaTable = await fetchDailyReportsForCompute(params);
+    return viaTable;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("payload too large")) throw err;
+    console.warn(`[fetchComputeSlice] table fetch oversized for ${params.dateFrom} → ${params.dateTo}`);
+  }
+
+  let branchIdList = params.branchIds?.filter(Boolean) ?? [];
+  if (branchIdList.length === 0) {
+    const branches = await getBranches();
+    branchIdList = branches.map((b) => b.id);
+  }
+
+  if (branchIdList.length <= 1) {
+    throw new Error(
+      payloadTooLargeMessage(MAX_COMPUTE_PAYLOAD_BYTES + 1, "for one branch in this date range"),
+    );
+  }
+
+  console.log(
+    `[fetchComputeSlice] branch batches (${COMPUTE_BRANCH_BATCH_SIZE} per request) — ${params.dateFrom} → ${params.dateTo}`,
+  );
+
+  const byId = new Map<string, DailyReportRow>();
+  for (const batch of chunkArray(branchIdList, COMPUTE_BRANCH_BATCH_SIZE)) {
+    const batchRows = await fetchComputeSlice({
+      ...params,
+      branchIds: batch,
+    });
+    for (const row of batchRows) {
+      if (!byId.has(row.id)) byId.set(row.id, row);
+    }
+    if (byId.size > MAX_COMPUTE_RANGE_REPORTS) {
+      throw new Error(
+        `Too many overlapping reports (${byId.size}). Narrow the date range (max ${MAX_COMPUTE_RANGE_REPORTS}).`,
+      );
+    }
+  }
+
+  return Array.from(byId.values());
 }
 
 /**
@@ -765,10 +840,7 @@ export async function fetchDailyReportsForCompute(params: ComputeFetchParams): P
         );
       }
       if (approxBytes > MAX_COMPUTE_PAYLOAD_BYTES) {
-        throw new Error(
-          `Report payload too large (~${Math.round(approxBytes / (1024 * 1024))} MB) for one month window. ` +
-            `Select fewer branches (max ~${Math.round(MAX_COMPUTE_PAYLOAD_BYTES / (1024 * 1024))} MB per month).`,
-        );
+        throw new Error(payloadTooLargeMessage(approxBytes, "for one month window"));
       }
 
       console.log(
@@ -818,8 +890,8 @@ async function mapPool<T, R>(
 /**
  * Long-range compute fetch.
  *
- * Prefer one `reports_daily_compute_slim` RPC for the whole span (server prunes
- * rowDetails). Falls back to parallel month windows when the RPC is missing.
+ * Tries one whole-range RPC, then month windows, then branch batches per window
+ * when a single request would exceed the per-request payload cap.
  */
 export async function fetchDailyReportsForComputeRange(
   params: ComputeFetchParams,
@@ -827,18 +899,13 @@ export async function fetchDailyReportsForComputeRange(
   const { dateFrom, dateTo, branchIds, includeRowDetails = true } = params;
   const t0 = performance.now();
 
-  const viaRpc = await fetchDailyReportsForComputeSlim({
-    dateFrom,
-    dateTo,
-    branchIds,
-    includeRowDetails,
-  });
-  if (viaRpc) {
+  const wholeRange = await fetchDailyReportsForComputeSlim(params);
+  if (wholeRange) {
     const elapsed = Math.round(performance.now() - t0);
     console.log(
-      `[fetchDailyReportsForComputeRange] ✅ ${viaRpc.length} reports via RPC in ${elapsed}ms — ${dateFrom} → ${dateTo}`,
+      `[fetchDailyReportsForComputeRange] ✅ ${wholeRange.length} reports via RPC in ${elapsed}ms — ${dateFrom} → ${dateTo}`,
     );
-    return viaRpc;
+    return wholeRange;
   }
 
   const windows = iterMonthWindows(dateFrom, dateTo);
@@ -853,7 +920,7 @@ export async function fetchDailyReportsForComputeRange(
       console.log(
         `[fetchDailyReportsForComputeRange] window ${window.dateFrom} → ${window.dateTo}`,
       );
-      return fetchDailyReportsForCompute({
+      return fetchComputeSlice({
         dateFrom: window.dateFrom,
         dateTo: window.dateTo,
         branchIds,
@@ -869,7 +936,7 @@ export async function fetchDailyReportsForComputeRange(
     if (byId.size > MAX_COMPUTE_RANGE_REPORTS) {
       throw new Error(
         `Too many overlapping reports (${byId.size}) across the selected range. ` +
-          `Narrow the date range or select fewer branches (max ${MAX_COMPUTE_RANGE_REPORTS}).`,
+          `Narrow the date range (max ${MAX_COMPUTE_RANGE_REPORTS}).`,
       );
     }
   }
@@ -887,15 +954,24 @@ export async function fetchDailyReportsForComputeRange(
         },
   );
 
+  let mergedBytes = 0;
+  for (const row of merged) mergedBytes += estimateRowBytes(row);
+  if (mergedBytes > MAX_COMPUTE_MERGED_PAYLOAD_BYTES) {
+    throw new Error(
+      `Merged report data too large (~${Math.round(mergedBytes / (1024 * 1024))} MB). ` +
+        `Narrow the date range or select fewer branches (browser limit ~${Math.round(MAX_COMPUTE_MERGED_PAYLOAD_BYTES / (1024 * 1024))} MB).`,
+    );
+  }
+
   const elapsed = Math.round(performance.now() - t0);
   const approxKb = import.meta.env.DEV
     ? Math.round(JSON.stringify(merged).length / 1024)
-    : null;
+    : Math.round(mergedBytes / 1024);
   console.log(
     `[fetchDailyReportsForComputeRange] ✅ ${merged.length} unique reports ` +
-      `in ${elapsed}ms` +
-      (approxKb != null ? ` (~${approxKb} KB)` : "") +
-      ` across ${windows.length} month window(s) — ${dateFrom} → ${dateTo}`,
+      `in ${elapsed}ms (~${approxKb} KB)` +
+      (windows.length > 1 ? ` across ${windows.length} month window(s)` : " (split fetch)") +
+      ` — ${dateFrom} → ${dateTo}`,
   );
 
   return merged;
