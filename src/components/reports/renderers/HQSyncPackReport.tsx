@@ -417,12 +417,19 @@ function ProductMixCategoryDetailPage({
                 </th>
                 {hasCompare && (
                   <th style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    {currCol}
+                  </th>
+                )}
+                {hasCompare && (
+                  <th style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
                     {prevCol}
                   </th>
                 )}
-                <th style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
-                  {hasCompare ? currCol : "QTY"}
-                </th>
+                {!hasCompare && (
+                  <th style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    QTY
+                  </th>
+                )}
                 {hasCompare && (
                   <th style={{ padding: "7px 8px", textAlign: "right", width: 56, fontWeight: 700 }}>
                     %
@@ -464,6 +471,19 @@ function ProductMixCategoryDetailPage({
                         padding: "5px 12px",
                         textAlign: "right",
                         fontVariantNumeric: "tabular-nums",
+                        fontWeight: 700,
+                        color: "#0F172A",
+                      }}
+                    >
+                      {item.qty.toLocaleString("en-PH")}
+                    </td>
+                  )}
+                  {hasCompare && (
+                    <td
+                      style={{
+                        padding: "5px 12px",
+                        textAlign: "right",
+                        fontVariantNumeric: "tabular-nums",
                         color: "#64748B",
                       }}
                     >
@@ -472,17 +492,19 @@ function ProductMixCategoryDetailPage({
                         : "—"}
                     </td>
                   )}
-                  <td
-                    style={{
-                      padding: "5px 12px",
-                      textAlign: "right",
-                      fontVariantNumeric: "tabular-nums",
-                      fontWeight: 700,
-                      color: "#0F172A",
-                    }}
-                  >
-                    {item.qty.toLocaleString("en-PH")}
-                  </td>
+                  {!hasCompare && (
+                    <td
+                      style={{
+                        padding: "5px 12px",
+                        textAlign: "right",
+                        fontVariantNumeric: "tabular-nums",
+                        fontWeight: 700,
+                        color: "#0F172A",
+                      }}
+                    >
+                      {item.qty.toLocaleString("en-PH")}
+                    </td>
+                  )}
                   {hasCompare && (
                     <td
                       style={{

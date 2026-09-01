@@ -405,15 +405,15 @@ export async function exportReportPdf(
       autoTable(doc, {
         startY,
         head: hasCompare
-          ? [["#", "Menu", compareLabel ?? "Previous", "Current", "% Change"]]
+          ? [["#", "Menu", dateRangeLabel, compareLabel ?? "Compare", "% Change"]]
           : [["#", "Menu", "Qty", "Sales"]],
         body: section.data.products.map((row, idx) => {
           if (hasCompare) {
             return [
               String(idx + 1).padStart(2, "0"),
               row.name,
-              row.compareQty !== undefined ? row.compareQty.toLocaleString("en-PH") : "—",
               row.qty.toLocaleString("en-PH"),
+              row.compareQty !== undefined ? row.compareQty.toLocaleString("en-PH") : "—",
               row.compareQty !== undefined ? getPercentChange(row.compareQty, row.qty).label : "—",
             ];
           }
