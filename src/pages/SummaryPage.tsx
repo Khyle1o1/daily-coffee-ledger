@@ -84,7 +84,7 @@ import {
 } from "@/lib/reports/dailyBreakdown";
 import { bucketSalesChartPoints } from "@/lib/reports/salesChartBuckets";
 import { contentDateBoundsFromRowDetails } from "@/lib/reports/posReportCoverage";
-import { assignedLineDiscounts } from "@/lib/reports/deriveDailyLedgerFromPos";
+import { assignedLineDiscounts, inheritTxnDiscountTypes } from "@/lib/reports/deriveDailyLedgerFromPos";
 import { listBranches } from "@/lib/api/branches";
 import { FilterBar, FilterTriggerButton } from "@/components/dashboard/FilterBar";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -423,6 +423,9 @@ export default function SummaryPage() {
       pwdDiscount: modalAutoMapping.pwdDiscount || "",
       vatExemption: modalAutoMapping.vatExemption || "",
       itemDiscountType: modalAutoMapping.itemDiscountType || "",
+      totalDiscountType: modalAutoMapping.totalDiscountType || "",
+      itemDiscountAmount: modalAutoMapping.itemDiscountAmount || "",
+      totalDiscountAmount: modalAutoMapping.totalDiscountAmount || "",
     };
 
     const required: (keyof ColumnMapping)[] = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
@@ -444,6 +447,13 @@ export default function SummaryPage() {
       if (raw == null || raw === "") return undefined;
       const n = parseFloat(String(raw).replace(/[,₱\s]/g, ""));
       return Number.isFinite(n) ? n : undefined;
+    };
+    const firstDiscountType = (...values: Array<string | undefined>) => {
+      for (const v of values) {
+        const t = String(v ?? "").trim();
+        if (t) return t;
+      }
+      return undefined;
     };
 
     const rawRows: RawRow[] = [];
@@ -477,17 +487,29 @@ export default function SummaryPage() {
           : undefined,
         pwdDiscount: mapping.pwdDiscount ? parseOptMoney(r[mapping.pwdDiscount]) : undefined,
         vatExemption: mapping.vatExemption ? parseOptMoney(r[mapping.vatExemption]) : undefined,
-        itemDiscountType: mapping.itemDiscountType
-          ? r[mapping.itemDiscountType] || undefined
+        itemDiscountType: firstDiscountType(
+          mapping.itemDiscountType ? r[mapping.itemDiscountType] : undefined,
+          mapping.totalDiscountType ? r[mapping.totalDiscountType] : undefined,
+        ),
+        totalDiscountType: mapping.totalDiscountType
+          ? r[mapping.totalDiscountType] || undefined
+          : undefined,
+        itemDiscountAmount: mapping.itemDiscountAmount
+          ? parseOptMoney(r[mapping.itemDiscountAmount])
+          : undefined,
+        totalDiscountAmount: mapping.totalDiscountAmount
+          ? parseOptMoney(r[mapping.totalDiscountAmount])
           : undefined,
       };
-      const stamped = assignedLineDiscounts(raw as ProcessedRow);
-      rawRows.push({
-        ...raw,
-        regularDiscount: stamped.regular || raw.regularDiscount,
-        seniorDiscount: stamped.senior || raw.seniorDiscount,
-        pwdDiscount: stamped.pwd || raw.pwdDiscount,
-      });
+      rawRows.push(raw);
+    }
+
+    inheritTxnDiscountTypes(rawRows as ProcessedRow[]);
+    for (const row of rawRows) {
+      const stamped = assignedLineDiscounts(row as ProcessedRow);
+      if (stamped.regular) row.regularDiscount = stamped.regular;
+      if (stamped.senior) row.seniorDiscount = stamped.senior;
+      if (stamped.pwd) row.pwdDiscount = stamped.pwd;
     }
 
     if (debugDates.length === 0) {

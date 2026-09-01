@@ -282,4 +282,34 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
     expect(derived[0].seniorDiscount).toBeCloseTo(28.57, 2);
     expect(derived[0].pwdDiscount).toBe(0);
   });
+
+  it("inherits Total Discount Type pwd onto other lines of the same ticket", () => {
+    const report = baseReport({
+      id: "inherit-total-type",
+      branch: "sm_bacoor",
+      date: "2026-08-01",
+      dateRangeEnd: "2026-08-01",
+      updatedAt: 5_000,
+      rowDetails: [
+        {
+          ...cashRow("2026-08-01", 142.86),
+          transactionId: "1788000001",
+          discountedPrice: 142.86,
+          grossPrice: 178.57,
+          vatExemption: 21.43,
+          itemDiscountType: "pwd",
+        },
+        {
+          ...cashRow("2026-08-01", 160),
+          transactionId: "1788000001",
+          discountedPrice: 160,
+          grossPrice: 264.01,
+        },
+      ],
+    });
+    const derived = deriveDailyLedgerFromPos([report], slugToUuid);
+    expect(derived[0].pwdDiscount).toBeCloseTo(35.71 + 104.01, 2);
+    expect(derived[0].seniorDiscount).toBe(0);
+    expect(derived[0].regularDiscount).toBe(0);
+  });
 });

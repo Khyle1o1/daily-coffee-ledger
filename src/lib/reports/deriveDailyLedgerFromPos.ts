@@ -109,7 +109,10 @@ function hasEnrichedFields(row: ProcessedRow): boolean {
     row.seniorDiscount != null ||
     row.pwdDiscount != null ||
     row.vatExemption != null ||
-    row.itemDiscountType != null
+    row.itemDiscountType != null ||
+    row.totalDiscountType != null ||
+    row.itemDiscountAmount != null ||
+    row.totalDiscountAmount != null
   );
 }
 
@@ -120,13 +123,16 @@ function moneyOrZero(n: unknown): number {
   return Number.isFinite(x) ? x : 0;
 }
 
-/** Gross − discounted. Pax amount columns are often empty even when a discount was applied. */
+/** Gross − discounted, or POS Item/Total Discount Amount when the price gap is empty. */
 export function impliedLineDiscount(row: ProcessedRow): number {
   const gross = moneyOrZero(row.grossPrice);
   const discounted = moneyOrZero(row.discountedPrice);
   if (gross > 0 && discounted > 0 && gross > discounted + 0.005) {
     return gross - discounted;
   }
+  const named =
+    moneyOrZero(row.itemDiscountAmount) + moneyOrZero(row.totalDiscountAmount);
+  if (named > 0.005) return named;
   return (
     moneyOrZero(row.regularDiscount) +
     moneyOrZero(row.seniorDiscount) +
@@ -134,16 +140,46 @@ export function impliedLineDiscount(row: ProcessedRow): number {
   );
 }
 
+export function kindFromDiscountType(value: string | undefined | null): PosDiscountKind | null {
+  const t = (value ?? "").toLowerCase().trim();
+  if (!t) return null;
+  if (/\bpwd\b/.test(t) || t.includes("person with")) return "pwd";
+  if (t.includes("senior")) return "senior";
+  if (
+    t.includes("regular") ||
+    t.includes("promo") ||
+    t.includes("employee") ||
+    t.includes("naac") ||
+    t.includes("solo parent") ||
+    t.includes("diplomat")
+  ) {
+    return "regular";
+  }
+  return null;
+}
+
 export function explicitDiscountKind(row: ProcessedRow): PosDiscountKind | null {
   if (moneyOrZero(row.pwdDiscount) > 0.005) return "pwd";
   if (moneyOrZero(row.seniorDiscount) > 0.005) return "senior";
   if (moneyOrZero(row.regularDiscount) > 0.005) return "regular";
-  const t = (row.itemDiscountType ?? "").toLowerCase().trim();
-  if (!t) return null;
-  if (/\bpwd\b/.test(t) || t.includes("person with") || t === "pwd") return "pwd";
-  if (t.includes("senior")) return "senior";
-  if (t.includes("regular") || t.includes("promo") || t.includes("employee")) return "regular";
-  return null;
+  return kindFromDiscountType(row.itemDiscountType) ?? kindFromDiscountType(row.totalDiscountType);
+}
+
+/** Copy Item/Total Discount Type onto other lines of the same ticket. */
+export function inheritTxnDiscountTypes(rows: ProcessedRow[]): void {
+  const kindByTxn = new Map<string, PosDiscountKind>();
+  for (const row of rows) {
+    const id = row.transactionId?.trim() || row.receiptNo?.trim();
+    if (!id) continue;
+    const kind = kindFromDiscountType(row.itemDiscountType) ?? kindFromDiscountType(row.totalDiscountType);
+    if (kind && !kindByTxn.has(id)) kindByTxn.set(id, kind);
+  }
+  for (const row of rows) {
+    if (kindFromDiscountType(row.itemDiscountType) ?? kindFromDiscountType(row.totalDiscountType)) continue;
+    const id = row.transactionId?.trim() || row.receiptNo?.trim();
+    const kind = id ? kindByTxn.get(id) : undefined;
+    if (kind && !row.itemDiscountType) row.itemDiscountType = kind;
+  }
 }
 
 /**

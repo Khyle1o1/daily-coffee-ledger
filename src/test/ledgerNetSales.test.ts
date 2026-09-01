@@ -69,12 +69,16 @@ describe("autoDetectColumns POS discounts", () => {
       "Pax Discount Amount - senior",
       "Pax Discount Amount - pwd",
       "Item Discount Type",
+      "Total Discount Type",
+      "Item Discount Amount",
     ]);
     expect(detected.regularDiscount).toBe("Pax Discount Amount - regular");
     expect(detected.seniorDiscount).toBe("Pax Discount Amount - senior");
     expect(detected.pwdDiscount).toBe("Pax Discount Amount - pwd");
     expect(detected.vatExemption).toBe("VAT Exemption");
     expect(detected.itemDiscountType).toBe("Item Discount Type");
+    expect(detected.totalDiscountType).toBe("Total Discount Type");
+    expect(detected.itemDiscountAmount).toBe("Item Discount Amount");
     expect(detected.rawItemName).toBe("Item");
   });
 });
