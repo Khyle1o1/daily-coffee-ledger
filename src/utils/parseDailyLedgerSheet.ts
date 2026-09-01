@@ -117,13 +117,15 @@ export function parseDailyLedgerSheetRows(
     const seniorDiscount = map.seniorDiscount ? parseMoney(row[map.seniorDiscount]) : 0;
     const pwdDiscount = map.pwdDiscount ? parseMoney(row[map.pwdDiscount]) : 0;
     const vatExemption = map.vatExemption ? parseMoney(row[map.vatExemption]) : 0;
-    const grossSalesNet = map.grossSalesNet
-      ? parseMoney(row[map.grossSalesNet])
-      : cash + maya + grab + paymongo + gcash + foodpanda + giftCard;
+    const tenderSum = cash + maya + grab + paymongo + gcash + foodpanda + giftCard;
+    const parsedGross = map.grossSales ? parseMoney(row[map.grossSales]) : null;
+    const parsedGrossNet = map.grossSalesNet ? parseMoney(row[map.grossSalesNet]) : null;
+    // Gross Net equals GROSS SALES; prefer the explicit GROSS SALES column, then tender sum.
+    const grossSales = parsedGross ?? parsedGrossNet ?? tenderSum;
+    const grossSalesNet = grossSales;
     const transactionCount = map.transactionCount
       ? Math.round(parseMoney(row[map.transactionCount]))
       : 0;
-    const grossSales = map.grossSales ? parseMoney(row[map.grossSales]) : grossSalesNet;
 
     // Skip all-zero placeholder rows
     if (

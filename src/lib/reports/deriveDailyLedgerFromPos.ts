@@ -181,9 +181,9 @@ export function deriveDailyLedgerFromPos(
     const cash = cell.cash + cell.otherTender;
     const tenderSum =
       cash + cell.maya + cell.grab + cell.paymongo + cell.gcash + cell.foodpanda + cell.giftCard;
+    // Gross Net must equal GROSS SALES (tender total). Net Sales is computed separately.
     const grossSales = tenderSum;
-    const discounts = cell.regularDiscount + cell.seniorDiscount + cell.pwdDiscount;
-    const grossSalesNet = Math.max(0, grossSales - discounts);
+    const grossSalesNet = grossSales;
 
     out.push({
       ledgerDate,

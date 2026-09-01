@@ -134,4 +134,30 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
     expect(derived.map((d) => d.ledgerDate).sort()).toEqual(["2026-06-15", "2026-07-20"]);
     expect(derived.find((d) => d.ledgerDate === "2026-07-20")?.grossSales).toBe(300);
   });
+
+  it("keeps Gross Net equal to GROSS SALES when discounts exist", () => {
+    const report = baseReport({
+      id: "disc",
+      branch: "sm_bacoor",
+      date: "2026-08-01",
+      dateRangeEnd: "2026-08-01",
+      updatedAt: 3_000,
+      rowDetails: [
+        {
+          ...cashRow("2026-08-01", 1000),
+          discountedPrice: 1000,
+          regularDiscount: 50,
+          seniorDiscount: 20,
+          pwdDiscount: 10,
+          vatExemption: 40,
+        },
+      ],
+    });
+
+    const derived = deriveDailyLedgerFromPos([report], slugToUuid);
+    expect(derived).toHaveLength(1);
+    expect(derived[0].grossSales).toBe(1000);
+    expect(derived[0].grossSalesNet).toBe(derived[0].grossSales);
+    expect(derived[0].regularDiscount + derived[0].seniorDiscount + derived[0].pwdDiscount).toBe(80);
+  });
 });

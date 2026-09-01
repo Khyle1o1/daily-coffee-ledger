@@ -85,7 +85,8 @@ export function mergeCashLedgerReport(params: {
       seniorDiscount: d.seniorDiscount,
       pwdDiscount: d.pwdDiscount,
       vatExemption: d.vatExemption,
-      grossSalesNet: d.grossSalesNet,
+      // Gross Net is the same figure as GROSS SALES (tender total).
+      grossSalesNet: d.grossSales,
       transactionCount: d.transactionCount,
       grossSales: d.grossSales,
       source: d.source,
@@ -111,7 +112,8 @@ export function mergeCashLedgerReport(params: {
       seniorDiscount: e.seniorDiscount,
       pwdDiscount: e.pwdDiscount,
       vatExemption: e.vatExemption,
-      grossSalesNet: e.grossSalesNet,
+      // Force Gross Net = GROSS SALES even on older sheet rows that stored them apart.
+      grossSalesNet: e.grossSales,
       transactionCount: e.transactionCount,
       grossSales: e.grossSales,
       source: e.source === "sheet" ? "sheet" : e.source,

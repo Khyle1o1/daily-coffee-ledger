@@ -142,6 +142,20 @@ export function emptyLedgerAmounts(): DailyLedgerAmounts {
   };
 }
 
+/** Regular + Senior + PWD. VAT exemption is not a discount. */
+export function ledgerDiscountTotal(
+  a: Pick<DailyLedgerAmounts, "regularDiscount" | "seniorDiscount" | "pwdDiscount">,
+): number {
+  return a.regularDiscount + a.seniorDiscount + a.pwdDiscount;
+}
+
+/** Gross sales with discounts removed. Gross Net stays equal to GROSS SALES. */
+export function ledgerNetSales(
+  a: Pick<DailyLedgerAmounts, "grossSales" | "regularDiscount" | "seniorDiscount" | "pwdDiscount">,
+): number {
+  return Math.max(0, a.grossSales - ledgerDiscountTotal(a));
+}
+
 export async function upsertDailyLedgerEntries(
   payloads: UpsertDailyLedgerPayload[],
 ): Promise<DailyLedgerEntry[]> {
