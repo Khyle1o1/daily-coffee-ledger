@@ -66,6 +66,7 @@ import type {
   ColumnMapping,
   DailyReport,
   MappingEntry,
+  ProcessedRow,
   RawRow,
   Category,
 } from "@/utils/types";
@@ -83,6 +84,7 @@ import {
 } from "@/lib/reports/dailyBreakdown";
 import { bucketSalesChartPoints } from "@/lib/reports/salesChartBuckets";
 import { contentDateBoundsFromRowDetails } from "@/lib/reports/posReportCoverage";
+import { assignedLineDiscounts } from "@/lib/reports/deriveDailyLedgerFromPos";
 import { listBranches } from "@/lib/api/branches";
 import { FilterBar, FilterTriggerButton } from "@/components/dashboard/FilterBar";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -453,7 +455,7 @@ export default function SummaryPage() {
         continue;
       }
       debugDates.push(d);
-      rawRows.push({
+      const raw: RawRow = {
         rawCategory: r[mapping.rawCategory] || "",
         rawItemName: r[mapping.rawItemName] || "",
         option: mapping.option ? r[mapping.option] || "" : "",
@@ -478,6 +480,13 @@ export default function SummaryPage() {
         itemDiscountType: mapping.itemDiscountType
           ? r[mapping.itemDiscountType] || undefined
           : undefined,
+      };
+      const stamped = assignedLineDiscounts(raw as ProcessedRow);
+      rawRows.push({
+        ...raw,
+        regularDiscount: stamped.regular || raw.regularDiscount,
+        seniorDiscount: stamped.senior || raw.seniorDiscount,
+        pwdDiscount: stamped.pwd || raw.pwdDiscount,
       });
     }
 

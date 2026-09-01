@@ -164,7 +164,7 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
     expect(derived[0].pwdDiscount).toBe(10);
   });
 
-  it("infers Senior from Gross − Discounted when VAT-exempt and pax amounts are missing", () => {
+  it("infers PWD from Gross − Discounted when VAT-exempt and type is missing", () => {
     const report = baseReport({
       id: "infer-sc",
       branch: "sm_bacoor",
@@ -181,9 +181,9 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
       ],
     });
     const derived = deriveDailyLedgerFromPos([report], slugToUuid);
-    expect(derived[0].seniorDiscount).toBeCloseTo(28.57, 2);
+    expect(derived[0].pwdDiscount).toBeCloseTo(28.57, 2);
     expect(derived[0].regularDiscount).toBe(0);
-    expect(derived[0].pwdDiscount).toBe(0);
+    expect(derived[0].seniorDiscount).toBe(0);
     expect(derived[0].grossSales).toBeCloseTo(142.86, 2);
     expect(derived[0].grossSalesNet).toBe(derived[0].grossSales);
   });
@@ -259,5 +259,27 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
     const derived = deriveDailyLedgerFromPos([report], slugToUuid);
     expect(derived[0].pwdDiscount).toBeCloseTo(28.57, 2);
     expect(derived[0].seniorDiscount).toBe(0);
+  });
+
+  it("keeps VAT-exempt lines as Senior when Item Discount Type is senior", () => {
+    const report = baseReport({
+      id: "infer-senior-type",
+      branch: "sm_bacoor",
+      date: "2026-09-01",
+      dateRangeEnd: "2026-09-01",
+      updatedAt: 4_000,
+      rowDetails: [
+        {
+          ...cashRow("2026-09-01", 114.29),
+          discountedPrice: 114.29,
+          grossPrice: 142.86,
+          vatExemption: 17.14,
+          itemDiscountType: "senior",
+        },
+      ],
+    });
+    const derived = deriveDailyLedgerFromPos([report], slugToUuid);
+    expect(derived[0].seniorDiscount).toBeCloseTo(28.57, 2);
+    expect(derived[0].pwdDiscount).toBe(0);
   });
 });

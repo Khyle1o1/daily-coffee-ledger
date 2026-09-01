@@ -138,12 +138,39 @@ export function explicitDiscountKind(row: ProcessedRow): PosDiscountKind | null 
   if (moneyOrZero(row.pwdDiscount) > 0.005) return "pwd";
   if (moneyOrZero(row.seniorDiscount) > 0.005) return "senior";
   if (moneyOrZero(row.regularDiscount) > 0.005) return "regular";
-  const t = (row.itemDiscountType ?? "").toLowerCase();
-  if (!t.trim()) return null;
-  if (/\bpwd\b/.test(t) || t.includes("person with")) return "pwd";
+  const t = (row.itemDiscountType ?? "").toLowerCase().trim();
+  if (!t) return null;
+  if (/\bpwd\b/.test(t) || t.includes("person with") || t === "pwd") return "pwd";
   if (t.includes("senior")) return "senior";
   if (t.includes("regular") || t.includes("promo") || t.includes("employee")) return "regular";
   return null;
+}
+
+/**
+ * POS Pax Discount Amount columns are often 0. Classify implied Gross−Discounted
+ * using Item Discount Type. VAT-exempt lines without a type are PWD (POS uses
+ * that type ~10× more often than senior on DOT files).
+ */
+export function assignedLineDiscounts(row: ProcessedRow): {
+  regular: number;
+  senior: number;
+  pwd: number;
+} {
+  const regular = moneyOrZero(row.regularDiscount);
+  const senior = moneyOrZero(row.seniorDiscount);
+  const pwd = moneyOrZero(row.pwdDiscount);
+  if (regular + senior + pwd > 0.005) return { regular, senior, pwd };
+
+  const implied = impliedLineDiscount(row);
+  if (implied <= 0.005) return { regular: 0, senior: 0, pwd: 0 };
+
+  const kind = explicitDiscountKind(row);
+  if (kind === "senior") return { regular: 0, senior: implied, pwd: 0 };
+  if (kind === "regular") return { regular: implied, senior: 0, pwd: 0 };
+  if (kind === "pwd" || moneyOrZero(row.vatExemption) > 0.005) {
+    return { regular: 0, senior: 0, pwd: implied };
+  }
+  return { regular: implied, senior: 0, pwd: 0 };
 }
 
 function txnDiscountKey(day: string, branchSlug: string, row: ProcessedRow): string {
@@ -227,10 +254,10 @@ export function deriveDailyLedgerFromPos(
         const kind =
           explicitDiscountKind(row) ??
           (tk ? txnKind.get(tk) ?? null : null) ??
-          (moneyOrZero(row.vatExemption) > 0.005 ? "senior" : implied > 0.005 ? "regular" : null);
-        if (implied > 0.005 && kind === "pwd") cell.pwdDiscount += implied;
-        else if (implied > 0.005 && kind === "senior") cell.seniorDiscount += implied;
-        else if (implied > 0.005) cell.regularDiscount += implied;
+          (moneyOrZero(row.vatExemption) > 0.005 ? "pwd" : implied > 0.005 ? "regular" : null);
+        if (implied > 0.005 && kind === "senior") cell.seniorDiscount += implied;
+        else if (implied > 0.005 && kind === "regular") cell.regularDiscount += implied;
+        else if (implied > 0.005) cell.pwdDiscount += implied;
       }
 
       cell.vatExemption += moneyOrZero(row.vatExemption);
