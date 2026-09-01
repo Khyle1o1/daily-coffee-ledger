@@ -73,6 +73,7 @@ const COMPUTE_ROW_DETAIL_KEYS = [
   "seniorDiscount",
   "pwdDiscount",
   "vatExemption",
+  "itemDiscountType",
 ] as const;
 
 function parseYmdLocal(ymd: string): Date {

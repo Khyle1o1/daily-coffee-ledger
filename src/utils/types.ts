@@ -73,6 +73,8 @@ export interface RawRow {
   seniorDiscount?: number;
   pwdDiscount?: number;
   vatExemption?: number;
+  /** POS "Item Discount Type" / "Total Discount Type" (Senior, PWD, Regular, …). */
+  itemDiscountType?: string;
 }
 
 export interface ProcessedRow extends RawRow {
@@ -159,6 +161,7 @@ export interface ColumnMapping {
   seniorDiscount?: string;
   pwdDiscount?: string;
   vatExemption?: string;
+  itemDiscountType?: string;
 }
 
 // View mode type

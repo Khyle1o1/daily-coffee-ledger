@@ -107,8 +107,47 @@ function hasEnrichedFields(row: ProcessedRow): boolean {
     row.regularDiscount != null ||
     row.seniorDiscount != null ||
     row.pwdDiscount != null ||
-    row.vatExemption != null
+    row.vatExemption != null ||
+    row.itemDiscountType != null
   );
+}
+
+export type PosDiscountKind = "regular" | "senior" | "pwd";
+
+function moneyOrZero(n: unknown): number {
+  const x = Number(n ?? 0);
+  return Number.isFinite(x) ? x : 0;
+}
+
+/** Gross − discounted. Pax amount columns are often empty even when a discount was applied. */
+export function impliedLineDiscount(row: ProcessedRow): number {
+  const gross = moneyOrZero(row.grossPrice);
+  const discounted = moneyOrZero(row.discountedPrice);
+  if (gross > 0 && discounted > 0 && gross > discounted + 0.005) {
+    return gross - discounted;
+  }
+  return (
+    moneyOrZero(row.regularDiscount) +
+    moneyOrZero(row.seniorDiscount) +
+    moneyOrZero(row.pwdDiscount)
+  );
+}
+
+export function explicitDiscountKind(row: ProcessedRow): PosDiscountKind | null {
+  if (moneyOrZero(row.pwdDiscount) > 0.005) return "pwd";
+  if (moneyOrZero(row.seniorDiscount) > 0.005) return "senior";
+  if (moneyOrZero(row.regularDiscount) > 0.005) return "regular";
+  const t = (row.itemDiscountType ?? "").toLowerCase();
+  if (!t.trim()) return null;
+  if (/\bpwd\b/.test(t) || t.includes("person with")) return "pwd";
+  if (t.includes("senior")) return "senior";
+  if (t.includes("regular") || t.includes("promo") || t.includes("employee")) return "regular";
+  return null;
+}
+
+function txnDiscountKey(day: string, branchSlug: string, row: ProcessedRow): string {
+  const id = row.transactionId?.trim() || row.receiptNo?.trim();
+  return id ? `${day}::${branchSlug}::${id}` : "";
 }
 
 /**
@@ -130,6 +169,21 @@ export function deriveDailyLedgerFromPos(
 
   const owners = pickDayReportOwners(reports);
   const cells = new Map<string, Cell>(); // `${date}::${branchSlug}`
+  const txnKind = new Map<string, PosDiscountKind>();
+
+  for (const report of reports) {
+    for (const row of report.rowDetails) {
+      if (!(row.transactionDate instanceof Date) || Number.isNaN(row.transactionDate.getTime())) {
+        continue;
+      }
+      const day = toLocalYmd(row.transactionDate);
+      const ownerKey = `${day}::${report.branch}`;
+      if (owners.get(ownerKey) !== report.id) continue;
+      const kind = explicitDiscountKind(row);
+      const tk = txnDiscountKey(day, report.branch, row);
+      if (kind && tk && !txnKind.has(tk)) txnKind.set(tk, kind);
+    }
+  }
 
   for (const report of reports) {
     for (const row of report.rowDetails) {
@@ -158,10 +212,27 @@ export function deriveDailyLedgerFromPos(
       if (bucket === "other") cell.otherTender += amt;
       else cell[bucket] += amt;
 
-      cell.regularDiscount += Number(row.regularDiscount ?? 0) || 0;
-      cell.seniorDiscount += Number(row.seniorDiscount ?? 0) || 0;
-      cell.pwdDiscount += Number(row.pwdDiscount ?? 0) || 0;
-      cell.vatExemption += Number(row.vatExemption ?? 0) || 0;
+      const explicitReg = moneyOrZero(row.regularDiscount);
+      const explicitSen = moneyOrZero(row.seniorDiscount);
+      const explicitPwd = moneyOrZero(row.pwdDiscount);
+      const explicitSum = explicitReg + explicitSen + explicitPwd;
+      if (explicitSum > 0.005) {
+        cell.regularDiscount += explicitReg;
+        cell.seniorDiscount += explicitSen;
+        cell.pwdDiscount += explicitPwd;
+      } else {
+        const implied = impliedLineDiscount(row);
+        const tk = txnDiscountKey(day, report.branch, row);
+        const kind =
+          explicitDiscountKind(row) ??
+          (tk ? txnKind.get(tk) ?? null : null) ??
+          (moneyOrZero(row.vatExemption) > 0.005 ? "senior" : implied > 0.005 ? "regular" : null);
+        if (implied > 0.005 && kind === "pwd") cell.pwdDiscount += implied;
+        else if (implied > 0.005 && kind === "senior") cell.seniorDiscount += implied;
+        else if (implied > 0.005) cell.regularDiscount += implied;
+      }
+
+      cell.vatExemption += moneyOrZero(row.vatExemption);
 
       const txnKey =
         row.transactionId?.trim() ||

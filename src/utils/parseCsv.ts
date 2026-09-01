@@ -18,6 +18,13 @@ export function parseCsvFile(file: File): Promise<{ headers: string[]; data: Rec
 }
 
 const HEADER_HINTS: Record<string, string[]> = {
+  // Before rawCategory's "type" / rawItemName's "item" hints steal these columns.
+  itemDiscountType: [
+    "item discount type",
+    "total discount type",
+    "pax discount type",
+    "discount type",
+  ],
   rawCategory: ["category", "cat", "rawcategory", "raw_category", "type"],
   rawItemName: ["item", "item_name", "itemname", "rawitemname", "raw_item_name", "name", "product", "description"],
   option: ["option", "modifier", "variant", "size"],

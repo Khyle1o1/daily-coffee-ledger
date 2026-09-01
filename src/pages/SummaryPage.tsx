@@ -420,6 +420,7 @@ export default function SummaryPage() {
       seniorDiscount: modalAutoMapping.seniorDiscount || "",
       pwdDiscount: modalAutoMapping.pwdDiscount || "",
       vatExemption: modalAutoMapping.vatExemption || "",
+      itemDiscountType: modalAutoMapping.itemDiscountType || "",
     };
 
     const required: (keyof ColumnMapping)[] = ["rawCategory", "rawItemName", "quantity", "unitPrice"];
@@ -474,6 +475,9 @@ export default function SummaryPage() {
           : undefined,
         pwdDiscount: mapping.pwdDiscount ? parseOptMoney(r[mapping.pwdDiscount]) : undefined,
         vatExemption: mapping.vatExemption ? parseOptMoney(r[mapping.vatExemption]) : undefined,
+        itemDiscountType: mapping.itemDiscountType
+          ? r[mapping.itemDiscountType] || undefined
+          : undefined,
       });
     }
 

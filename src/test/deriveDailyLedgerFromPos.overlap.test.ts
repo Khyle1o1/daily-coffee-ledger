@@ -159,5 +159,105 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
     expect(derived[0].grossSales).toBe(1000);
     expect(derived[0].grossSalesNet).toBe(derived[0].grossSales);
     expect(derived[0].regularDiscount + derived[0].seniorDiscount + derived[0].pwdDiscount).toBe(80);
+    expect(derived[0].regularDiscount).toBe(50);
+    expect(derived[0].seniorDiscount).toBe(20);
+    expect(derived[0].pwdDiscount).toBe(10);
+  });
+
+  it("infers Senior from Gross − Discounted when VAT-exempt and pax amounts are missing", () => {
+    const report = baseReport({
+      id: "infer-sc",
+      branch: "sm_bacoor",
+      date: "2026-09-01",
+      dateRangeEnd: "2026-09-01",
+      updatedAt: 4_000,
+      rowDetails: [
+        {
+          ...cashRow("2026-09-01", 114.29),
+          discountedPrice: 114.29,
+          grossPrice: 142.86,
+          vatExemption: 17.14,
+        },
+      ],
+    });
+    const derived = deriveDailyLedgerFromPos([report], slugToUuid);
+    expect(derived[0].seniorDiscount).toBeCloseTo(28.57, 2);
+    expect(derived[0].regularDiscount).toBe(0);
+    expect(derived[0].pwdDiscount).toBe(0);
+    expect(derived[0].grossSales).toBeCloseTo(114.29, 2);
+    expect(derived[0].grossSalesNet).toBe(derived[0].grossSales);
+  });
+
+  it("infers Regular from Gross − Discounted when there is no VAT exemption", () => {
+    const report = baseReport({
+      id: "infer-reg",
+      branch: "sm_bacoor",
+      date: "2026-09-01",
+      dateRangeEnd: "2026-09-01",
+      updatedAt: 4_000,
+      rowDetails: [
+        {
+          ...cashRow("2026-09-01", 90),
+          discountedPrice: 90,
+          grossPrice: 100,
+        },
+      ],
+    });
+    const derived = deriveDailyLedgerFromPos([report], slugToUuid);
+    expect(derived[0].regularDiscount).toBeCloseTo(10, 2);
+    expect(derived[0].seniorDiscount).toBe(0);
+    expect(derived[0].pwdDiscount).toBe(0);
+  });
+
+  it("classifies inferred discount as PWD when another line in the same txn has a PWD amount", () => {
+    const report = baseReport({
+      id: "infer-pwd-txn",
+      branch: "sm_bacoor",
+      date: "2026-09-01",
+      dateRangeEnd: "2026-09-01",
+      updatedAt: 4_000,
+      rowDetails: [
+        {
+          ...cashRow("2026-09-01", 259.05),
+          transactionId: "txn-pwd",
+          discountedPrice: 259.05,
+          grossPrice: 297.14,
+          pwdDiscount: 38.09,
+          vatExemption: 22.86,
+        },
+        {
+          ...cashRow("2026-09-01", 114.29),
+          transactionId: "txn-pwd",
+          discountedPrice: 114.29,
+          grossPrice: 142.86,
+          vatExemption: 17.14,
+        },
+      ],
+    });
+    const derived = deriveDailyLedgerFromPos([report], slugToUuid);
+    expect(derived[0].pwdDiscount).toBeCloseTo(38.09 + 28.57, 1);
+    expect(derived[0].seniorDiscount).toBe(0);
+  });
+
+  it("uses Item Discount Type to classify an inferred amount as PWD", () => {
+    const report = baseReport({
+      id: "infer-type",
+      branch: "sm_bacoor",
+      date: "2026-09-01",
+      dateRangeEnd: "2026-09-01",
+      updatedAt: 4_000,
+      rowDetails: [
+        {
+          ...cashRow("2026-09-01", 114.29),
+          discountedPrice: 114.29,
+          grossPrice: 142.86,
+          vatExemption: 17.14,
+          itemDiscountType: "PWD",
+        },
+      ],
+    });
+    const derived = deriveDailyLedgerFromPos([report], slugToUuid);
+    expect(derived[0].pwdDiscount).toBeCloseTo(28.57, 2);
+    expect(derived[0].seniorDiscount).toBe(0);
   });
 });
