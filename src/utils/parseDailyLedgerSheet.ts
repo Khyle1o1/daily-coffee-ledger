@@ -28,7 +28,11 @@ function findHeader(headers: string[], candidates: string[]): string | null {
     const cn = normHeader(c);
     const exact = norms.find((h) => h.n === cn);
     if (exact) return exact.raw;
-    const soft = norms.find((h) => h.n.includes(cn) || cn.includes(h.n));
+  }
+  for (const c of candidates) {
+    const cn = normHeader(c);
+    if (cn.length < 4) continue;
+    const soft = norms.find((h) => h.n.includes(cn));
     if (soft) return soft.raw;
   }
   return null;
@@ -83,23 +87,15 @@ export function parseDailyLedgerSheetRows(
     maya: findHeader(headers, ["maya"]),
     grab: findHeader(headers, ["grab"]),
     paymongo: findHeader(headers, ["paymongo"]),
-    gcash: findHeader(headers, ["gcash", "g cash"]),
+    gcash: findHeader(headers, ["gcash", "g cash", "g-cash"]),
     foodpanda: findHeader(headers, ["food panda", "foodpanda"]),
     giftCard: findHeader(headers, ["gift card", "giftcard"]),
     regularDiscount: findHeader(headers, ["regular discount"]),
     seniorDiscount: findHeader(headers, ["senior discount"]),
     pwdDiscount: findHeader(headers, ["pwd discount"]),
     vatExemption: findHeader(headers, ["vat exemption"]),
-    grossSalesNet: findHeader(headers, ["gross sales net", "gross sales (net)"]),
     transactionCount: findHeader(headers, ["transaction count", "transactions"]),
-    grossSales: findHeader(headers, ["gross sales"]),
   };
-
-  // Prefer explicit GROSS SALES over Gross Sales (Net) when both exist
-  const grossHeaders = headers.filter((h) => normHeader(h) === "gross sales");
-  if (grossHeaders.length > 0) {
-    map.grossSales = grossHeaders[grossHeaders.length - 1];
-  }
 
   const out: ParsedDailyLedgerRow[] = [];
   for (const row of data) {
@@ -118,10 +114,8 @@ export function parseDailyLedgerSheetRows(
     const pwdDiscount = map.pwdDiscount ? parseMoney(row[map.pwdDiscount]) : 0;
     const vatExemption = map.vatExemption ? parseMoney(row[map.vatExemption]) : 0;
     const tenderSum = cash + maya + grab + paymongo + gcash + foodpanda + giftCard;
-    const parsedGross = map.grossSales ? parseMoney(row[map.grossSales]) : null;
-    const parsedGrossNet = map.grossSalesNet ? parseMoney(row[map.grossSalesNet]) : null;
-    // Gross Net equals GROSS SALES; prefer the explicit GROSS SALES column, then tender sum.
-    const grossSales = parsedGross ?? parsedGrossNet ?? tenderSum;
+    const discounts = regularDiscount + seniorDiscount + pwdDiscount;
+    const grossSales = tenderSum + discounts;
     const grossSalesNet = grossSales;
     const transactionCount = map.transactionCount
       ? Math.round(parseMoney(row[map.transactionCount]))

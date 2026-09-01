@@ -1,34 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { ledgerNetSales, emptyLedgerAmounts } from "@/services/dailyLedgerService";
+import { ledgerGrossSales, ledgerNetSales, emptyLedgerAmounts } from "@/services/dailyLedgerService";
 import { parseDailyLedgerSheetRows } from "@/utils/parseDailyLedgerSheet";
 import { autoDetectColumns } from "@/utils/parseCsv";
 
-describe("ledgerNetSales", () => {
-  it("is GROSS SALES minus Regular, Senior, and PWD discounts", () => {
+describe("ledgerGrossSales / ledgerNetSales", () => {
+  it("adds tenders plus Regular, Senior, and PWD discounts for GROSS SALES", () => {
     const row = {
       ...emptyLedgerAmounts(),
-      grossSales: 25547,
-      grossSalesNet: 25547,
-      regularDiscount: 100,
-      seniorDiscount: 50,
-      pwdDiscount: 25,
+      cash: 8424,
+      maya: 6875,
+      grab: 3064,
+      paymongo: 6955,
+      foodpanda: 230,
+      regularDiscount: 291,
+      seniorDiscount: 176,
+      pwdDiscount: 0,
       vatExemption: 106,
     };
-    expect(ledgerNetSales(row)).toBe(25372);
+    expect(ledgerGrossSales(row)).toBe(8424 + 6875 + 3064 + 6955 + 230 + 291 + 176);
+    expect(ledgerNetSales(row)).toBe(8424 + 6875 + 3064 + 6955 + 230);
   });
 
-  it("does not subtract VAT exemption", () => {
+  it("does not add VAT exemption into GROSS SALES or Net Sales", () => {
     const row = {
       ...emptyLedgerAmounts(),
-      grossSales: 1000,
+      cash: 1000,
       vatExemption: 200,
     };
+    expect(ledgerGrossSales(row)).toBe(1000);
     expect(ledgerNetSales(row)).toBe(1000);
   });
 });
 
-describe("parseDailyLedgerSheetRows Gross Net", () => {
-  it("forces Gross Net to equal GROSS SALES even when the sheet columns differ", () => {
+describe("parseDailyLedgerSheetRows GROSS SALES", () => {
+  it("sums tenders plus Regular/Senior/PWD discounts", () => {
     const rows = parseDailyLedgerSheetRows(
       ["Date", "Cash", "Gross Sales (Net)", "GROSS SALES", "Regular Discount"],
       [
@@ -42,10 +47,10 @@ describe("parseDailyLedgerSheetRows Gross Net", () => {
       ],
     );
     expect(rows).toHaveLength(1);
-    expect(rows[0].grossSales).toBe(1000);
-    expect(rows[0].grossSalesNet).toBe(1000);
+    expect(rows[0].grossSales).toBe(1100);
     expect(rows[0].regularDiscount).toBe(100);
-    expect(ledgerNetSales(rows[0])).toBe(900);
+    expect(ledgerNetSales(rows[0])).toBe(1000);
+    expect(ledgerGrossSales(rows[0])).toBe(1100);
   });
 });
 

@@ -156,7 +156,7 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
 
     const derived = deriveDailyLedgerFromPos([report], slugToUuid);
     expect(derived).toHaveLength(1);
-    expect(derived[0].grossSales).toBe(1000);
+    expect(derived[0].grossSales).toBe(1080);
     expect(derived[0].grossSalesNet).toBe(derived[0].grossSales);
     expect(derived[0].regularDiscount + derived[0].seniorDiscount + derived[0].pwdDiscount).toBe(80);
     expect(derived[0].regularDiscount).toBe(50);
@@ -184,7 +184,7 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
     expect(derived[0].seniorDiscount).toBeCloseTo(28.57, 2);
     expect(derived[0].regularDiscount).toBe(0);
     expect(derived[0].pwdDiscount).toBe(0);
-    expect(derived[0].grossSales).toBeCloseTo(114.29, 2);
+    expect(derived[0].grossSales).toBeCloseTo(142.86, 2);
     expect(derived[0].grossSalesNet).toBe(derived[0].grossSales);
   });
 

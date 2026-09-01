@@ -5,7 +5,7 @@ import type {
   DailyLedgerEntry,
   DailyLedgerSource,
 } from "@/services/dailyLedgerService";
-import { emptyLedgerAmounts } from "@/services/dailyLedgerService";
+import { emptyLedgerAmounts, ledgerGrossSales } from "@/services/dailyLedgerService";
 
 export interface CashLedgerReportRow extends DailyLedgerAmounts {
   ledgerDate: string;
@@ -85,10 +85,9 @@ export function mergeCashLedgerReport(params: {
       seniorDiscount: d.seniorDiscount,
       pwdDiscount: d.pwdDiscount,
       vatExemption: d.vatExemption,
-      // Gross Net is the same figure as GROSS SALES (tender total).
-      grossSalesNet: d.grossSales,
+      grossSalesNet: ledgerGrossSales(d),
       transactionCount: d.transactionCount,
-      grossSales: d.grossSales,
+      grossSales: ledgerGrossSales(d),
       source: d.source,
       sourceFileName: null,
     });
@@ -112,10 +111,9 @@ export function mergeCashLedgerReport(params: {
       seniorDiscount: e.seniorDiscount,
       pwdDiscount: e.pwdDiscount,
       vatExemption: e.vatExemption,
-      // Force Gross Net = GROSS SALES even on older sheet rows that stored them apart.
-      grossSalesNet: e.grossSales,
+      grossSalesNet: ledgerGrossSales(e),
       transactionCount: e.transactionCount,
-      grossSales: e.grossSales,
+      grossSales: ledgerGrossSales(e),
       source: e.source === "sheet" ? "sheet" : e.source,
       sourceFileName: e.sourceFileName,
     });

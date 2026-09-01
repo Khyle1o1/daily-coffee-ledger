@@ -3,7 +3,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatPHP } from "@/utils/format";
 import type { CashLedgerReportResult } from "@/lib/reports/mergeCashLedgerReport";
-import { ledgerNetSales, type DailyLedgerAmounts } from "@/services/dailyLedgerService";
+import { ledgerGrossSales, ledgerNetSales, type DailyLedgerAmounts } from "@/services/dailyLedgerService";
 
 function money(n: number) {
   return Math.round(n * 100) / 100;
@@ -26,10 +26,9 @@ function amountCells(t: DailyLedgerAmounts): (string | number)[] {
     money(t.seniorDiscount),
     money(t.pwdDiscount),
     money(t.vatExemption),
-    money(t.grossSales),
+    money(ledgerGrossSales(t)),
     money(ledgerNetSales(t)),
     t.transactionCount,
-    money(t.grossSales),
   ];
 }
 
@@ -48,10 +47,9 @@ const DETAIL_HEADERS = [
   "Senior Discount",
   "PWD Discount",
   "VAT Exemption",
-  "Gross Net",
+  "GROSS SALES",
   "Net Sales",
   "Txn Count",
-  "GROSS SALES",
   "Source",
 ] as const;
 
@@ -81,7 +79,8 @@ export function exportCashLedgerCsv(result: CashLedgerReportResult): void {
   lines.push("");
   lines.push([csvCell("Summary"), csvCell("Value")].join(","));
   lines.push([csvCell("Rows"), csvCell(result.rows.length)].join(","));
-  lines.push([csvCell("GROSS SALES"), csvCell(money(result.totals.grossSales))].join(","));
+  lines.push([csvCell("GROSS SALES"), csvCell(money(ledgerGrossSales(result.totals)))].join(","));
+  lines.push([csvCell("Net Sales"), csvCell(money(ledgerNetSales(result.totals)))].join(","));
   lines.push([csvCell("Txn Count"), csvCell(result.totals.transactionCount)].join(","));
   lines.push([csvCell("Cash"), csvCell(money(result.totals.cash))].join(","));
   lines.push([csvCell("Maya"), csvCell(money(result.totals.maya))].join(","));
@@ -94,8 +93,6 @@ export function exportCashLedgerCsv(result: CashLedgerReportResult): void {
   lines.push([csvCell("Senior Discount"), csvCell(money(result.totals.seniorDiscount))].join(","));
   lines.push([csvCell("PWD Discount"), csvCell(money(result.totals.pwdDiscount))].join(","));
   lines.push([csvCell("VAT Exemption"), csvCell(money(result.totals.vatExemption))].join(","));
-  lines.push([csvCell("Gross Net"), csvCell(money(result.totals.grossSales))].join(","));
-  lines.push([csvCell("Net Sales"), csvCell(money(ledgerNetSales(result.totals)))].join(","));
   lines.push([csvCell("Generated"), csvCell(result.generatedAt)].join(","));
 
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -123,10 +120,9 @@ export function exportCashLedgerExcel(result: CashLedgerReportResult): void {
     "Senior Discount": money(r.seniorDiscount),
     "PWD Discount": money(r.pwdDiscount),
     "VAT Exemption": money(r.vatExemption),
-    "Gross Net": money(r.grossSales),
+    "GROSS SALES": money(ledgerGrossSales(r)),
     "Net Sales": money(ledgerNetSales(r)),
     "Txn Count": r.transactionCount,
-    "GROSS SALES": money(r.grossSales),
     Source: r.source,
   }));
 
@@ -145,16 +141,16 @@ export function exportCashLedgerExcel(result: CashLedgerReportResult): void {
     "Senior Discount": money(result.totals.seniorDiscount),
     "PWD Discount": money(result.totals.pwdDiscount),
     "VAT Exemption": money(result.totals.vatExemption),
-    "Gross Net": money(result.totals.grossSales),
+    "GROSS SALES": money(ledgerGrossSales(result.totals)),
     "Net Sales": money(ledgerNetSales(result.totals)),
     "Txn Count": result.totals.transactionCount,
-    "GROSS SALES": money(result.totals.grossSales),
     Source: "",
   });
 
   const summaryRows = [
     { Metric: "Rows", Value: result.rows.length },
-    { Metric: "GROSS SALES", Value: money(result.totals.grossSales) },
+    { Metric: "GROSS SALES", Value: money(ledgerGrossSales(result.totals)) },
+    { Metric: "Net Sales", Value: money(ledgerNetSales(result.totals)) },
     { Metric: "Txn Count", Value: result.totals.transactionCount },
     { Metric: "Cash", Value: money(result.totals.cash) },
     { Metric: "Maya", Value: money(result.totals.maya) },
@@ -167,8 +163,6 @@ export function exportCashLedgerExcel(result: CashLedgerReportResult): void {
     { Metric: "Senior Discount", Value: money(result.totals.seniorDiscount) },
     { Metric: "PWD Discount", Value: money(result.totals.pwdDiscount) },
     { Metric: "VAT Exemption", Value: money(result.totals.vatExemption) },
-    { Metric: "Gross Net", Value: money(result.totals.grossSales) },
-    { Metric: "Net Sales", Value: money(ledgerNetSales(result.totals)) },
     { Metric: "Generated", Value: result.generatedAt },
   ];
 
@@ -187,7 +181,7 @@ export function exportCashLedgerPdf(result: CashLedgerReportResult): void {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(
-    `Generated ${new Date(result.generatedAt).toLocaleString()}  |  GROSS SALES ${formatPHP(result.totals.grossSales)}  |  Txns ${result.totals.transactionCount}`,
+    `Generated ${new Date(result.generatedAt).toLocaleString()}  |  GROSS SALES ${formatPHP(ledgerGrossSales(result.totals))}  |  Txns ${result.totals.transactionCount}`,
     margin,
     52,
   );
@@ -196,7 +190,7 @@ export function exportCashLedgerPdf(result: CashLedgerReportResult): void {
     startY: 64,
     head: [[
       "Date", "Day", "Branch", "Cash", "Maya", "Grab", "Paymongo", "GCash", "FP", "Gift",
-      "Reg", "Senior", "PWD", "VAT Ex", "G.Net", "Net Sales", "Txn", "GROSS", "Src",
+      "Reg", "Senior", "PWD", "VAT Ex", "GROSS", "Net Sales", "Txn", "Src",
     ]],
     body: [
       ...result.rows.map((r) => [
@@ -214,10 +208,9 @@ export function exportCashLedgerPdf(result: CashLedgerReportResult): void {
         formatPHP(r.seniorDiscount),
         formatPHP(r.pwdDiscount),
         formatPHP(r.vatExemption),
-        formatPHP(r.grossSales),
+        formatPHP(ledgerGrossSales(r)),
         formatPHP(ledgerNetSales(r)),
         r.transactionCount,
-        formatPHP(r.grossSales),
         r.source === "sheet" ? "Sheet" : r.source === "pos_derived" ? "POS" : "Partial",
       ]),
       [
@@ -235,10 +228,9 @@ export function exportCashLedgerPdf(result: CashLedgerReportResult): void {
         formatPHP(result.totals.seniorDiscount),
         formatPHP(result.totals.pwdDiscount),
         formatPHP(result.totals.vatExemption),
-        formatPHP(result.totals.grossSales),
+        formatPHP(ledgerGrossSales(result.totals)),
         formatPHP(ledgerNetSales(result.totals)),
         result.totals.transactionCount,
-        formatPHP(result.totals.grossSales),
         "",
       ],
     ],

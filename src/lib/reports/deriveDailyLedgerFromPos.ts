@@ -1,6 +1,7 @@
 import type { DailyReport, ProcessedRow } from "@/utils/types";
 import {
   emptyLedgerAmounts,
+  ledgerGrossSales,
   type DailyLedgerAmounts,
   type DailyLedgerSource,
 } from "@/services/dailyLedgerService";
@@ -250,15 +251,7 @@ export function deriveDailyLedgerFromPos(
 
     // Unmapped tenders (e.g. unknown payment types) fold into cash for sheet parity
     const cash = cell.cash + cell.otherTender;
-    const tenderSum =
-      cash + cell.maya + cell.grab + cell.paymongo + cell.gcash + cell.foodpanda + cell.giftCard;
-    // Gross Net must equal GROSS SALES (tender total). Net Sales is computed separately.
-    const grossSales = tenderSum;
-    const grossSalesNet = grossSales;
-
-    out.push({
-      ledgerDate,
-      branchId,
+    const amounts = {
       cash,
       maya: cell.maya,
       grab: cell.grab,
@@ -269,6 +262,14 @@ export function deriveDailyLedgerFromPos(
       regularDiscount: cell.regularDiscount,
       seniorDiscount: cell.seniorDiscount,
       pwdDiscount: cell.pwdDiscount,
+    };
+    const grossSales = ledgerGrossSales(amounts);
+    const grossSalesNet = grossSales;
+
+    out.push({
+      ledgerDate,
+      branchId,
+      ...amounts,
       vatExemption: cell.vatExemption,
       grossSalesNet,
       transactionCount: cell.txnIds.size,

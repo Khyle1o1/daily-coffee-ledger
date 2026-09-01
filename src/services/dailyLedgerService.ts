@@ -149,11 +149,38 @@ export function ledgerDiscountTotal(
   return a.regularDiscount + a.seniorDiscount + a.pwdDiscount;
 }
 
-/** Gross sales with discounts removed. Gross Net stays equal to GROSS SALES. */
-export function ledgerNetSales(
-  a: Pick<DailyLedgerAmounts, "grossSales" | "regularDiscount" | "seniorDiscount" | "pwdDiscount">,
+export type LedgerSalesParts = Pick<
+  DailyLedgerAmounts,
+  | "cash"
+  | "maya"
+  | "grab"
+  | "paymongo"
+  | "gcash"
+  | "foodpanda"
+  | "giftCard"
+  | "regularDiscount"
+  | "seniorDiscount"
+  | "pwdDiscount"
+>;
+
+/** Cash + Maya + Grab + Paymongo + GCash + FoodPanda + Gift Card. */
+export function ledgerTenderTotal(
+  a: Pick<
+    DailyLedgerAmounts,
+    "cash" | "maya" | "grab" | "paymongo" | "gcash" | "foodpanda" | "giftCard"
+  >,
 ): number {
-  return Math.max(0, a.grossSales - ledgerDiscountTotal(a));
+  return a.cash + a.maya + a.grab + a.paymongo + a.gcash + a.foodpanda + a.giftCard;
+}
+
+/** Tenders plus Regular / Senior / PWD discounts. VAT Ex. is not included. */
+export function ledgerGrossSales(a: LedgerSalesParts): number {
+  return ledgerTenderTotal(a) + ledgerDiscountTotal(a);
+}
+
+/** GROSS SALES minus Regular / Senior / PWD (equals the tender total). */
+export function ledgerNetSales(a: LedgerSalesParts): number {
+  return Math.max(0, ledgerGrossSales(a) - ledgerDiscountTotal(a));
 }
 
 export async function upsertDailyLedgerEntries(

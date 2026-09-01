@@ -45,6 +45,7 @@ import {
   listDailyLedgerEntries,
   upsertDailyLedgerEntries,
   ledgerNetSales,
+  ledgerGrossSales,
   type UpsertDailyLedgerPayload,
 } from "@/services/dailyLedgerService";
 import { fetchDailyReportsForComputeRange } from "@/services/reportsService";
@@ -242,9 +243,9 @@ export default function DailyCashLedgerReportPage() {
         seniorDiscount: r.seniorDiscount,
         pwdDiscount: r.pwdDiscount,
         vatExemption: r.vatExemption,
-        grossSalesNet: r.grossSales,
+        grossSalesNet: ledgerGrossSales(r),
         transactionCount: r.transactionCount,
-        grossSales: r.grossSales,
+        grossSales: ledgerGrossSales(r),
         source: "sheet",
         sourceFileName: file.name,
       }));
@@ -492,7 +493,7 @@ export default function DailyCashLedgerReportPage() {
         {result?.hasData && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <Stat label="GROSS SALES" value={formatPHP(result.totals.grossSales)} />
+              <Stat label="GROSS SALES" value={formatPHP(ledgerGrossSales(result.totals))} />
               <Stat label="Net Sales" value={formatPHP(ledgerNetSales(result.totals))} />
               <Stat label="Txn Count" value={String(result.totals.transactionCount)} />
               <Stat label="Cash" value={formatPHP(result.totals.cash)} />
@@ -531,13 +532,13 @@ export default function DailyCashLedgerReportPage() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse min-w-[1500px]">
+                <table className="w-full text-xs border-collapse min-w-[1400px]">
                   <thead>
                     <tr className="bg-primary text-primary-foreground">
                       {[
                         "Date", "Day", "Branch", "Cash", "Maya", "Grab", "Paymongo", "GCash",
                         "FoodPanda", "Gift Card", "Regular Disc.", "Senior", "PWD", "VAT Ex.",
-                        "Gross Net", "Net Sales", "Txn", "GROSS SALES", "Source",
+                        "GROSS SALES", "Net Sales", "Txn", "Source",
                       ].map((h) => (
                         <th key={h} className="px-2 py-2.5 text-right first:text-left font-semibold whitespace-nowrap">
                           {h}
@@ -565,10 +566,9 @@ export default function DailyCashLedgerReportPage() {
                         <td className="px-2 py-1.5 text-right tabular-nums">{formatPHP(r.seniorDiscount)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{formatPHP(r.pwdDiscount)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{formatPHP(r.vatExemption)}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">{formatPHP(r.grossSales)}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums font-bold">{formatPHP(ledgerGrossSales(r))}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{formatPHP(ledgerNetSales(r))}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{r.transactionCount}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums font-bold">{formatPHP(r.grossSales)}</td>
                         <td className="px-2 py-1.5 text-right whitespace-nowrap">
                           <span
                             className={cn(
@@ -602,10 +602,9 @@ export default function DailyCashLedgerReportPage() {
                       <td className="px-2 py-2 text-right">{formatPHP(result.totals.seniorDiscount)}</td>
                       <td className="px-2 py-2 text-right">{formatPHP(result.totals.pwdDiscount)}</td>
                       <td className="px-2 py-2 text-right">{formatPHP(result.totals.vatExemption)}</td>
-                      <td className="px-2 py-2 text-right">{formatPHP(result.totals.grossSales)}</td>
+                      <td className="px-2 py-2 text-right text-[#C05A1F]">{formatPHP(ledgerGrossSales(result.totals))}</td>
                       <td className="px-2 py-2 text-right">{formatPHP(ledgerNetSales(result.totals))}</td>
                       <td className="px-2 py-2 text-right">{result.totals.transactionCount}</td>
-                      <td className="px-2 py-2 text-right text-[#C05A1F]">{formatPHP(result.totals.grossSales)}</td>
                       <td />
                     </tr>
                   </tfoot>
