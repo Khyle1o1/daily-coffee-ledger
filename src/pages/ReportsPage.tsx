@@ -46,7 +46,11 @@ import { CATEGORIES } from "@/utils/types";
 
 import { useLiveBranches } from "@/hooks/useLiveBranches";
 import { logEvent } from "@/services/auditService";
-import { fetchDailyReportsForComputeRange, MAX_GENERATE_SPAN_DAYS } from "@/services/reportsService";
+import {
+  fetchDailyReportsForComputeRange,
+  fetchDailyReportsForComputeRollup,
+  MAX_GENERATE_SPAN_DAYS,
+} from "@/services/reportsService";
 import { dailyReportsFromRows } from "@/services/reportConverter";
 import { queryKeys } from "@/hooks/queries/queryKeys";
 import { useAuth } from "@/auth/useAuth";
@@ -298,22 +302,32 @@ export default function ReportsPage() {
         branchIds,
       });
 
+      // Category Performance reads dailyBreakdown out of summary_meta and needs
+      // no line data at all. Every other report folds lines into sums, so the
+      // pre-aggregated rollup gives identical numbers for a fraction of the
+      // payload (~15 MB vs ~158 MB over a full year, all branches).
       const includeRowDetails = reportType !== "CATEGORY_PERFORMANCE";
 
       const rows = await queryClient.fetchQuery({
         queryKey: [
           ...computeKey,
           "overlap-v2",
-          "compute-slim-rpc-v2",
-          includeRowDetails ? "with-rows" : "agg-only",
+          "rollup-v1",
+          includeRowDetails ? "rollup-rows" : "agg-only",
         ] as const,
         queryFn:  () =>
-          fetchDailyReportsForComputeRange({
-            dateFrom:  fetchBounds.dateFrom,
-            dateTo:    fetchBounds.dateTo,
-            branchIds,
-            includeRowDetails,
-          }),
+          includeRowDetails
+            ? fetchDailyReportsForComputeRollup({
+                dateFrom: fetchBounds.dateFrom,
+                dateTo:   fetchBounds.dateTo,
+                branchIds,
+              })
+            : fetchDailyReportsForComputeRange({
+                dateFrom:  fetchBounds.dateFrom,
+                dateTo:    fetchBounds.dateTo,
+                branchIds,
+                includeRowDetails: false,
+              }),
         staleTime: 60_000, // 1 minute — reuse cache for repeated generates
       });
 

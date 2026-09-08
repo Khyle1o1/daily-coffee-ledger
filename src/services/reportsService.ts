@@ -927,6 +927,117 @@ export async function fetchDailyReportsForComputeRange(
 }
 
 /**
+ * One report's aggregated lines from `reports_daily_rollup` (migration 028).
+ * Lines are positional: [txn_date, item, category, paymentType, qty, sales].
+ */
+interface RollupReportRow {
+  report_id: string;
+  line_count: number;
+  lines: unknown;
+}
+
+const num = (v: number | string | null | undefined): number => {
+  const n = typeof v === "number" ? v : Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+};
+
+function isMissingRpcError(error: { message?: string; code?: string }): boolean {
+  const code = error.code ?? "";
+  const msg = error.message ?? "";
+  return code === "PGRST202" || /could not find the function|does not exist/i.test(msg);
+}
+
+/**
+ * Decode positional rollup lines into the ProcessedRow shape compute functions
+ * already consume. Exported for tests.
+ */
+export function rollupLinesToRowDetails(lines: unknown): ProcessedRow[] {
+  if (!Array.isArray(lines)) return [];
+  const out: ProcessedRow[] = [];
+  for (const line of lines) {
+    if (!Array.isArray(line) || line.length < 6) continue;
+    const [txnDate, item, category, paymentType, qty, sales] = line;
+    out.push({
+      status: "MAPPED",
+      transactionDate: txnDate,
+      mappedCat: category,
+      mappedItemName: String(item ?? ""),
+      rawItemName: String(item ?? ""),
+      paymentType: String(paymentType ?? ""),
+      quantity: num(qty),
+      rowSales: num(sales),
+    } as unknown as ProcessedRow);
+  }
+  return out;
+}
+
+/**
+ * Compute fetch backed by the `report_line_totals` rollup.
+ *
+ * Every report on ReportsPage folds rowDetails into sums keyed by category,
+ * item and channel, so shipping raw POS lines is wasted transfer and heap.
+ * This fetches report metadata from `summary_meta` (which never touches the
+ * rowDetails TOAST) and line data pre-aggregated in Postgres, then hands back
+ * the same `DailyReportRow[]` shape — the compute functions are unchanged.
+ *
+ * Full year, all 23 branches: ~148k aggregated rows (~15 MB) in place of
+ * ~670k raw lines (~158 MB). Spans over 31 days split into month windows so
+ * each RPC stays inside the authenticator 8s statement_timeout.
+ */
+export async function fetchDailyReportsForComputeRollup(
+  params: ComputeFetchParams,
+): Promise<DailyReportRow[]> {
+  const { dateFrom, dateTo, branchIds } = params;
+  const p_branch_ids = branchIds && branchIds.length > 0 ? branchIds : null;
+
+  const windows =
+    spanDaysInclusive(dateFrom, dateTo) > MAX_SINGLE_REQUEST_SPAN_DAYS
+      ? iterMonthWindows(dateFrom, dateTo)
+      : [{ dateFrom, dateTo }];
+
+  const [metaRows, rpcResults] = await Promise.all([
+    fetchDailyReportsForComputeRange({ ...params, includeRowDetails: false }),
+    mapPool(windows, COMPUTE_WINDOW_CONCURRENCY, (window) =>
+      supabase.rpc("reports_daily_rollup", {
+        p_date_from: window.dateFrom,
+        p_date_to: window.dateTo,
+        p_branch_ids,
+      }),
+    ),
+  ]);
+
+  for (const result of rpcResults) {
+    if (!result.error) continue;
+    if (isMissingRpcError(result.error)) {
+      return fetchDailyReportsForComputeRange({
+        ...params,
+        includeRowDetails: true,
+      });
+    }
+    throw new Error(`Failed to fetch report rollup: ${result.error.message}`);
+  }
+
+  const byReport = new Map<string, ProcessedRow[]>();
+  for (const result of rpcResults) {
+    for (const row of (result.data ?? []) as RollupReportRow[]) {
+      const decoded = rollupLinesToRowDetails(row.lines);
+      const prev = byReport.get(row.report_id);
+      if (prev) prev.push(...decoded);
+      else byReport.set(row.report_id, decoded);
+    }
+  }
+
+  return metaRows.map((row) => ({
+    ...row,
+    summary_json: {
+      ...(row.summary_json as DailySummaryJSON),
+      rowDetails: byReport.get(row.id) ?? [],
+      unmappedSummary: [],
+    },
+  }));
+}
+
+/**
  * Get a single daily report by ID
  */
 export async function getDailyReport(id: string): Promise<DailyReportRow | null> {

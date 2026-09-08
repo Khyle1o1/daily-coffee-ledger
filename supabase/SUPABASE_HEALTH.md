@@ -147,23 +147,28 @@ larger. Post-gzip, 96 MB of JSON is ~5 MB on the wire, so the cap was raised.
 Full-year generate over all 23 branches went **17.8 s → 11.8 s** with no window
 over the cap.
 
-### Year-scale headroom (worst realistic case)
+### Year-scale headroom — `report_line_totals` (migration 028)
 
-Full year 2026, all 23 branches, `rowDetails` included, after the month split:
+ReportsPage generate no longer downloads raw POS lines. Every report on that
+page is a sum of qty/sales by category, item and channel, so a trigger-maintained
+rollup (`report_line_totals`) stores that grain and `reports_daily_rollup`
+returns it. The browser still sees `DailyReport.rowDetails`, but each "line" is
+already aggregated.
 
-| Metric | Measured | Cap |
-|---|---|---|
-| Time | 11.8 s | — |
-| Unique reports | 89 | 150 |
-| Merged payload | 158.1 MB | 384 MB |
-| Line rows | 445,191 | — |
+Do **not** aggregate at query time with `jsonb_array_elements(summary_json)` —
+that is the 026 detoast trap. Rebuild runs per report on write only.
 
-Both caps have room, but the ceiling here is **browser memory**, not the
-database: 158 MB of JSON text parses into roughly 600 MB of JS objects. A
-narrower branch selection collapses this — a full year over 3 branches is 4.1 MB
-and 1.0 s. If year-wide, all-branch generates become routine, the next move is
-serving those pages from `dailyBreakdown` aggregates (`p_include_row_details =
-false`, 0.30 MB) instead of line rows.
+Measured through PostgREST with gzip, full year 2026, all 23 branches:
+
+| Path | JSON | Wire | Time | Lines |
+|---|---|---|---|---|
+| Old (raw `rowDetails`, 12 month windows) | 158.1 MB | ~8 MB | 11.8 s | 445,191 |
+| New (`reports_daily_rollup` + meta) | **10.8 MB** | **0.93 MB** | **1.4 s** | 147,711 |
+
+A single year-wide rollup RPC also fits the 8s authenticator timeout (1.07 s /
+9.93 MB). The client still splits spans >31 days into month windows as a
+ceiling. Daily Cash Ledger still fetches raw `rowDetails` because it needs
+discount columns the rollup RPC does not return.
 
 These paths used to narrate themselves in the browser console. That logging was
 removed — it leaked user ids, emails and roles — and production builds now drop
@@ -171,9 +176,9 @@ removed — it leaked user ids, emails and roles — and production builds now d
 enforced by ESLint.
 
 To observe a generate now, use the browser Network tab: each
-`rpc/reports_daily_compute_slim` call is one month window, and its timing and
-compressed size are visible there. For server-side timing, query
-`pg_stat_statements` (§3) or run the RPC directly against the database.
+`rpc/reports_daily_rollup` call is one month window, plus one
+`rpc/reports_daily_compute_slim` with `p_include_row_details=false` for
+metadata. For server-side timing, query `pg_stat_statements` (§3).
 
 ### Current end-to-end timings
 

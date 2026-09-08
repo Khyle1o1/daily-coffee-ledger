@@ -1,0 +1,1186 @@
+[
+  {
+    "paymentType": "Card",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Card 10\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Card 130\nCash 10",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Card 380\nCash 2",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Card 40\nCash 50",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 0.29\nPaymongo 114",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 0\nGiftCard 0",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 0\nGrab 0",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 0\nPaymongo 0",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\ngcash 22.5",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nMaya 50",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nPaymongo 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nPaymongo 20",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nPaymongo 245",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nPaymongo 30",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nPaymongo 50",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nPaymongo 55",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nPaymongo 61",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 100\nPaymongo 81",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 101\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 106\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\ngcash 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\ngcash 191",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nGiftCard 360",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nMaya 120",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nPaymongo 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nPaymongo 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nPaymongo 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nPaymongo 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nPaymongo 310",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nPaymongo 35",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 10\nPaymongo 520",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 110\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 110\nGiftCard 1000",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 11\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 11\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 11\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 120\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 120\nMaya 58.86",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 128.57\nPaymongo 254.29",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 12\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 12\nGiftCard 360",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 12\nPaymongo 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 12\nPaymongo 400",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 130\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 150\ngcash 70",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 150\nPaymongo 120",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 150\nPaymongo 130",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 150\nPaymongo 40",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 15\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 15\nGiftCard 360",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 15\nPaymongo 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 166\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 16\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 16\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 170\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 17\nGiftCard 360",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 17\nGiftCard 500",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 182\ngcash 190",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 1\ngcash 110",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 1\ngcash 230",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 1\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 1\nMaya 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 1\nMaya 160",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 1\nPaymongo 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 1\nPaymongo 190",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 200\nPaymongo 1",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 200\nPaymongo 10",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 203\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\ngcash 342",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\nGiftCard 500",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\nGiftCard 900",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\nGrab 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 20\nPaymongo 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 210\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 21.43\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 21\nGiftCard 1080",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 21\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 21\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 222\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 22.43\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 22\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 22\nGiftCard 360",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 22\nGiftCard 500",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 235\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 238\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 250\nPaymongo 110",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 25\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 25\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 25\nGiftCard 900",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 260\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 270\nMaya 361",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 28.57\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 28\nGiftCard 510",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 2\ngcash 204",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 2\nGiftCard 360",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 300\nMaya 14.86",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 300\nPaymongo 22",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 303\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 305\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 30\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 30\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 30\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 30\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 30\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 30\nPaymongo 130",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 30\nPaymongo 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 30\nPaymongo 290",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 31\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 31\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 31\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 32\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 32\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 331\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 352\nPaymongo 20",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 35\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 36.71\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 36\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 372\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 38\nGiftCard 1200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 400\nPaymongo 10",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\ngcash 120",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\nGiftCard 1000",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\nGrab 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\nMaya 361",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 40\nPaymongo 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 41\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 41\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 45\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 45\nGiftCard 330",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 45\nGiftCard 600",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 50\ngcash 140",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 50\ngcash 40",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 50\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 50\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 50\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 50\nGrab 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 50\nPaymongo 120",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 51\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 52\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 55\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 56\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 56\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 59\ngcash 63.5",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 5\ngcash 145",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 5\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 5\nGiftCard 500",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 5\nPaymongo 160",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 60\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 60\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 60\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 61\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 62\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 63\ngcash 122.5",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 67\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 6\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 70\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 70\nGiftCard 150",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 70\nGiftCard 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 70\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 70\nGiftCard 500",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 71\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 71\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 76\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 7\nGiftCard 1050",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 80\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 80\nGiftCard 450",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 80\nPaymongo 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 81\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 82\nGiftCard 300",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 90\nGiftCard 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 91\nGiftCard 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 91\nGiftCard 360",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 95\nGiftCard 450",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Cash 9.86\nPaymongo 223",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "FoodPanda",
+    "channel": "FOODPANDA"
+  },
+  {
+    "paymentType": "gcash",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 0\ngcash 0",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 0\nGrab 0",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 0\nMaya 0",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 0\nPaymongo 0",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 1000\nPaymongo 55",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 28.57",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 30",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 306",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 40",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 50",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 60",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 76",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 80",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\ngcash 81",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 111",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 135",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 140",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 237",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 282",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 61",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 65",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 72",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 80",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nMaya 91",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 10",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 101",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 110",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 132.86",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 160",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 180",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 230",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 282",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 306",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 31",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 311",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 470",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 50",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 51",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 55",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 60",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 70",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 71",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 80",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 90",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 100\nPaymongo 91",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 1260\nMaya 320",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 150\nMaya 21",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 150\nPaymongo 190",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 150\nPaymongo 50",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 10",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 11",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 15",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 170",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 20",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 21",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 21.43",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 61",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 70",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nMaya 90",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 1",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 10",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 11",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 142",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 15",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 16",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 20",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 25",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 30",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 35",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 5",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 52",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 90",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 180\nPaymongo 95",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 200\ngcash 11",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 200\ngcash 90",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 200\nMaya 151",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 200\nPaymongo 100",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 200\nPaymongo 152",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 200\nPaymongo 172",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 200\nPaymongo 200",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 200\nPaymongo 30",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 300\nPaymongo 12",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 300\nPaymongo 20",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 300\nPaymongo 248",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 300\nPaymongo 32",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 300\nPaymongo 440",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 300\nPaymongo 66",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 300\nPaymongo 85",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 360\nMaya 203",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 360\nMaya 47",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 360\nPaymongo 12",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 360\nPaymongo 5",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 360\nPaymongo 90",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 450\nPaymongo 35",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "GiftCard 500\nPaymongo 41",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Grab",
+    "channel": "GRAB"
+  },
+  {
+    "paymentType": "Grab 0\nPaymongo 0",
+    "channel": "GRAB"
+  },
+  {
+    "paymentType": "Maya",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "Paymongo",
+    "channel": "WALK_IN"
+  },
+  {
+    "paymentType": "QRPh",
+    "channel": "WALK_IN"
+  }
+]
