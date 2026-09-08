@@ -1,5 +1,8 @@
 import type { DailyReport } from "@/utils/types";
-import { deriveDailyLedgerFromPos } from "@/lib/reports/deriveDailyLedgerFromPos";
+import {
+  deriveDailyLedgerFromPos,
+  type DerivedDailyLedgerDay,
+} from "@/lib/reports/deriveDailyLedgerFromPos";
 import type {
   DailyLedgerAmounts,
   DailyLedgerEntry,
@@ -33,7 +36,8 @@ function dayName(ymd: string): string {
  */
 export function mergeCashLedgerReport(params: {
   sheetEntries: DailyLedgerEntry[];
-  posReports: DailyReport[];
+  posReports?: DailyReport[];
+  posDerived?: DerivedDailyLedgerDay[];
   branchSlugToUuid: (slug: string) => string | undefined;
   branchUuidToLabel: (uuid: string) => string;
   branchUuidToSlug?: (uuid: string) => string | undefined;
@@ -43,7 +47,8 @@ export function mergeCashLedgerReport(params: {
 }): CashLedgerReportResult {
   const {
     sheetEntries,
-    posReports,
+    posReports = [],
+    posDerived,
     branchSlugToUuid,
     branchUuidToLabel,
     dateFrom,
@@ -60,7 +65,8 @@ export function mergeCashLedgerReport(params: {
     sheetByKey.set(`${e.ledgerDate}::${e.branchId}`, e);
   }
 
-  const derived = deriveDailyLedgerFromPos(posReports, branchSlugToUuid);
+  const derived =
+    posDerived ?? deriveDailyLedgerFromPos(posReports, branchSlugToUuid);
   const rowMap = new Map<string, CashLedgerReportRow>();
 
   for (const d of derived) {

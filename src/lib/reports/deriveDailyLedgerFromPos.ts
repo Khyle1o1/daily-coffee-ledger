@@ -12,6 +12,28 @@ export interface DerivedDailyLedgerDay extends DailyLedgerAmounts {
   source: Extract<DailyLedgerSource, "pos_derived" | "pos_partial">;
 }
 
+export type ReportOwnershipFields = Pick<
+  DailyReport,
+  "id" | "branch" | "date" | "dateRangeEnd" | "updatedAt" | "createdAt" | "uploadedAt"
+>;
+
+export interface LedgerRollupDay {
+  ledgerDate: string;
+  cash: number;
+  maya: number;
+  grab: number;
+  paymongo: number;
+  gcash: number;
+  foodpanda: number;
+  giftCard: number;
+  regularDiscount: number;
+  seniorDiscount: number;
+  pwdDiscount: number;
+  vatExemption: number;
+  transactionCount: number;
+  enriched: boolean;
+}
+
 function toLocalYmd(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -25,7 +47,7 @@ function ymdPrefix(value: string | undefined | null): string | null {
   return m ? m[1] : null;
 }
 
-function rangeSpanDays(report: DailyReport): number {
+function rangeSpanDays(report: ReportOwnershipFields): number {
   const start = ymdPrefix(report.date);
   const end = ymdPrefix(report.dateRangeEnd) ?? start;
   if (!start || !end) return Number.POSITIVE_INFINITY;
@@ -36,7 +58,7 @@ function rangeSpanDays(report: DailyReport): number {
   return Math.max(1, Math.round((b - a) / 86_400_000) + 1);
 }
 
-function reportRecencyMs(report: DailyReport): number {
+function reportRecencyMs(report: ReportOwnershipFields): number {
   return report.updatedAt ?? report.createdAt ?? report.uploadedAt ?? 0;
 }
 
@@ -44,7 +66,10 @@ function reportRecencyMs(report: DailyReport): number {
  * Prefer newest upload; then narrower date range; then higher id.
  * Returns > 0 if `a` should win over `b`.
  */
-export function compareReportOwnership(a: DailyReport, b: DailyReport): number {
+export function compareReportOwnership(
+  a: ReportOwnershipFields,
+  b: ReportOwnershipFields,
+): number {
   const recency = reportRecencyMs(a) - reportRecencyMs(b);
   if (recency !== 0) return recency;
   const span = rangeSpanDays(b) - rangeSpanDays(a); // narrower wins
@@ -338,6 +363,66 @@ export function deriveDailyLedgerFromPos(
       transactionCount: cell.txnIds.size,
       grossSales,
       source: cell.enriched ? "pos_derived" : "pos_partial",
+    });
+  }
+
+  return out.sort((a, b) => {
+    const d = a.ledgerDate.localeCompare(b.ledgerDate);
+    if (d !== 0) return d;
+    return a.branchId.localeCompare(b.branchId);
+  });
+}
+
+/**
+ * Same day×branch ownership as deriveDailyLedgerFromPos, but the POS side is
+ * already summed per report per calendar day (migration 029).
+ */
+export function foldLedgerRollupDays(
+  reports: ReportOwnershipFields[],
+  daysByReportId: Map<string, LedgerRollupDay[]>,
+  branchSlugToUuid: (slug: string) => string | undefined,
+): DerivedDailyLedgerDay[] {
+  const ownerByDayBranch = new Map<string, ReportOwnershipFields>();
+
+  for (const report of reports) {
+    for (const day of daysByReportId.get(report.id) ?? []) {
+      const key = `${day.ledgerDate}::${report.branch}`;
+      const current = ownerByDayBranch.get(key);
+      if (!current || compareReportOwnership(report, current) > 0) {
+        ownerByDayBranch.set(key, report);
+      }
+    }
+  }
+
+  const out: DerivedDailyLedgerDay[] = [];
+  for (const [key, report] of ownerByDayBranch) {
+    const [ledgerDate] = key.split("::");
+    const branchId = branchSlugToUuid(report.branch);
+    if (!branchId) continue;
+    const day = (daysByReportId.get(report.id) ?? []).find((d) => d.ledgerDate === ledgerDate);
+    if (!day) continue;
+    const amounts = {
+      cash: day.cash,
+      maya: day.maya,
+      grab: day.grab,
+      paymongo: day.paymongo,
+      gcash: day.gcash,
+      foodpanda: day.foodpanda,
+      giftCard: day.giftCard,
+      regularDiscount: day.regularDiscount,
+      seniorDiscount: day.seniorDiscount,
+      pwdDiscount: day.pwdDiscount,
+    };
+    const grossSales = ledgerGrossSales(amounts);
+    out.push({
+      ledgerDate,
+      branchId,
+      ...amounts,
+      vatExemption: day.vatExemption,
+      grossSalesNet: grossSales,
+      transactionCount: day.transactionCount,
+      grossSales,
+      source: day.enriched ? "pos_derived" : "pos_partial",
     });
   }
 

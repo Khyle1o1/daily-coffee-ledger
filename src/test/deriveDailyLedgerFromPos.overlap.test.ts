@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   compareReportOwnership,
   deriveDailyLedgerFromPos,
+  foldLedgerRollupDays,
   pickDayReportOwners,
+  type LedgerRollupDay,
 } from "@/lib/reports/deriveDailyLedgerFromPos";
 import type { DailyReport, ProcessedRow } from "@/utils/types";
 
@@ -311,5 +313,51 @@ describe("deriveDailyLedgerFromPos overlapping reports", () => {
     expect(derived[0].pwdDiscount).toBeCloseTo(35.71 + 104.01, 2);
     expect(derived[0].seniorDiscount).toBe(0);
     expect(derived[0].regularDiscount).toBe(0);
+  });
+
+  it("foldLedgerRollupDays applies the same overlap winner as line-level derive", () => {
+    const dual = baseReport({
+      id: "dual",
+      branch: "sm_bacoor",
+      date: "2026-06-01",
+      dateRangeEnd: "2026-07-31",
+      updatedAt: 1_000,
+      rowDetails: [],
+    });
+    const julyOnly = baseReport({
+      id: "july",
+      branch: "sm_bacoor",
+      date: "2026-07-02",
+      dateRangeEnd: "2026-07-12",
+      updatedAt: 2_000,
+      rowDetails: [],
+    });
+    const day = (ledgerDate: string, cash: number): LedgerRollupDay => ({
+      ledgerDate,
+      cash,
+      maya: 0,
+      grab: 0,
+      paymongo: 0,
+      gcash: 0,
+      foodpanda: 0,
+      giftCard: 0,
+      regularDiscount: 0,
+      seniorDiscount: 0,
+      pwdDiscount: 0,
+      vatExemption: 0,
+      transactionCount: 1,
+      enriched: true,
+    });
+    const folded = foldLedgerRollupDays(
+      [dual, julyOnly],
+      new Map([
+        ["dual", [day("2026-07-05", 1500), day("2026-06-15", 200)]],
+        ["july", [day("2026-07-05", 1500)]],
+      ]),
+      slugToUuid,
+    );
+    expect(folded.find((d) => d.ledgerDate === "2026-07-05")?.cash).toBe(1500);
+    expect(folded.find((d) => d.ledgerDate === "2026-06-15")?.cash).toBe(200);
+    expect(folded.filter((d) => d.ledgerDate === "2026-07-05")).toHaveLength(1);
   });
 });

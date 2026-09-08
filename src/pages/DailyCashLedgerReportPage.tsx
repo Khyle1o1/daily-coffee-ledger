@@ -48,8 +48,7 @@ import {
   ledgerGrossSales,
   type UpsertDailyLedgerPayload,
 } from "@/services/dailyLedgerService";
-import { fetchDailyReportsForComputeRange } from "@/services/reportsService";
-import { dailyReportsFromRows } from "@/services/reportConverter";
+import { fetchDailyLedgerRollup } from "@/services/reportsService";
 import {
   mergeCashLedgerReport,
   type CashLedgerReportResult,
@@ -156,16 +155,18 @@ export default function DailyCashLedgerReportPage() {
         branchId: branchFilter,
       });
 
-      const posRows = await fetchDailyReportsForComputeRange({
-        dateFrom,
-        dateTo,
-        branchIds: branchFilter ? [branchFilter] : undefined,
-      });
-      const posReports = dailyReportsFromRows(posRows);
+      const posDerived = await fetchDailyLedgerRollup(
+        {
+          dateFrom,
+          dateTo,
+          branchIds: branchFilter ? [branchFilter] : undefined,
+        },
+        slugToUuid,
+      );
 
       const merged = mergeCashLedgerReport({
         sheetEntries,
-        posReports,
+        posDerived,
         branchSlugToUuid: slugToUuid,
         branchUuidToLabel: uuidToLabel,
         dateFrom,

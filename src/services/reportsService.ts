@@ -21,6 +21,14 @@ import {
   localYmdFromUnknown,
   rebuildSummaryJsonFromRowDetails,
 } from '@/lib/reports/posReportCoverage';
+import {
+  deriveDailyLedgerFromPos,
+  foldLedgerRollupDays,
+  type DerivedDailyLedgerDay,
+  type LedgerRollupDay,
+  type ReportOwnershipFields,
+} from '@/lib/reports/deriveDailyLedgerFromPos';
+import { dailyReportsFromRows } from '@/services/reportConverter';
 
 /** Default page size for paginated list queries. */
 export const PAGE_SIZE = 50;
@@ -1035,6 +1043,121 @@ export async function fetchDailyReportsForComputeRollup(
       unmappedSummary: [],
     },
   }));
+}
+
+function asYmd(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const m = value.slice(0, 10).match(/^\d{4}-\d{2}-\d{2}$/);
+    return m ? m[0] : null;
+  }
+  return null;
+}
+
+/**
+ * Decode positional ledger days:
+ * [date, cash, maya, grab, paymongo, gcash, foodpanda, giftCard,
+ *  regular, senior, pwd, vat, txnCount, enriched]
+ */
+export function ledgerRollupDaysToRows(days: unknown): LedgerRollupDay[] {
+  if (!Array.isArray(days)) return [];
+  const out: LedgerRollupDay[] = [];
+  for (const day of days) {
+    if (!Array.isArray(day) || day.length < 14) continue;
+    const ledgerDate = asYmd(day[0]);
+    if (!ledgerDate) continue;
+    out.push({
+      ledgerDate,
+      cash: num(day[1]),
+      maya: num(day[2]),
+      grab: num(day[3]),
+      paymongo: num(day[4]),
+      gcash: num(day[5]),
+      foodpanda: num(day[6]),
+      giftCard: num(day[7]),
+      regularDiscount: num(day[8]),
+      seniorDiscount: num(day[9]),
+      pwdDiscount: num(day[10]),
+      vatExemption: num(day[11]),
+      transactionCount: Math.round(num(day[12])),
+      enriched: Boolean(day[13]),
+    });
+  }
+  return out;
+}
+
+function ownershipFromMetaRow(row: DailyReportRow): ReportOwnershipFields {
+  const json = row.summary_json as DailySummaryJSON | undefined;
+  return {
+    id: row.id,
+    branch: (row.branch?.name ?? "greenbelt") as ReportOwnershipFields["branch"],
+    date: row.report_date,
+    dateRangeEnd: row.date_range_end,
+    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
+    uploadedAt: json?.uploadedAt,
+  };
+}
+
+interface LedgerRpcRow {
+  report_id: string;
+  days: unknown;
+}
+
+/**
+ * Cash-ledger fetch: day totals from report_day_ledger (migration 029),
+ * folded with the same overlap ownership as deriveDailyLedgerFromPos.
+ */
+export async function fetchDailyLedgerRollup(
+  params: ComputeFetchParams,
+  branchSlugToUuid: (slug: string) => string | undefined,
+): Promise<DerivedDailyLedgerDay[]> {
+  const { dateFrom, dateTo, branchIds } = params;
+  const p_branch_ids = branchIds && branchIds.length > 0 ? branchIds : null;
+
+  const windows =
+    spanDaysInclusive(dateFrom, dateTo) > MAX_SINGLE_REQUEST_SPAN_DAYS
+      ? iterMonthWindows(dateFrom, dateTo)
+      : [{ dateFrom, dateTo }];
+
+  const [metaRows, rpcResults] = await Promise.all([
+    fetchDailyReportsForComputeRange({ ...params, includeRowDetails: false }),
+    mapPool(windows, COMPUTE_WINDOW_CONCURRENCY, (window) =>
+      supabase.rpc("reports_daily_ledger_rollup", {
+        p_date_from: window.dateFrom,
+        p_date_to: window.dateTo,
+        p_branch_ids,
+      }),
+    ),
+  ]);
+
+  for (const result of rpcResults) {
+    if (!result.error) continue;
+    if (isMissingRpcError(result.error)) {
+      const raw = await fetchDailyReportsForComputeRange({
+        ...params,
+        includeRowDetails: true,
+      });
+      return deriveDailyLedgerFromPos(dailyReportsFromRows(raw), branchSlugToUuid);
+    }
+    throw new Error(`Failed to fetch ledger rollup: ${result.error.message}`);
+  }
+
+  const daysByReport = new Map<string, LedgerRollupDay[]>();
+  for (const result of rpcResults) {
+    for (const row of (result.data ?? []) as LedgerRpcRow[]) {
+      const decoded = ledgerRollupDaysToRows(row.days);
+      const prev = daysByReport.get(row.report_id);
+      if (prev) prev.push(...decoded);
+      else daysByReport.set(row.report_id, decoded);
+    }
+  }
+
+  return foldLedgerRollupDays(
+    metaRows.map(ownershipFromMetaRow),
+    daysByReport,
+    branchSlugToUuid,
+  );
 }
 
 /**

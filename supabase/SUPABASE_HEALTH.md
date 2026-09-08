@@ -167,8 +167,22 @@ Measured through PostgREST with gzip, full year 2026, all 23 branches:
 
 A single year-wide rollup RPC also fits the 8s authenticator timeout (1.07 s /
 9.93 MB). The client still splits spans >31 days into month windows as a
-ceiling. Daily Cash Ledger still fetches raw `rowDetails` because it needs
-discount columns the rollup RPC does not return.
+ceiling.
+
+### Daily Cash Ledger — `report_day_ledger` (migration 029)
+
+Tenders, discounts, VAT and ticket counts do not fit the item×channel grain, so
+the same write-time rebuild fills a second table at `(report_id, txn_date)`.
+`reports_daily_ledger_rollup` returns those days; the client applies the same
+overlap-ownership rule as `deriveDailyLedgerFromPos`.
+
+| Path | JSON | Wire | Time | Days |
+|---|---|---|---|---|
+| Old (raw `rowDetails`) | 158 MB | ~8 MB | 11.8 s | — |
+| New (`reports_daily_ledger_rollup` + meta) | **1.1 MB** | **177 KB** | **~0.4 s** | 2,379 |
+
+Table size is 624 kB for 2,385 day rows across 89 reports. New POS uploads
+rebuild both rollups in one pass.
 
 These paths used to narrate themselves in the browser console. That logging was
 removed — it leaked user ids, emails and roles — and production builds now drop

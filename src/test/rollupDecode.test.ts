@@ -3,7 +3,7 @@ import { getChannelFromPaymentType } from "@/lib/reports/channel";
 import { computeCategoryTotals } from "@/lib/reports/compute";
 import { computeChannelSalesSummary } from "@/lib/reports/computeChannelSalesSummary";
 import { dailyReportFromRow } from "@/services/reportConverter";
-import { iterMonthWindows, rollupLinesToRowDetails } from "@/services/reportsService";
+import { iterMonthWindows, ledgerRollupDaysToRows, rollupLinesToRowDetails } from "@/services/reportsService";
 import type { DailyReportRow } from "@/lib/supabase-types";
 
 describe("rollupLinesToRowDetails", () => {
@@ -83,6 +83,33 @@ describe("rollupLinesToRowDetails", () => {
     expect(channel.overall.totals.walkIn).toBe(1000);
     expect(channel.overall.totals.grab).toBe(500);
     expect(channel.overall.totals.foodpanda).toBe(200);
+  });
+});
+
+describe("ledgerRollupDaysToRows", () => {
+  it("decodes positional day totals", () => {
+    const days = ledgerRollupDaysToRows([
+      ["2026-08-01", 100, 20, 30, 0, 0, 40, 5, 10, 8, 12, 7, 9, true],
+    ]);
+    expect(days).toHaveLength(1);
+    expect(days[0]).toMatchObject({
+      ledgerDate: "2026-08-01",
+      cash: 100,
+      maya: 20,
+      grab: 30,
+      foodpanda: 40,
+      giftCard: 5,
+      regularDiscount: 10,
+      seniorDiscount: 8,
+      pwdDiscount: 12,
+      vatExemption: 7,
+      transactionCount: 9,
+      enriched: true,
+    });
+  });
+
+  it("skips malformed days", () => {
+    expect(ledgerRollupDaysToRows([["2026-08-01", 1]])).toEqual([]);
   });
 });
 
