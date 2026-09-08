@@ -54,7 +54,6 @@ export async function requireAuthUser(): Promise<AuthContext> {
     if (error instanceof ApiAuthError) {
       throw error;
     }
-    console.error('requireAuthUser error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }

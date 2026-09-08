@@ -33,10 +33,9 @@ export function handleSupabaseError(error: unknown): string {
 export async function testSupabaseConnection(): Promise<boolean> {
   try {
     const { error } = await supabase.from('branches').select('count').limit(1);
-    if (error) { console.error('Supabase connection test failed:', error); return false; }
+    if (error) { return false; }
     return true;
-  } catch (error) {
-    console.error('Supabase connection test failed:', error);
+  } catch {
     return false;
   }
 }

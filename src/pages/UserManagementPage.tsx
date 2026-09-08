@@ -78,7 +78,6 @@ export default function UserManagementPage() {
       const counts = await getActivityCountsForUsers(ids);
       setActivityCounts(counts);
     } catch (error) {
-      console.error('Failed to load users:', error);
       toast({
         variant: 'destructive',
         title: 'Failed to load users',
@@ -136,7 +135,6 @@ export default function UserManagementPage() {
       setNewRole('user');
       await loadUsers();
     } catch (error) {
-      console.error('Failed to create user:', error);
       toast({
         variant: 'destructive',
         title: 'Failed to create user',

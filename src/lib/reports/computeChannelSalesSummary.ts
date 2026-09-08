@@ -101,7 +101,6 @@ export function computeChannelSalesSummary(reports: DailyReport[], filters: Repo
   const end = new Date(filters.dateTo);
 
   const branchCategoryChannel = new Map<string, Map<string, ChannelTotals>>();
-  let filteredRowsCount = 0;
 
   for (const report of selectedReports) {
     const reportRows = report.rowDetails.filter(
@@ -114,7 +113,6 @@ export function computeChannelSalesSummary(reports: DailyReport[], filters: Repo
     const rowsInRange = filterRowsByDateRange(reportRows as any, start, end);
 
     for (const row of rowsInRange) {
-      filteredRowsCount += 1;
       const branchId = report.branch;
       const rawCategory = String((row.mappedCat as Category | null) ?? "");
       if (!rawCategory) continue;
@@ -217,9 +215,6 @@ export function computeChannelSalesSummary(reports: DailyReport[], filters: Repo
     }),
     emptyTotals(),
   );
-
-  console.log("[ChannelSalesSummary] Selected branches:", selectedBranchIds);
-  console.log("[ChannelSalesSummary] Filtered rows:", filteredRowsCount);
 
   return {
     branches,

@@ -188,7 +188,6 @@ export default function DailyCashLedgerReportPage() {
         });
       }
     } catch (error) {
-      console.error(error);
       toast({
         variant: "destructive",
         title: "Generate failed",

@@ -253,9 +253,7 @@ export default function SummaryPage() {
         void preloadMenuReference();
         const liveTable = await loadValidationMappingFromPublic();
         setMappingTable(liveTable);
-      } catch (error) {
-        console.warn("Failed to load validation mapping from workbook; using bundled default.", error);
-      }
+      } catch { /* keep the bundled default mapping */ }
     };
     void loadValidation();
   }, []);
@@ -362,8 +360,7 @@ export default function SummaryPage() {
             setDateDetectionError(null);
           }
         }
-      } catch (error) {
-        console.error("Failed to parse CSV file:", error);
+      } catch {
         toast({
           variant: "destructive",
           title: "Upload error",
@@ -513,10 +510,6 @@ export default function SummaryPage() {
     }
 
     if (debugDates.length === 0) {
-      console.warn("[DateDebug] No valid transaction dates parsed", {
-        dateKeyUsed: dateKey,
-        sampleRaw: modalCsvData.slice(0, 5),
-      });
       toast({
         variant: "destructive",
         title: "Could not read dates from CSV",
@@ -532,15 +525,6 @@ export default function SummaryPage() {
         description: `${skippedDates} row(s) had no valid transaction date and were not included.`,
       });
     }
-
-    const sortedDebug = [...debugDates].sort((a, b) => a.getTime() - b.getTime());
-    console.log("[DateDebug] Parsed transaction dates summary", {
-      dateKeyUsed: dateKey,
-      first5: sortedDebug.slice(0, 5).map((d) => d.toISOString()),
-      min: sortedDebug[0].toISOString(),
-      max: sortedDebug[sortedDebug.length - 1].toISOString(),
-      validDateCount: sortedDebug.length,
-    });
 
     const effectiveMappingTable = [...manualEntries, ...mappingTable];
     const processed = rawRows.map((r) => mapRow(r, effectiveMappingTable));
@@ -600,7 +584,6 @@ export default function SummaryPage() {
       setIsAddModalOpen(false);
       setIsPreviewOpen(true);
     } catch (error) {
-      console.error("Failed to generate report preview:", error);
       toast({
         variant: "destructive",
         title: "Failed to generate report",
@@ -686,7 +669,6 @@ export default function SummaryPage() {
         description: `Summary for ${getBranchLabel(savedReportWithId.branch)} on ${savedReportWithId.date} has been saved.`,
       });
     } catch (error) {
-      console.error("Failed to save report:", error);
       toast({
         variant: "destructive",
         title: "Failed to save report",
@@ -747,7 +729,6 @@ export default function SummaryPage() {
         description: "The selected dataset has been removed.",
       });
     } catch (error) {
-      console.error("Failed to delete report:", error);
       toast({
         variant: "destructive",
         title: "Failed to delete data",
@@ -779,9 +760,6 @@ export default function SummaryPage() {
    *         and totals are re-aggregated from row-level transaction dates.
    */
   const filteredReports = useMemo(() => {
-    console.log("[DateFilter] selected from:", fromKey ?? "(none)", " to:", toKey ?? "(none)");
-    console.log("[DateFilter] total records before filter:", dailyReports.length);
-
     const result = dailyReports.filter((report) => {
       if (filterBranches.length > 0 && !filterBranches.includes(report.branch)) return false;
       if (!fromKey) return true;
@@ -793,11 +771,6 @@ export default function SummaryPage() {
       // Overlap condition: reportStart <= toKey  AND  reportEnd >= fromKey
       return reportStart <= toKey! && reportEnd >= fromKey;
     });
-
-    console.log(
-      "[DateFilter] records after filter:", result.length,
-      result.map((r) => `${r.date}→${r.dateRangeEnd ?? r.date} (${r.branch})`),
-    );
 
     return result;
   }, [dailyReports, filterBranches, fromKey, toKey]);
@@ -840,8 +813,6 @@ export default function SummaryPage() {
     CATEGORIES.forEach((cat) => {
       percents[cat] = grandTotal > 0 ? (combinedTotals[cat] / grandTotal) * 100 : 0;
     });
-
-    console.log("[DateFilter] filtered total sales:", grandTotal);
 
     return { totals: combinedTotals, quantities: combinedQuantities, grandTotal, grandQuantity, percents };
   }, [filteredReports, getEffectiveTotals]);

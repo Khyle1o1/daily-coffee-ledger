@@ -15,16 +15,11 @@ import { requireAdminUser } from '@/lib/api/authGuards';
  */
 export async function isCurrentUserAdmin(): Promise<boolean> {
   try {
-    console.log('[userService] 🔍 Checking if user is admin...');
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      console.log('[userService] ❌ No user found');
       return false;
     }
-
-    console.log('[userService] 👤 User ID:', user.id);
-    console.log('[userService] 📧 Email:', user.email);
 
     const { data, error } = await supabase
       .from('user_profiles')
@@ -33,31 +28,13 @@ export async function isCurrentUserAdmin(): Promise<boolean> {
       .maybeSingle();
 
     if (error) {
-      console.error('[userService] ❌ ERROR checking admin status:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-        fullError: error
-      });
-      
-      if (error.code === 'PGRST204') {
-        console.log('[userService] ℹ️  No profile found (table might not exist)');
-      } else if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        console.error('[userService] 🚨 USER_PROFILES TABLE DOES NOT EXIST!');
-        console.error('[userService] 👉 YOU MUST RUN SETUP_DATABASE.SQL IN SUPABASE!');
-      }
-      
       return false;
     }
 
-    console.log('[userService] ✅ Profile data:', data);
     const isAdmin = data?.role === 'admin';
-    console.log('[userService] 🔐 Is Admin?', isAdmin);
     
     return isAdmin;
-  } catch (error) {
-    console.error('[userService] 💥 EXCEPTION in isCurrentUserAdmin:', error);
+  } catch {
     return false;
   }
 }
@@ -67,16 +44,11 @@ export async function isCurrentUserAdmin(): Promise<boolean> {
  */
 export async function getCurrentUserProfile(): Promise<UserProfile | null> {
   try {
-    console.log('[userService] 📋 Fetching user profile...');
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      console.log('[userService] ❌ No user found');
       return null;
     }
-
-    console.log('[userService] 👤 User ID:', user.id);
-    console.log('[userService] 📧 Email:', user.email);
 
     const { data, error } = await supabase
       .from('user_profiles')
@@ -85,39 +57,11 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
       .maybeSingle();
 
     if (error) {
-      console.error('[userService] ❌ ERROR fetching user profile:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-        fullError: error
-      });
-      
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        console.error('[userService] 🚨 USER_PROFILES TABLE DOES NOT EXIST!');
-        console.error('[userService] 👉 RUN THIS IN SUPABASE SQL EDITOR:');
-        console.error('[userService] 👉 Open file: SETUP_DATABASE.sql');
-        console.error('[userService] 👉 Copy all content and paste in SQL Editor');
-        console.error('[userService] 👉 Click RUN button');
-      }
-      
       return null;
     }
 
-    if (data) {
-      console.log('[userService] ✅ Profile found:', {
-        email: data.email,
-        role: data.role,
-        created_at: data.created_at
-      });
-    } else {
-      console.log('[userService] ⚠️  No profile found for user');
-      console.log('[userService] 👉 Profile might not exist in database');
-    }
-
     return data as UserProfile | null;
-  } catch (error) {
-    console.error('[userService] 💥 EXCEPTION in getCurrentUserProfile:', error);
+  } catch {
     return null;
   }
 }
@@ -141,12 +85,10 @@ export async function getUserProfileById(userId: string): Promise<UserProfile | 
       .maybeSingle();
 
     if (error) {
-      console.error('[userService] ❌ ERROR fetching profile by userId:', error.message);
       return null;
     }
     return data as UserProfile | null;
-  } catch (error) {
-    console.error('[userService] 💥 EXCEPTION in getUserProfileById:', error);
+  } catch {
     return null;
   }
 }
@@ -161,10 +103,7 @@ export async function syncRoleToJwtMetadata(userId: string, role: UserRole): Pro
     await supabaseAdmin.auth.admin.updateUserById(userId, {
       app_metadata: { role },
     });
-    console.log('[userService] ✅ Role synced to app_metadata:', role);
-  } catch (err) {
-    console.warn('[userService] ⚠️ Failed to sync role to app_metadata:', err);
-  }
+  } catch { /* best-effort metadata sync */ }
 }
 
 /**
@@ -179,12 +118,10 @@ export async function isAdminByUserId(userId: string): Promise<boolean> {
       .maybeSingle();
 
     if (error) {
-      console.error('[userService] ❌ ERROR checking admin by userId:', error.message);
       return false;
     }
     return data?.role === 'admin';
-  } catch (error) {
-    console.error('[userService] 💥 EXCEPTION in isAdminByUserId:', error);
+  } catch {
     return false;
   }
 }
@@ -238,7 +175,6 @@ export async function createUser(payload: CreateUserPayload): Promise<UserProfil
 
     return profile as UserProfile;
   } catch (error) {
-    console.error('createUser error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -262,7 +198,6 @@ export async function listAllUsers(): Promise<UserProfile[]> {
 
     return (data as UserProfile[]) || [];
   } catch (error) {
-    console.error('listAllUsers error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -290,7 +225,6 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 
     return data as UserProfile;
   } catch (error) {
-    console.error('getUserProfile error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -324,7 +258,6 @@ export async function updateUserProfile(
 
     return data as UserProfile;
   } catch (error) {
-    console.error('updateUserProfile error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -350,7 +283,6 @@ export async function deleteUser(userId: string): Promise<void> {
       throw new Error(`Failed to delete user: ${authError.message}`);
     }
   } catch (error) {
-    console.error('deleteUser error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -374,7 +306,6 @@ export async function resetUserPassword(
       throw new Error(`Failed to reset password: ${error.message}`);
     }
   } catch (error) {
-    console.error('resetUserPassword error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -401,7 +332,6 @@ export async function archiveUser(userId: string): Promise<void> {
 
     if (authError) throw new Error(`Failed to ban auth account: ${authError.message}`);
   } catch (error) {
-    console.error('archiveUser error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -428,7 +358,6 @@ export async function restoreUser(userId: string): Promise<void> {
 
     if (authError) throw new Error(`Failed to restore auth account: ${authError.message}`);
   } catch (error) {
-    console.error('restoreUser error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -454,8 +383,7 @@ export async function getActivityCountsForUsers(
       if (row.user_id) counts[row.user_id] = (counts[row.user_id] ?? 0) + 1;
     }
     return counts;
-  } catch (error) {
-    console.error('getActivityCountsForUsers error:', error);
+  } catch {
     return {};
   }
 }

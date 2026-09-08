@@ -24,19 +24,11 @@ export function useReportDetailQuery(reportId: string | null) {
     queryFn: async (): Promise<DailyReport | null> => {
       if (!reportId) return null;
 
-      const t0 = performance.now();
       const row = await getDailyReport(reportId);
-      const elapsed = Math.round(performance.now() - t0);
 
       if (!row) {
-        console.warn(`[useReportDetailQuery] Report ${reportId} not found`);
         return null;
       }
-
-      const approxKb = Math.round(JSON.stringify(row).length / 1024);
-      console.log(
-        `[useReportDetailQuery] ✅ Loaded report ${reportId} in ${elapsed}ms (~${approxKb} KB)`,
-      );
 
       return dailyReportFromRow(row);
     },

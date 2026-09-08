@@ -45,11 +45,8 @@ export async function logEvent(payload: LogAuditEventPayload): Promise<void> {
       report_type: payload.reportType ?? null,
     };
 
-    const { error } = await supabase.from('audit_logs').insert(row);
-    if (error) console.error('[auditService] Failed to write log:', error.message);
-  } catch (err) {
-    console.error('[auditService] Exception writing log:', err);
-  }
+    await supabase.from('audit_logs').insert(row);
+  } catch { /* audit logging must never break the caller */ }
 }
 
 // ---------------------------------------------------------------------------

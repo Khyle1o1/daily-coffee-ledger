@@ -165,13 +165,15 @@ and 1.0 s. If year-wide, all-branch generates become routine, the next move is
 serving those pages from `dailyBreakdown` aggregates (`p_include_row_details =
 false`, 0.30 MB) instead of line rows.
 
-Watch the browser console:
+These paths used to narrate themselves in the browser console. That logging was
+removed — it leaked user ids, emails and roles — and production builds now drop
+`console.*` entirely via `esbuild.drop` in `vite.config.ts`, with `no-console`
+enforced by ESLint.
 
-```
-[fetchDailyReportsForComputeSlim] ✅ N rows in Xms …
-[fetchDailyReportsForComputeRange] ✅ N reports via RPC in Xms — …
-[fetchDailyReportsForComputeRange] span > 31d; splitting by month up front — …
-```
+To observe a generate now, use the browser Network tab: each
+`rpc/reports_daily_compute_slim` call is one month window, and its timing and
+compressed size are visible there. For server-side timing, query
+`pg_stat_statements` (§3) or run the RPC directly against the database.
 
 ### Current end-to-end timings
 

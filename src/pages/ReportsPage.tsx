@@ -298,14 +298,6 @@ export default function ReportsPage() {
         branchIds,
       });
 
-      console.log(
-        `[ReportsPage] Fetching compute data (date-range overlap) — ${fetchBounds.dateFrom} → ${fetchBounds.dateTo}`,
-        filters.compareFrom
-          ? `(primary ${filters.dateFrom}→${filters.dateTo}, compare ${filters.compareFrom}→${filters.compareTo})`
-          : "",
-        branchIds ? `branches: ${branchIds.join(",")}` : "all branches",
-      );
-
       const includeRowDetails = reportType !== "CATEGORY_PERFORMANCE";
 
       const rows = await queryClient.fetchQuery({
@@ -496,7 +488,6 @@ export default function ReportsPage() {
 
       toast({ title: "Report generated." });
     } catch (err) {
-      console.error("Generate error:", err);
       toast({
         variant: "destructive",
         title: "Failed to generate report",

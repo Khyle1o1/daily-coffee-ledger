@@ -70,9 +70,7 @@ export default function DailySummaryPage() {
       try {
         const liveTable = await loadValidationMappingFromPublic();
         setMappingTable(liveTable);
-      } catch (error) {
-        console.warn("Failed to load validation mapping from workbook; using bundled default.", error);
-      }
+      } catch { /* keep the bundled default mapping */ }
     };
     void loadValidation();
   }, []);
@@ -235,7 +233,6 @@ export default function DailySummaryPage() {
         description: `Daily report for ${selectedBranch} on ${dateStr} saved successfully`,
       });
     } catch (error) {
-      console.error('Failed to save report:', error);
       toast({
         variant: "destructive",
         title: "Failed to save report",
@@ -273,7 +270,6 @@ export default function DailySummaryPage() {
         }
       }
     } catch (e) {
-      console.error(e);
       toast({
         variant: "destructive",
         title: "Could not refresh report",

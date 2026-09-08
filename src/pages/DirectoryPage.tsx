@@ -154,7 +154,6 @@ export default function DirectoryPage() {
         }),
       });
     } catch (error) {
-      console.error('Failed to save link:', error);
       toast({
         variant: 'destructive',
         title: 'Failed to save link',
@@ -181,7 +180,6 @@ export default function DirectoryPage() {
         }),
       });
     } catch (error) {
-      console.error('Failed to delete link:', error);
       toast({
         variant: 'destructive',
         title: 'Failed to delete link',

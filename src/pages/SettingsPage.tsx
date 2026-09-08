@@ -130,7 +130,6 @@ export default function SettingsPage() {
         }),
       });
     } catch (error) {
-      console.error('Failed to save branch:', error);
       toast({
         variant: 'destructive',
         title: 'Failed to save branch',

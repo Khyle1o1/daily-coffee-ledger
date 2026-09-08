@@ -210,7 +210,6 @@ export async function upsertDailyLedgerEntries(
     if (error) throw new Error(`Failed to upsert daily ledger: ${error.message}`);
     return ((data as DbRow[]) ?? []).map(fromRow);
   } catch (error) {
-    console.error('upsertDailyLedgerEntries error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -241,7 +240,6 @@ export async function listDailyLedgerEntries(params: {
     if (error) throw new Error(`Failed to list daily ledger: ${error.message}`);
     return ((data as DbRow[]) ?? []).map(fromRow);
   } catch (error) {
-    console.error('listDailyLedgerEntries error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -254,7 +252,6 @@ export async function deleteDailyLedgerEntry(id: string): Promise<void> {
       .eq('id', id);
     if (error) throw new Error(`Failed to delete daily ledger entry: ${error.message}`);
   } catch (error) {
-    console.error('deleteDailyLedgerEntry error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }

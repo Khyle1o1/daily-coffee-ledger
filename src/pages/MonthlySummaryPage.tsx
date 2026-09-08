@@ -45,9 +45,7 @@ export default function MonthlySummaryPage() {
       try {
         const liveTable = await loadValidationMappingFromPublic();
         setMappingTable(liveTable);
-      } catch (error) {
-        console.warn("Failed to load validation mapping from workbook; using bundled default.", error);
-      }
+      } catch { /* keep the bundled default mapping */ }
     };
     void loadValidation();
   }, []);

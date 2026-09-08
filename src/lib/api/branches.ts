@@ -76,7 +76,6 @@ export async function listBranches(
       total: count ?? rows.length,
     };
   } catch (error) {
-    console.error('listBranches error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -136,7 +135,6 @@ export async function createBranch(payload: SaveBranchPayload): Promise<Branch> 
 
     return mapBranch(data as BranchRow);
   } catch (error) {
-    console.error('createBranch error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -223,7 +221,6 @@ export async function updateBranch(
 
     return mapBranch(data as BranchRow);
   } catch (error) {
-    console.error('updateBranch error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }

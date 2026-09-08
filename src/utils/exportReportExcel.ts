@@ -716,7 +716,6 @@ export function exportReportExcel(
   }
 
   if (wb.SheetNames.length === 0) {
-    console.warn("[exportReportExcel] No sheet was generated for reportType:", reportType);
     return;
   }
 

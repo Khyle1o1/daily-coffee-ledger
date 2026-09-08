@@ -95,9 +95,7 @@ const Index = () => {
       try {
         const liveTable = await loadValidationMappingFromPublic();
         setMappingTable(liveTable);
-      } catch (error) {
-        console.warn("Failed to load validation mapping from workbook; using bundled default.", error);
-      }
+      } catch { /* keep the bundled default mapping */ }
     };
     void loadValidation();
   }, []);
@@ -273,7 +271,6 @@ const Index = () => {
         description: `Daily report for ${selectedBranch} on ${dateStr} saved successfully`,
       });
     } catch (error) {
-      console.error('Failed to save report:', error);
       toast({
         variant: "destructive",
         title: "Failed to save report",
@@ -311,7 +308,6 @@ const Index = () => {
         }
       }
     } catch (e) {
-      console.error(e);
       toast({
         variant: "destructive",
         title: "Could not refresh report",

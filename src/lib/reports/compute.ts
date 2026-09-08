@@ -135,38 +135,7 @@ function getRows(reports: DailyReport[], filters: ReportFilters): ProcessedRow[]
     r.rowDetails.filter((row) => row.transactionDate instanceof Date),
   );
 
-  if (import.meta.env.DEV) {
-    if (allRows.length === 0) {
-      console.warn("[DateDebug] No rows have a valid transactionDate for filters", {
-        filters,
-      });
-    } else {
-      let min = Infinity;
-      let max = -Infinity;
-      for (const r of allRows) {
-        const t = (r.transactionDate as Date).getTime();
-        if (Number.isNaN(t)) continue;
-        if (t < min) min = t;
-        if (t > max) max = t;
-      }
-      if (Number.isFinite(min) && Number.isFinite(max)) {
-        console.log("[DateDebug] Dataset span before range filter", {
-          min: new Date(min).toISOString(),
-          max: new Date(max).toISOString(),
-          count: allRows.length,
-        });
-      }
-    }
-  }
-
   const inRange = filterRowsByDateRange(allRows, start, end);
-
-  if (import.meta.env.DEV && inRange.length === 0 && allRows.length > 0) {
-    console.warn("[DateDebug] 0 rows matched selected range", {
-      dateFrom: filters.dateFrom,
-      dateTo: filters.dateTo,
-    });
-  }
 
   const rows = inRange.filter(
     (row) =>

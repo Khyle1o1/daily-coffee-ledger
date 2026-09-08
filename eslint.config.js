@@ -21,6 +21,10 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      // Diagnostics logged user ids, emails, roles and whole profile objects
+      // into the browser console. Surface errors through thrown Errors and the
+      // UI instead of the console.
+      "no-console": "error",
     },
   },
 );

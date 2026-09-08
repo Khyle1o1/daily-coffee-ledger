@@ -80,12 +80,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!cached) return null;
       const data: CachedProfile = JSON.parse(cached);
       if (data.userId === userId && Date.now() - data.timestamp < CACHE_DURATION) {
-        console.log('[AuthProvider] 💾 Using cached profile for', userId);
         return data;
       }
       return null;
-    } catch (error) {
-      console.error('[AuthProvider] ❌ Error reading cache:', error);
+    } catch {
       return null;
     }
   };
@@ -99,17 +97,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const data: CachedProfile = { userId, profile: cachedProfile, role: cachedRole, isAdmin: adminFlag, timestamp: Date.now() };
       localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.error('[AuthProvider] ❌ Error writing cache:', error);
-    }
+    } catch { /* cache write is best-effort */ }
   };
 
   const clearCachedProfile = () => {
     try {
       localStorage.removeItem(PROFILE_CACHE_KEY);
-    } catch (error) {
-      console.error('[AuthProvider] ❌ Error clearing cache:', error);
-    }
+    } catch { /* cache clear is best-effort */ }
   };
 
   // ─── Profile loader ───────────────────────────────────────────────────────
@@ -127,17 +121,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Guard: concurrent load already in progress
     if (isLoadingProfile.current) {
-      console.log('[AuthProvider] ⏭️ Profile load already in progress — skipping');
       return;
     }
 
     // Guard: same user already loaded and no force refresh requested
     if (!force && lastLoadedUserId.current === currentUser.id) {
-      console.log('[AuthProvider] ⏭️ Profile already loaded for user', currentUser.id, '— skipping');
       return;
     }
-
-    console.log('[AuthProvider] 👤 Loading profile for', currentUser.email);
 
     // Warm path: serve from cache without hitting the DB
     if (!force) {
@@ -155,8 +145,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoadingProfile.current = true;
 
     try {
-      console.log('[AuthProvider] 📡 Fetching profile from database...');
-
       const userId = currentUser.id;
       const [userProfile, adminStatus] = await Promise.all([
         withTimeout(getUserProfileById(userId), null),
@@ -173,7 +161,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!resolvedRole) {
         const jwtRole = currentUser.app_metadata?.role as UserRole | undefined;
         if (jwtRole && (['admin', 'user', 'viewer'] as string[]).includes(jwtRole)) {
-          console.log('[AuthProvider] ℹ️ DB unavailable — using JWT app_metadata.role:', jwtRole);
           resolvedRole = jwtRole;
           resolvedAdmin = jwtRole === 'admin';
         }
@@ -185,7 +172,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (raw) {
             const stale: CachedProfile = JSON.parse(raw);
             if (stale.userId === currentUser.id && stale.role) {
-              console.log('[AuthProvider] ⚠️ DB+JWT failed — using stale cached role:', stale.role);
               resolvedRole = stale.role;
               resolvedAdmin = stale.isAdmin;
             }
@@ -194,8 +180,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // ignore parse errors
         }
       }
-
-      console.log('[AuthProvider] ✅ Profile resolved:', { hasProfile: !!userProfile, resolvedRole, isAdmin: resolvedAdmin });
 
       setProfile(userProfile);
       setRole(resolvedRole);
@@ -213,8 +197,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       lastLoadedUserId.current = currentUser.id;
-    } catch (error) {
-      console.error('[AuthProvider] 💥 Exception loading profile:', error);
+    } catch {
       setProfile(null);
       setRole(null);
       setIsAdmin(false);
@@ -234,20 +217,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // below is always re-subscribed after cleanup so auth events are never missed.
     const initializeAuth = async () => {
       if (initializedRef.current) {
-        console.log('[AuthProvider] ⏭️ Already initialized — skipping duplicate startup');
         return;
       }
       initializedRef.current = true;
 
-      console.log('[AuthProvider] 🚀 Auth initialization starting...');
-
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
-
-        console.log('[AuthProvider] ✅ getSession complete:', {
-          hasSession: !!initialSession,
-          userEmail: initialSession?.user?.email ?? 'none',
-        });
 
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
@@ -257,10 +232,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (initialSession?.user) {
           await loadProfile(initialSession.user);
         }
-      } catch (error) {
-        console.error('[AuthProvider] ❌ Error during initialization:', error);
+      } catch {
+        // Startup failure still clears loading in the finally block.
       } finally {
-        console.log('[AuthProvider] ✅ Auth initialization complete — loading=false');
         setLoading(false);
       }
     };
@@ -283,12 +257,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // getSession() in initializeAuth already handles the startup session.
           // Supabase fires this synchronously when the listener is registered —
           // processing it would duplicate the profile load.
-          console.log('[AuthProvider] ⏭️ Ignoring INITIAL_SESSION (handled by getSession)');
           return;
         }
 
         if (event === 'SIGNED_OUT') {
-          console.log('[AuthProvider] 🚪 User signed out — clearing state');
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -303,13 +275,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (event === 'TOKEN_REFRESHED') {
           // Only the token changed — update session silently, no profile reload.
-          console.log('[AuthProvider] 🔄 Token refreshed — session updated silently');
           setSession(currentSession);
           return;
         }
 
         if (event === 'USER_UPDATED') {
-          console.log('[AuthProvider] 🔄 User updated — reloading profile');
           setSession(currentSession);
           setUser(currentSession?.user ?? null);
           void loadProfile(currentSession?.user ?? null, true);
@@ -322,12 +292,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Duplicate SIGNED_IN for the same user — ignore.
           // This fires on every new tab and on Strict Mode re-mount.
           if (incomingId && incomingId === lastLoadedUserId.current) {
-            console.log('[AuthProvider] ⏭️ Ignoring duplicate SIGNED_IN — same user already loaded');
             return;
           }
 
           // Real sign-in or account switch — update state and load profile.
-          console.log('[AuthProvider] 🔔 SIGNED_IN — new or switched user, loading profile');
           setSession(currentSession);
           setUser(currentSession?.user ?? null);
           void loadProfile(currentSession?.user ?? null);
@@ -336,7 +304,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     );
 
     return () => {
-      console.log('[AuthProvider] 🔌 Unsubscribing auth listener');
       subscription.unsubscribe();
     };
   }, [loadProfile]);
@@ -369,9 +336,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearCachedProfile();
       lastLoadedUserId.current = null;
       await supabase.auth.signOut();
-    } catch (error) {
-      console.error('[AuthProvider] Error signing out:', error);
-    }
+    } catch { /* local state is already cleared */ }
   };
 
   const resetPassword = async (email: string) => {

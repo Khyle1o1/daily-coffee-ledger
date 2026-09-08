@@ -18,4 +18,9 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Strip console output and debugger statements from production bundles so no
+  // diagnostic ever reaches a user's devtools, regardless of what is in source.
+  esbuild: {
+    drop: mode === "production" ? ["console", "debugger"] : [],
+  },
 }));

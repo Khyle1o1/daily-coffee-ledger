@@ -89,7 +89,6 @@ export async function listDirectoryLinks(
       total: count ?? 0,
     };
   } catch (error) {
-    console.error('listDirectoryLinks error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -114,7 +113,6 @@ export async function getDirectoryLinkById(
 
     return data as DirectoryLink | null;
   } catch (error) {
-    console.error('getDirectoryLinkById error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -159,7 +157,6 @@ export async function createDirectoryLink(
 
     return data as DirectoryLink;
   } catch (error) {
-    console.error('createDirectoryLink error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -218,7 +215,6 @@ export async function updateDirectoryLink(
 
     return data as DirectoryLink;
   } catch (error) {
-    console.error('updateDirectoryLink error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -240,7 +236,6 @@ export async function deleteDirectoryLink(id: string): Promise<void> {
       throw new Error(`Failed to delete directory link: ${error.message}`);
     }
   } catch (error) {
-    console.error('deleteDirectoryLink error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -266,8 +261,7 @@ export async function getDirectoryCategories(): Promise<string[]> {
     ) as string[];
 
     return unique;
-  } catch (error) {
-    console.error('getDirectoryCategories error:', error);
+  } catch {
     return [];
   }
 }

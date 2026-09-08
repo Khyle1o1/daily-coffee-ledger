@@ -191,7 +191,6 @@ export function computePourItForward(
     BranchId,
     Map<string, number>
   >();
-  let filteredRowsCount = 0;
 
   const ensureDay = (date: string) => {
     if (!perDay.has(date)) perDay.set(date, { foodpandaQty: 0, grabQty: 0, walkinQty: 0 });
@@ -238,7 +237,6 @@ export function computePourItForward(
 
       const qty = Number.isFinite(row.quantity) ? row.quantity : 0;
       if (!qty) continue;
-      filteredRowsCount += 1;
 
       const canonicalCupType = normalizeCupTypeLabel(name);
       const branchEntry = ensureBranch(report.branch);
@@ -384,30 +382,6 @@ export function computePourItForward(
   const monthlySummary =
     monthlySummaryRows.length >= 2 ? monthlySummaryRows : undefined;
 
-  if (itemizedCupGrandTotal !== totals.grandTotal) {
-    console.debug("[computePourItForward] Itemized cup total differs from summary total", {
-      itemizedCupGrandTotal,
-      summaryGrandTotal: totals.grandTotal,
-      dateFrom,
-      dateTo,
-    });
-  }
-  console.log("Selected branches:", selectedBranchIds ?? "all");
-  console.log("Selected branches (resolved):", selectedBranchIdsForBreakdown);
-  console.log("Filtered rows:", filteredRowsCount);
-  console.log(
-    "Per branch cup breakdown:",
-    perBranchItemizedCupBreakdown.reduce<Record<string, Record<string, number>>>(
-      (acc, branch) => {
-        acc[branch.branchName] = Object.fromEntries(
-          branch.rows.map((row) => [row.cupType, row.totalCups]),
-        );
-        return acc;
-      },
-      {},
-    ),
-  );
-
   // Build detail arrays (single branch only)
   let dailyBreakdown: PourDailyRow[] | undefined;
   let itemBreakdown: PourItemRow[] | undefined;
@@ -430,25 +404,9 @@ export function computePourItForward(
       return !isInSelectedLocalRange(d);
     });
     if (outOfRangeRows.length > 0) {
-      console.debug("[computePourItForward] Dropping out-of-range day rows", {
-        dateFrom,
-        dateTo,
-        outOfRangeDates: outOfRangeRows.map((r) => r.date),
-      });
       dailyBreakdown = dailyBreakdown.filter(
         (row) => !outOfRangeRows.some((bad) => bad.date === row.date),
       );
-    }
-
-    const hasOutOfRangeAfterFilter = dailyBreakdown.some((row) => {
-      const d = parseLocalYmd(row.date);
-      return !isInSelectedLocalRange(d);
-    });
-    if (hasOutOfRangeAfterFilter) {
-      console.warn("[computePourItForward] Out-of-range day row remained after safety filter", {
-        dateFrom,
-        dateTo,
-      });
     }
 
     itemBreakdown = Array.from(perItem.entries())

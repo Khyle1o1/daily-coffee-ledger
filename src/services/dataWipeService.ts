@@ -48,7 +48,7 @@ export async function wipeOperationalData(): Promise<WipeOperationalDataResult> 
     const reportsMonthly = await deleteAllRows("reports_monthly");
     const auditLogs = await deleteAllRows("audit_logs");
 
-    const { error: logError } = await (supabaseAdmin as any).from("audit_logs").insert({
+    await (supabaseAdmin as any).from("audit_logs").insert({
       user_id: admin.userId,
       user_email: admin.email ?? "",
       user_role: admin.role,
@@ -66,13 +66,8 @@ export async function wipeOperationalData(): Promise<WipeOperationalDataResult> 
       },
     });
 
-    if (logError) {
-      console.error("[dataWipeService] Failed to write wipe audit log:", logError.message);
-    }
-
     return { ledger, reportsDaily, reportsMonthly, auditLogs };
   } catch (error) {
-    console.error("wipeOperationalData error:", error);
     throw new Error(handleSupabaseError(error));
   }
 }

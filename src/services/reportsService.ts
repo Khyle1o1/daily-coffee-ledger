@@ -223,7 +223,6 @@ export async function getBranches(): Promise<Branch[]> {
 
     return data || [];
   } catch (error) {
-    console.error('getBranches error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -249,7 +248,6 @@ export async function getBranchByName(name: BranchId): Promise<Branch | null> {
 
     return data;
   } catch (error) {
-    console.error('getBranchByName error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -277,7 +275,6 @@ export async function ensureBranchExists(name: BranchId): Promise<Branch> {
 
     return data as Branch;
   } catch (error) {
-    console.error("ensureBranchExists error:", error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -323,10 +320,7 @@ export async function seedBranchesIfEmpty(): Promise<void> {
     if (insertError) {
       throw new Error(`Failed to seed branches: ${insertError.message}`);
     }
-
-    console.log('✅ Branches seeded successfully');
   } catch (error) {
-    console.error('seedBranchesIfEmpty error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -468,27 +462,20 @@ export async function saveDailyReport(
     const saved = data as DailyReportRow;
 
     try {
-      const result = await reconcileOverlappingSiblingReports({
+      await reconcileOverlappingSiblingReports({
         branchId: payload.branchId,
         keepReportId: saved.id,
         keepDays,
         dateFrom: dateRangeStart,
         dateTo: dateRangeEnd,
       });
-      if (result.trimmed || result.deleted) {
-        console.log(
-          `[saveDailyReport] reconciled overlaps — trimmed=${result.trimmed} deleted=${result.deleted}`,
-        );
-      }
-    } catch (reconcileError) {
-      console.error('saveDailyReport reconcile error:', reconcileError);
+    } catch {
       // Save succeeded; overlap reconcile failure should not hide the primary save.
       // Derive-time ownership remains a safety net.
     }
 
     return saved;
   } catch (error) {
-    console.error('saveDailyReport error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -516,7 +503,6 @@ export async function listDailyReports(
     void total;
     return data;
   } catch (error) {
-    console.error('listDailyReports error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -549,8 +535,6 @@ export async function listAllDailyReports(
   const from = (page - 1) * pageSize;
   const to   = from + pageSize - 1;
 
-  const t0 = performance.now();
-
   try {
     // reports_daily_meta is a view that strips rowDetails + unmappedSummary.
     // PostgREST resolves the branch:branches(...) relationship via the
@@ -581,19 +565,11 @@ export async function listAllDailyReports(
 
     const { data, error } = await query;
 
-    const elapsed = Math.round(performance.now() - t0);
-
     if (error) {
-      console.error(`[listAllDailyReports] ❌ ${elapsed}ms — ${error.message}`);
       throw new Error(`Failed to list daily reports: ${error.message}`);
     }
 
     const rows = (data as DailyReportListRow[]) ?? [];
-    const approxKb = Math.round(JSON.stringify(rows).length / 1024);
-    console.log(
-      `[listAllDailyReports] ✅ ${rows.length} rows in ${elapsed}ms (~${approxKb} KB) — page ${page}` +
-        (dateFrom || dateTo ? ` overlap ${dateFrom ?? "…"}→${dateTo ?? "…"}` : ""),
-    );
 
     return { data: rows, total: rows.length };
   } catch (error) {
@@ -676,7 +652,6 @@ export async function fetchDailyReportsForComputeSlim(
   params: ComputeFetchParams,
 ): Promise<DailyReportRow[] | null> {
   const { dateFrom, dateTo, branchIds, includeRowDetails = true } = params;
-  const t0 = performance.now();
 
   const { data, error } = await supabase.rpc("reports_daily_compute_slim", {
     p_date_from: dateFrom,
@@ -686,9 +661,6 @@ export async function fetchDailyReportsForComputeSlim(
   });
 
   if (error) {
-    console.warn(
-      `[fetchDailyReportsForComputeSlim] RPC unavailable (${error.message}); will split or use table fallback`,
-    );
     return null;
   }
 
@@ -715,23 +687,7 @@ export async function fetchDailyReportsForComputeSlim(
   let approxBytes = 0;
   for (const row of rows) approxBytes += estimateRowBytes(row);
   if (approxBytes > MAX_COMPUTE_PAYLOAD_BYTES) {
-    console.warn(
-      `[fetchDailyReportsForComputeSlim] payload ~${Math.round(approxBytes / (1024 * 1024))} MB exceeds per-request cap; splitting`,
-    );
     return null;
-  }
-
-  const elapsed = Math.round(performance.now() - t0);
-  if (import.meta.env.DEV) {
-    console.log(
-      `[fetchDailyReportsForComputeSlim] ✅ ${rows.length} rows in ${elapsed}ms ` +
-        `(~${Math.round(approxBytes / 1024)} KB) — overlap ${dateFrom} → ${dateTo}` +
-        (includeRowDetails ? "" : " (no rowDetails)"),
-    );
-  } else {
-    console.log(
-      `[fetchDailyReportsForComputeSlim] ✅ ${rows.length} rows in ${elapsed}ms — ${dateFrom} → ${dateTo}`,
-    );
   }
 
   return rows;
@@ -758,7 +714,6 @@ async function fetchComputeSlice(params: ComputeFetchParams): Promise<DailyRepor
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (!msg.includes("payload too large")) throw err;
-    console.warn(`[fetchComputeSlice] table fetch oversized for ${params.dateFrom} → ${params.dateTo}`);
   }
 
   let branchIdList = params.branchIds?.filter(Boolean) ?? [];
@@ -772,10 +727,6 @@ async function fetchComputeSlice(params: ComputeFetchParams): Promise<DailyRepor
       payloadTooLargeMessage(MAX_COMPUTE_PAYLOAD_BYTES + 1, "for one branch in this date range"),
     );
   }
-
-  console.log(
-    `[fetchComputeSlice] branch batches (${COMPUTE_BRANCH_BATCH_SIZE} per request) — ${params.dateFrom} → ${params.dateTo}`,
-  );
 
   const byId = new Map<string, DailyReportRow>();
   for (const batch of chunkArray(branchIdList, COMPUTE_BRANCH_BATCH_SIZE)) {
@@ -802,7 +753,6 @@ async function fetchComputeSlice(params: ComputeFetchParams): Promise<DailyRepor
  */
 export async function fetchDailyReportsForCompute(params: ComputeFetchParams): Promise<DailyReportRow[]> {
   const { dateFrom, dateTo, branchIds, includeRowDetails = true } = params;
-  const t0 = performance.now();
 
   try {
     const selectCols =
@@ -834,7 +784,6 @@ export async function fetchDailyReportsForCompute(params: ComputeFetchParams): P
 
       const { data, error } = await query;
       if (error) {
-        console.error(`[fetchDailyReportsForCompute] ❌ chunk ${from}-${to}: ${error.message}`);
         throw new Error(`Failed to fetch reports for compute: ${error.message}`);
       }
 
@@ -866,19 +815,9 @@ export async function fetchDailyReportsForCompute(params: ComputeFetchParams): P
         throw new Error(payloadTooLargeMessage(approxBytes, "for one month window"));
       }
 
-      console.log(
-        `[fetchDailyReportsForCompute] chunk ${from}-${to}: ${raw.length} rows ` +
-          `(~${Math.round(approxBytes / 1024)} KB cumulative, slimmed)`,
-      );
-
       offset += COMPUTE_CHUNK_SIZE;
       if (raw.length < COMPUTE_CHUNK_SIZE) break;
     }
-
-    const elapsed = Math.round(performance.now() - t0);
-    console.log(
-      `[fetchDailyReportsForCompute] ✅ ${all.length} rows in ${elapsed}ms (~${Math.round(approxBytes / 1024)} KB) — overlap ${dateFrom} → ${dateTo}`,
-    );
 
     return all;
   } catch (error) {
@@ -920,24 +859,14 @@ export async function fetchDailyReportsForComputeRange(
   params: ComputeFetchParams,
 ): Promise<DailyReportRow[]> {
   const { dateFrom, dateTo, branchIds, includeRowDetails = true } = params;
-  const t0 = performance.now();
 
   const skipWholeRange =
     includeRowDetails &&
     spanDaysInclusive(dateFrom, dateTo) > MAX_SINGLE_REQUEST_SPAN_DAYS;
 
-  if (skipWholeRange) {
-    console.log(
-      `[fetchDailyReportsForComputeRange] span > ${MAX_SINGLE_REQUEST_SPAN_DAYS}d; ` +
-        `splitting by month up front — ${dateFrom} → ${dateTo}`,
-    );
-  } else {
+  if (!skipWholeRange) {
     const wholeRange = await fetchDailyReportsForComputeSlim(params);
     if (wholeRange) {
-      const elapsed = Math.round(performance.now() - t0);
-      console.log(
-        `[fetchDailyReportsForComputeRange] ✅ ${wholeRange.length} reports via RPC in ${elapsed}ms — ${dateFrom} → ${dateTo}`,
-      );
       return wholeRange;
     }
   }
@@ -951,9 +880,6 @@ export async function fetchDailyReportsForComputeRange(
     windows,
     COMPUTE_WINDOW_CONCURRENCY,
     async (window) => {
-      console.log(
-        `[fetchDailyReportsForComputeRange] window ${window.dateFrom} → ${window.dateTo}`,
-      );
       return fetchComputeSlice({
         dateFrom: window.dateFrom,
         dateTo: window.dateTo,
@@ -997,17 +923,6 @@ export async function fetchDailyReportsForComputeRange(
     );
   }
 
-  const elapsed = Math.round(performance.now() - t0);
-  const approxKb = import.meta.env.DEV
-    ? Math.round(JSON.stringify(merged).length / 1024)
-    : Math.round(mergedBytes / 1024);
-  console.log(
-    `[fetchDailyReportsForComputeRange] ✅ ${merged.length} unique reports ` +
-      `in ${elapsed}ms (~${approxKb} KB)` +
-      (windows.length > 1 ? ` across ${windows.length} month window(s)` : " (split fetch)") +
-      ` — ${dateFrom} → ${dateTo}`,
-  );
-
   return merged;
 }
 
@@ -1031,7 +946,6 @@ export async function getDailyReport(id: string): Promise<DailyReportRow | null>
 
     return data as DailyReportRow;
   } catch (error) {
-    console.error('getDailyReport error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -1050,7 +964,6 @@ export async function deleteDailyReport(id: string): Promise<void> {
       throw new Error(`Failed to delete daily report: ${error.message}`);
     }
   } catch (error) {
-    console.error('deleteDailyReport error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -1101,7 +1014,6 @@ export async function saveMonthlyReport(
 
     return data as MonthlyReportRow;
   } catch (error) {
-    console.error('saveMonthlyReport error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -1141,7 +1053,6 @@ export async function listMonthlyReports(
 
     return (data as MonthlyReportRow[]) || [];
   } catch (error) {
-    console.error('listMonthlyReports error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -1166,7 +1077,6 @@ export async function getMonthlyReport(id: string): Promise<MonthlyReportRow | n
 
     return data as MonthlyReportRow;
   } catch (error) {
-    console.error('getMonthlyReport error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
@@ -1185,7 +1095,6 @@ export async function deleteMonthlyReport(id: string): Promise<void> {
       throw new Error(`Failed to delete monthly report: ${error.message}`);
     }
   } catch (error) {
-    console.error('deleteMonthlyReport error:', error);
     throw new Error(handleSupabaseError(error));
   }
 }
