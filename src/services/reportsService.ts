@@ -34,8 +34,13 @@ export const MAX_COMPUTE_REPORTS = 40;
 /**
  * Soft ceiling per HTTP/RPC request (one month or one branch batch).
  * Long generates split into multiple requests and merge client-side.
+ *
+ * This was calibrated against uncompressed responses. Kong now gzips
+ * application/json at ~18x, so 96 MB of JSON costs ~5 MB on the wire. Staying
+ * at 48 MB pushed a busy month onto the table fallback, which reads raw
+ * summary_json without the RPC's date pruning — strictly slower and larger.
  */
-export const MAX_COMPUTE_PAYLOAD_BYTES = 48 * 1024 * 1024;
+export const MAX_COMPUTE_PAYLOAD_BYTES = 96 * 1024 * 1024;
 
 /** Hard ceiling on merged in-memory payload after all windows/batches. */
 export const MAX_COMPUTE_MERGED_PAYLOAD_BYTES = 384 * 1024 * 1024;
@@ -51,6 +56,20 @@ export const MAX_COMPUTE_RANGE_REPORTS = 150;
 
 /** Parallel month-window fetches when RPC is unavailable or over the row cap. */
 const COMPUTE_WINDOW_CONCURRENCY = 3;
+
+/**
+ * PostgREST connects as `authenticator`, which carries `statement_timeout=8s`.
+ * A single month of rowDetails runs 2–6s, so anything wider reliably burns the
+ * full 8s before erroring. Skip the whole-range attempt and split immediately.
+ * Aggregate-only fetches read `summary_meta` and stay well inside the limit.
+ */
+export const MAX_SINGLE_REQUEST_SPAN_DAYS = 31;
+
+function spanDaysInclusive(dateFrom: string, dateTo: string): number {
+  const from = parseYmdLocal(dateFrom);
+  const to = parseYmdLocal(dateTo);
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+}
 
 /** Fields compute paths need from each rowDetail (drops verbose mapping debug). */
 const COMPUTE_ROW_DETAIL_KEYS = [
@@ -903,13 +922,24 @@ export async function fetchDailyReportsForComputeRange(
   const { dateFrom, dateTo, branchIds, includeRowDetails = true } = params;
   const t0 = performance.now();
 
-  const wholeRange = await fetchDailyReportsForComputeSlim(params);
-  if (wholeRange) {
-    const elapsed = Math.round(performance.now() - t0);
+  const skipWholeRange =
+    includeRowDetails &&
+    spanDaysInclusive(dateFrom, dateTo) > MAX_SINGLE_REQUEST_SPAN_DAYS;
+
+  if (skipWholeRange) {
     console.log(
-      `[fetchDailyReportsForComputeRange] ✅ ${wholeRange.length} reports via RPC in ${elapsed}ms — ${dateFrom} → ${dateTo}`,
+      `[fetchDailyReportsForComputeRange] span > ${MAX_SINGLE_REQUEST_SPAN_DAYS}d; ` +
+        `splitting by month up front — ${dateFrom} → ${dateTo}`,
     );
-    return wholeRange;
+  } else {
+    const wholeRange = await fetchDailyReportsForComputeSlim(params);
+    if (wholeRange) {
+      const elapsed = Math.round(performance.now() - t0);
+      console.log(
+        `[fetchDailyReportsForComputeRange] ✅ ${wholeRange.length} reports via RPC in ${elapsed}ms — ${dateFrom} → ${dateTo}`,
+      );
+      return wholeRange;
+    }
   }
 
   const windows = iterMonthWindows(dateFrom, dateTo);

@@ -29,34 +29,166 @@ If you add a Node/Next/Laravel backend, reuse a singleton client instead of crea
 Generate prefers the **`reports_daily_compute_slim`** RPC (migration `025`):
 
 - Overlap filter on `date_range_start` / `date_range_end`
-- Drops `unmappedSummary`
 - Prunes `rowDetails` to the selected date window
-- Projects only the ~18 compute fields (not the full ~362 KB/row blobs)
 - `p_include_row_details = false` for Category Performance (uses `dailyBreakdown`)
 
 On Coolify (CPU/TOAST-bound, ~128MB `shared_buffers`), migrations `025b`/`025c` keep
-**date-pruning + drop `unmappedSummary`** in the RPC (with a fast path when the
-report range is fully inside the window) and leave field projection to the
-browser (`slimSummaryJsonForCompute`) — cheaper than rebuilding every jsonb
-element on the VPS.
+date-pruning in the RPC and leave field projection to the browser
+(`slimSummaryJsonForCompute`) — cheaper than rebuilding every jsonb element on
+the VPS.
 
-Measured on Coolify (Aug 2026 window, 41 reports):
+### Never apply a jsonb operator to `summary_json` on a light read
 
-| Path | Time | Payload |
-|------|------|---------|
-| Raw `reports_daily` select | ~70s | ~71 MB |
-| Slim RPC (rowDetails) | ~20–40s | ~42 MB |
-| Agg-only RPC (`p_include_row_details=false`) | ~0.5s | ~0.3 MB |
+`reports_daily` is ~89 rows / **32 kB heap / 31 MB TOAST**. Inside `summary_json`,
+`rowDetails` is ~296 MB uncompressed; every other key totals ~1.2 MB.
 
-Fallback (RPC missing or >48 MB per request): month windows + **branch batches**
-(3 branches per request), concurrency 3. Caps: **40** rows per request,
-**150** unique reports, ~**48 MB** per HTTP call, ~**384 MB** merged in browser.
+Any jsonb operator (`-`, `||`, `->`) forces a full detoast + parse + reserialize
+of that 296 MB — even when the operator strips 712 bytes. Measured on the
+Aug 2026 window (53 rows):
+
+| Expression | Time |
+|------------|------|
+| `select summary_json` (raw column) | **0.1 ms** |
+| `select summary_json - 'unmappedSummary'` | **1404 ms** |
+| `select summary_json - 'rowDetails' - 'unmappedSummary'` | **86 ms** |
+
+Migration `026` fixes this:
+
+- `reports_daily.summary_meta` holds the light aggregates (~14 kB/row),
+  maintained by the `reports_daily_summary_meta` BEFORE INSERT/UPDATE trigger
+- `reports_daily_meta` view selects `summary_meta`, so the list never touches TOAST
+- `reports_daily_compute_slim` returns `summary_json` **untouched** on the
+  fully-contained fastpath, and `summary_meta` when `p_include_row_details = false`
+
+Backfills that rewrite `summary_json` must run with
+`update_reports_daily_updated_at` disabled — `deriveDailyLedgerFromPos` breaks
+ties between overlapping report ranges on `updated_at`.
+
+Measured on Coolify (Aug 2026 window, 53 reports), server-side:
+
+| Path | Before 026 | After 026 |
+|------|-----------|-----------|
+| `reports_daily_meta` list page | 177 ms | **0.35 ms** |
+| Agg-only RPC (`p_include_row_details=false`) | 101 ms | **7.5 ms** |
+| Slim RPC with `rowDetails` | 3515 ms (173 MB temp spill) | **1054 ms**, no spill |
+
+### Kong gzip (enabled)
+
+After migration `026` generate became **wire-bound, not database-bound**: the DB
+finished in ~1s but the 51 MB response took ~25s to cross Kong uncompressed.
+
+These are set on the Coolify Kong service:
+
+```
+KONG_NGINX_HTTP_GZIP=on
+KONG_NGINX_HTTP_GZIP_COMP_LEVEL=5
+KONG_NGINX_HTTP_GZIP_MIN_LENGTH=1024
+KONG_NGINX_HTTP_GZIP_PROXIED=any
+KONG_NGINX_HTTP_GZIP_TYPES=application/json application/javascript text/plain text/css
+```
+
+| Aug 2026 generate | Uncompressed | gzip |
+|---|---|---|
+| Wire size | 51.46 MB | **2.78 MB (18.5x)** |
+| Time | 25.6 s | **2.8 s** |
+
+Browsers always send `Accept-Encoding`, so the app gets this automatically.
+Verify after any Kong redeploy:
+
+```
+curl -s -H "Accept-Encoding: gzip" -o /dev/null -D - \
+  -X POST "$SUPABASE_URL/rest/v1/rpc/reports_daily_compute_slim" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"p_date_from":"2026-08-01","p_date_to":"2026-08-31","p_branch_ids":null,"p_include_row_details":true}' \
+  | grep -i content-encoding
+```
+
+### The 8s statement timeout sets the request size
+
+PostgREST connects as `authenticator`, which carries `statement_timeout=8s`
+(`anon` is 3s). `SET ROLE service_role` does **not** lift it — the session
+setting already applies, so every PostgREST call is capped at 8s regardless of
+role. Setting `statement_timeout` inside the RPC does not help either; the
+timer is armed when the statement starts.
+
+One month of `rowDetails` runs 2–6s, so a single request must stay at or below
+one calendar month. `fetchDailyReportsForComputeRange` therefore skips the
+whole-range attempt when the span exceeds `MAX_SINGLE_REQUEST_SPAN_DAYS` (31)
+and splits into month windows immediately, instead of burning the full 8s first.
+Aggregate-only fetches read `summary_meta` and are exempt.
+
+Full-year generate via month windows, all 8 populated windows succeeded:
+
+| Window | Time | Reports | Lines |
+|---|---|---|---|
+| 2026-01 | 2122 ms | 8 | 68,682 |
+| 2026-03 | 5823 ms | 7 | 66,968 |
+| 2026-07 | 4780 ms | 22 | 157,493 |
+| 2026-08 | 3454 ms | 53 | 131,738 |
+| **total** | **25.0 s** | **119** | **664,540** |
+
+March at 5.8s is the closest to the 8s ceiling. If a single month starts timing
+out, the existing deeper fallback (table chunks → branch batches) takes over;
+raising `authenticated` / `authenticator` `statement_timeout` is the other lever.
+
+Fallback (RPC missing or over the per-request cap): month windows + **branch
+batches** (3 branches per request), concurrency 3. Caps: **40** rows per
+request, **150** unique reports, **96 MB** per HTTP call, **384 MB** merged in
+the browser.
+
+### Why the per-request cap moved from 48 MB to 96 MB
+
+The 48 MB figure predates Kong gzip. Two 2026 windows exceeded it — July at
+55.9 MB — which pushed them onto the table fallback, and that path reads raw
+`summary_json` **without** the RPC's date pruning, so it is both slower and
+larger. Post-gzip, 96 MB of JSON is ~5 MB on the wire, so the cap was raised.
+Full-year generate over all 23 branches went **17.8 s → 11.8 s** with no window
+over the cap.
+
+### Year-scale headroom (worst realistic case)
+
+Full year 2026, all 23 branches, `rowDetails` included, after the month split:
+
+| Metric | Measured | Cap |
+|---|---|---|
+| Time | 11.8 s | — |
+| Unique reports | 89 | 150 |
+| Merged payload | 158.1 MB | 384 MB |
+| Line rows | 445,191 | — |
+
+Both caps have room, but the ceiling here is **browser memory**, not the
+database: 158 MB of JSON text parses into roughly 600 MB of JS objects. A
+narrower branch selection collapses this — a full year over 3 branches is 4.1 MB
+and 1.0 s. If year-wide, all-branch generates become routine, the next move is
+serving those pages from `dailyBreakdown` aggregates (`p_include_row_details =
+false`, 0.30 MB) instead of line rows.
 
 Watch the browser console:
 
 ```
 [fetchDailyReportsForComputeSlim] ✅ N rows in Xms …
 [fetchDailyReportsForComputeRange] ✅ N reports via RPC in Xms — …
+[fetchDailyReportsForComputeRange] span > 31d; splitting by month up front — …
+```
+
+### Current end-to-end timings
+
+Measured through PostgREST with gzip on, Aug 2026, 53 reports / 131,738 lines:
+
+| Path | Time | Wire |
+|---|---|---|
+| Daily list (50 rows) | 325 ms | 0.18 MB |
+| Category Performance (agg only) | 140 ms | 0.30 MB |
+| Generate, one month | 2.6 s | 2.78 MB gzipped |
+| Generate, full year (8 windows) | ~25 s | — |
+
+Reset the baseline after each optimisation so stale one-off queries stop
+dominating the report:
+
+```sql
+select pg_stat_statements_reset();
 ```
 
 Bench wire size:
@@ -74,6 +206,14 @@ Run / verify:
 - `025_report_perf_indexes_and_compute_rpc.sql` — drops unused GIN on full `summary_json`
   and the unused expression GiST; adds `(date_range_end, date_range_start)` and
   `(branch_id, date_range_end, date_range_start)`; adds `reports_daily_compute_slim`
+- `026_split_summary_meta_from_toast.sql` — `summary_meta` column + trigger;
+  drops four indexes with zero scans (`user_id`, `user_report_date` — RLS here is
+  only `uid() IS NOT NULL`, so neither serves a policy — plus `report_date` and
+  `branch_id`, which are prefixes of existing composites)
+
+**On a table this size, indexes are not the lever.** 89 rows in a 32 kB heap
+always seq scan; `index_advisor` returns null for every slow statement. Cost
+lives in TOAST detoasting and wire size.
 
 Audit live Coolify DB:
 
@@ -129,8 +269,11 @@ Coolify / Hostinger:
 
 Postgres defaults on small VPS are often too low for JSONB TOAST:
 
-- `shared_buffers` / `effective_cache_size` default **128MB** — raise when the host has RAM
-- `work_mem` default **4MB**
+- `shared_buffers` **128MB** — needs a Postgres restart; set outside the DB
+- `effective_cache_size` was 128MB, `random_page_cost` was 4 — both corrected in
+  migration `027` via `ALTER DATABASE` (planner estimates only, no allocation)
+- `work_mem` **4MB** globally; `reports_daily_compute_slim` sets `work_mem = '64MB'`
+  locally so the partial-overlap `jsonb_agg` stops spilling to temp files
 
 Interpretation:
 
