@@ -76,8 +76,17 @@ describe("computeChannelSalesSummary", () => {
     expect(gb?.totals.grab).toBe(500);
     expect(gb?.totals.foodpanda).toBe(200);
 
-    const overallCoffee = result.overall.rows.find((r) => r.category === "COFFEE");
-    expect(overallCoffee?.total).toBe(2300);
+    // Coffee is either hot or iced, so both stay as their own rows rather than
+    // rolling up into a single COFFEE line.
+    const overallIced = result.overall.rows.find((r) => r.category === "ICED");
+    const overallHot = result.overall.rows.find((r) => r.category === "HOT");
+    expect(overallIced?.total).toBe(1500);
+    expect(overallHot?.total).toBe(800);
+    expect(result.overall.rows.map((r) => r.category)).toEqual([
+      "ICED",
+      "HOT",
+      "SNACKS",
+    ]);
     expect(result.overall.totals.total).toBe(2500);
   });
 });
