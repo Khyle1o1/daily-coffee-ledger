@@ -2,6 +2,7 @@ import type { DailyReport, ProcessedRow, Category } from "@/utils/types";
 import type { ReportFilters } from "./compute";
 import { getRowsForFilters } from "./compute";
 import { getChannelFromPaymentType, type SalesChannel } from "./channel";
+import { itemKey } from "@/utils/canonicalItemName";
 
 export type ProductMixChannelRow = {
   name: string;
@@ -59,7 +60,7 @@ export function computeProductMixChannel(
   >();
 
   const applyRow = (row: ProcessedRow) => {
-    const name = row.mappedItemName ?? row.rawItemName;
+    const name = itemKey(row);
     if (!name.trim()) return;
 
     const channel: SalesChannel = getChannelFromPaymentType(row.paymentType);

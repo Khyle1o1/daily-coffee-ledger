@@ -5,6 +5,7 @@ import type { Top5ByChannel } from "./computeTop5ByChannel";
 import { computeTop5ByChannelFromRows } from "./computeTop5ByChannel";
 import { getPercentChange } from "@/utils/percentChange";
 import { hasDailyBreakdown, sliceDailyBreakdown } from "./dailyBreakdown";
+import { itemKey } from "@/utils/canonicalItemName";
 
 // ============================================================================
 // Filter types
@@ -264,7 +265,7 @@ export function computeProductTotals(
   const compareMap: Record<string, { sales: number; qty: number }> = {};
 
   for (const row of rows) {
-    const key = row.mappedItemName ?? row.rawItemName;
+    const key = itemKey(row);
     if (!salesMap[key]) {
       salesMap[key] = { sales: 0, qty: 0, category: row.mappedCat as Category };
     }
@@ -274,7 +275,7 @@ export function computeProductTotals(
 
   if (compareRows) {
     for (const row of compareRows) {
-      const key = row.mappedItemName ?? row.rawItemName;
+      const key = itemKey(row);
       if (!compareMap[key]) compareMap[key] = { sales: 0, qty: 0 };
       compareMap[key].sales += row.rowSales;
       compareMap[key].qty += row.quantity;
@@ -344,7 +345,7 @@ export function computeTopProducts(
 
   for (const row of allRows) {
     const cat = row.mappedCat as Category;
-    const item = row.mappedItemName ?? row.rawItemName;
+    const item = itemKey(row);
     if (!byCatItem[cat]) byCatItem[cat] = {};
     if (!byCatItem[cat][item]) byCatItem[cat][item] = { sales: 0, qty: 0, cat };
     byCatItem[cat][item].sales += row.rowSales;

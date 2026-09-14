@@ -1,4 +1,5 @@
 import { normalizeText } from "./normalize";
+import { canonicalItemName } from "./canonicalItemName";
 import { normalizeOption as normalizeValidationOption } from "./defaultMapping";
 import type { RawRow, ProcessedRow, MappingEntry, Category } from "./types";
 import { CATEGORIES } from "./types";
@@ -463,7 +464,7 @@ function mapped(
     ...row,
     rowSales,
     mappedCat,
-    mappedItemName,
+    mappedItemName: canonicalItemName(mappedItemName) || mappedItemName,
     status: "MAPPED",
     categoryConflict,
     debugReason: reason,

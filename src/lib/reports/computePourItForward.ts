@@ -10,6 +10,7 @@ function defaultGetBranchLabel(slug: string): string {
 import { getChannelFromPaymentType } from "./channel";
 import { isCupItem } from "./cups";
 import { filterRowsByDateRange } from "./filterRowsByDateRange";
+import { itemKey } from "@/utils/canonicalItemName";
 
 export type PourRow = {
   branchId: BranchId;
@@ -232,7 +233,7 @@ export function computePourItForward(
 
     for (const row of rowsInRange) {
       if (row.status !== "MAPPED") continue;
-      const name = row.mappedItemName ?? row.rawItemName;
+      const name = itemKey(row);
       if (!name || !isCupItem(name)) continue;
 
       const qty = Number.isFinite(row.quantity) ? row.quantity : 0;

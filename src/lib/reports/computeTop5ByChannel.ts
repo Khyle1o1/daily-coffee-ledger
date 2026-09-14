@@ -1,5 +1,6 @@
 import type { ProcessedRow } from "@/utils/types";
 import { getChannelFromPaymentType, type SalesChannel } from "./channel";
+import { itemKey } from "@/utils/canonicalItemName";
 
 export type TopItem = {
   name: string;
@@ -29,7 +30,7 @@ export function computeTop5ByChannelFromRows(rows: ProcessedRow[]): Top5ByChanne
 
   for (const row of rows) {
     const channel = getChannelFromPaymentType(row.paymentType);
-    const key = row.mappedItemName ?? row.rawItemName;
+    const key = itemKey(row);
     const qty = Number.isFinite(row.quantity) ? row.quantity : 0;
     const sales = Number.isFinite(row.rowSales) ? row.rowSales : 0;
 

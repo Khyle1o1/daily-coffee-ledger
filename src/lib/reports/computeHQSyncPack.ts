@@ -8,6 +8,7 @@ import {
   type ComputedProductMix,
 } from "./compute";
 import { getChannelFromPaymentType, type SalesChannel } from "./channel";
+import { itemKey } from "@/utils/canonicalItemName";
 
 // ─── Category groups ──────────────────────────────────────────────────────────
 
@@ -100,7 +101,7 @@ function buildChannelTop5(
 
   for (const row of rows) {
     const ch = getChannelFromPaymentType(row.paymentType);
-    const key = row.mappedItemName ?? row.rawItemName;
+    const key = itemKey(row);
     const qty = Number.isFinite(row.quantity) ? row.quantity : 0;
     const sales = Number.isFinite(row.rowSales) ? row.rowSales : 0;
     if (!buckets[ch][key]) buckets[ch][key] = { qty: 0, sales: 0 };
@@ -142,7 +143,7 @@ function computeCupsData(
 
   const qtyMap: Record<string, number> = {};
   for (const row of rows) {
-    const name = row.mappedItemName ?? row.rawItemName;
+    const name = itemKey(row);
     if (!name) continue;
     if (/\d+\s*oz/i.test(name) && /cup/i.test(name)) {
       qtyMap[name] = (qtyMap[name] ?? 0) + (Number.isFinite(row.quantity) ? row.quantity : 0);
