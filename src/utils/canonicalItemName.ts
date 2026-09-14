@@ -11,6 +11,16 @@ const CANONICAL_DISPLAY: Record<string, string> = {
   [normalizeText("12oz iced dabba cups")]: "12oz Iced Dabba Cup",
   [normalizeText("16oz hot paper cups")]: "16oz Paper Cup",
   [normalizeText("12oz hot paper cups")]: "12oz Paper Cup",
+  [normalizeText("coco chata")]: "CocoChata",
+  [normalizeText("cocochata")]: "CocoChata",
+  [normalizeText("signature tea")]: "Signature Tea",
+  [normalizeText("signature tea latte")]: "Signature Tea",
+  [normalizeText("chocolate salt bread")]: "Chocolate Salt Bread",
+  [normalizeText("dark chocolate salt bread")]: "Chocolate Salt Bread",
+  [normalizeText("truffle salt bread")]: "Truffle Salt Bread",
+  [normalizeText("truffle cheese salt bread")]: "Truffle Salt Bread",
+  [normalizeText("oatmeal crunch protein bar")]: "Oatmeal Crunch Protein Bar",
+  [normalizeText("oatmeal cookie protein bar")]: "Oatmeal Crunch Protein Bar",
 };
 
 /**

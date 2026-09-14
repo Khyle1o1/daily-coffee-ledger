@@ -255,6 +255,8 @@ const ITEM_ALIASES: Record<string, string[]> = {
   [normalizeText("pb protein latte")]: [normalizeText("peanut butter protein latte")],
   [normalizeText("cocochata")]: [normalizeText("coco chata")],
   [normalizeText("coco chata")]: [normalizeText("cocochata")],
+  [normalizeText("signature tea")]: [normalizeText("signature tea latte")],
+  [normalizeText("signature tea latte")]: [normalizeText("signature tea")],
   [normalizeText("truffle salt bread")]: [normalizeText("truffle cheese salt bread")],
   [normalizeText("truffle cheese salt bread")]: [normalizeText("truffle salt bread")],
   [normalizeText("oatmeal crunch protein bar")]: [normalizeText("oatmeal cookie protein bar")],
@@ -314,6 +316,11 @@ function isAddOnsBucketItem(itemNorm: string): boolean {
   if (/^addonsmisc$/i.test(compact)) return true;
   if (/^(addons|addon)\s*misc$/i.test(itemNorm)) return true;
   return false;
+}
+
+function isMilkAddOnBucket(itemNorm: string): boolean {
+  if (!isAddOnsBucketItem(itemNorm) && itemNorm !== "milk") return false;
+  return /\bmilk\b/i.test(itemNorm) || itemNorm === "milk";
 }
 
 function resolveAddOnBucketItem(catNorm: string, itemNorm: string, optNorm: string): string | null {
@@ -683,6 +690,10 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
         miscFb.mappedItemName,
         "fallback_addon_misc_option",
       );
+    }
+    // Milk bucket: never keep "ADD ONS MILK" as the product — option is the SKU.
+    if (isMilkAddOnBucket(itemNorm) && rawOptTrim) {
+      return mapped(row, rowSales, "ADD-ONS", rawOptTrim, "fallback_addon_milk_option");
     }
   }
 
