@@ -23,6 +23,15 @@ const CANONICAL_DISPLAY: Record<string, string> = {
   [normalizeText("oatmeal cookie protein bar")]: "Oatmeal Crunch Protein Bar",
 };
 
+/** POS add-on bucket labels (not sellable SKUs). Option text is the real product. */
+export function isAddOnBucketProductName(name: string | null | undefined): boolean {
+  const norm = normalizeText(name);
+  if (!norm) return false;
+  if (/^add[\s-]*ons?[\s-]+/i.test(norm)) return true;
+  const compact = norm.replace(/\s+/g, "");
+  return /^addonsmisc$/i.test(compact) || /^(addons|addon)misc$/i.test(compact);
+}
+
 /**
  * Collapse plural / alias spellings so Product Mix, Top 5, HQ Sync, etc.
  * group Cookie and Cookies as one product. Does not strip arbitrary trailing "s"
@@ -54,10 +63,25 @@ function titleCaseWords(normalized: string): string {
     .join(" ");
 }
 
-/** Report grouping key: mapped name when present, else raw POS name, then canonicalized. */
+/**
+ * Report grouping key: mapped name when present, else raw POS name, then canonicalized.
+ * Add-on buckets (ADD ONS MILK, …) resolve to option when available; bare buckets
+ * return "" so product reports can omit them.
+ */
 export function itemKey(row: {
   mappedItemName?: string | null;
   rawItemName?: string | null;
+  option?: string | null;
 }): string {
-  return canonicalItemName(row.mappedItemName ?? row.rawItemName ?? "");
+  const primary = String(row.mappedItemName ?? row.rawItemName ?? "").trim();
+  const option = String(row.option ?? "").trim();
+
+  if (isAddOnBucketProductName(primary)) {
+    if (option && !isAddOnBucketProductName(option)) {
+      return canonicalItemName(option);
+    }
+    return "";
+  }
+
+  return canonicalItemName(primary);
 }

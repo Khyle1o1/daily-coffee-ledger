@@ -266,6 +266,7 @@ export function computeProductTotals(
 
   for (const row of rows) {
     const key = itemKey(row);
+    if (!key) continue;
     if (!salesMap[key]) {
       salesMap[key] = { sales: 0, qty: 0, category: row.mappedCat as Category };
     }
@@ -276,6 +277,7 @@ export function computeProductTotals(
   if (compareRows) {
     for (const row of compareRows) {
       const key = itemKey(row);
+      if (!key) continue;
       if (!compareMap[key]) compareMap[key] = { sales: 0, qty: 0 };
       compareMap[key].sales += row.rowSales;
       compareMap[key].qty += row.quantity;
@@ -346,6 +348,7 @@ export function computeTopProducts(
   for (const row of allRows) {
     const cat = row.mappedCat as Category;
     const item = itemKey(row);
+    if (!item) continue;
     if (!byCatItem[cat]) byCatItem[cat] = {};
     if (!byCatItem[cat][item]) byCatItem[cat][item] = { sales: 0, qty: 0, cat };
     byCatItem[cat][item].sales += row.rowSales;

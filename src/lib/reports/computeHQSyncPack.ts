@@ -102,6 +102,7 @@ function buildChannelTop5(
   for (const row of rows) {
     const ch = getChannelFromPaymentType(row.paymentType);
     const key = itemKey(row);
+    if (!key) continue;
     const qty = Number.isFinite(row.quantity) ? row.quantity : 0;
     const sales = Number.isFinite(row.rowSales) ? row.rowSales : 0;
     if (!buckets[ch][key]) buckets[ch][key] = { qty: 0, sales: 0 };

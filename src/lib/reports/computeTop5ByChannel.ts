@@ -31,6 +31,7 @@ export function computeTop5ByChannelFromRows(rows: ProcessedRow[]): Top5ByChanne
   for (const row of rows) {
     const channel = getChannelFromPaymentType(row.paymentType);
     const key = itemKey(row);
+    if (!key) continue;
     const qty = Number.isFinite(row.quantity) ? row.quantity : 0;
     const sales = Number.isFinite(row.rowSales) ? row.rowSales : 0;
 

@@ -617,6 +617,10 @@ export function mapRow(row: RawRow, mappingTable: MappingEntry[]): ProcessedRow 
     if (normalizeItem(row.rawItemName) === "dirty cereal" && normalizeItem(outName) === "dirty cereal milk") {
       outName = "Dirty Cereal";
     }
+    // Never store bucket labels (ADD ONS MILK, …) when the option is the real SKU.
+    if (isAddOnsBucketItem(normalizeItem(outName)) && row.option.trim()) {
+      outName = row.option.trim();
+    }
     return mapped(row, rowSales, entry.mappedName, outName, reason);
   };
 

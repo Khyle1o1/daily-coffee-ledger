@@ -89,6 +89,26 @@ describe("canonicalItemName", () => {
       }),
     ).toBe("Double Chocolate Chip Cookie");
   });
+
+  it("itemKey uses option when mapped name is an add-on bucket", () => {
+    expect(
+      itemKey({
+        mappedItemName: "ADD ONS MILK",
+        rawItemName: "ADD ONS MILK",
+        option: "Dairy Milk",
+      }),
+    ).toBe("Dairy Milk");
+  });
+
+  it("itemKey drops bare ADD ONS MILK with no option", () => {
+    expect(
+      itemKey({
+        mappedItemName: "ADD ONS MILK",
+        rawItemName: "ADD ONS MILK",
+        option: "",
+      }),
+    ).toBe("");
+  });
 });
 
 describe("mapRow cookie aliases", () => {
@@ -276,5 +296,51 @@ describe("computeProductTotals cookie merge", () => {
     expect(mix.products[0].name).toBe("CocoChata");
     expect(mix.products[0].qty).toBe(3);
     expect(mix.products[0].sales).toBe(540);
+  });
+
+  it("omits bare ADD ONS MILK bucket from product mix", () => {
+    const [y, m, d] = [2026, 7, 1];
+    const rows: ProcessedRow[] = [
+      {
+        status: "MAPPED",
+        mappedCat: "ADD-ONS",
+        mappedItemName: "ADD ONS MILK",
+        rawItemName: "ADD ONS MILK",
+        rawCategory: "ADD ONS",
+        option: "",
+        quantity: 1,
+        unitPrice: 45,
+        rowSales: 45,
+        paymentType: "Cash",
+        transactionDate: new Date(y, m, d, 10, 0, 0),
+      },
+      {
+        status: "MAPPED",
+        mappedCat: "ADD-ONS",
+        mappedItemName: "Oat Milk",
+        rawItemName: "ADD ONS MILK",
+        rawCategory: "ADD ONS",
+        option: "Oat Milk",
+        quantity: 2,
+        unitPrice: 45,
+        rowSales: 90,
+        paymentType: "Cash",
+        transactionDate: new Date(y, m, d, 11, 0, 0),
+      },
+    ];
+
+    const mix = computeProductTotals(
+      [makeReport(rows)],
+      {
+        branchId: ["greenbelt"],
+        dateFrom: "2026-08-01",
+        dateTo: "2026-08-31",
+        selectedCategories: ["ADD-ONS"],
+      },
+      "ADD-ONS",
+    );
+
+    expect(mix.products.map((p) => p.name)).toEqual(["Oat Milk"]);
+    expect(mix.products[0].qty).toBe(2);
   });
 });
