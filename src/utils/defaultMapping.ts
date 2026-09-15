@@ -275,6 +275,7 @@ const RAW: [string, string, string, string][] = [
 
   // ── PROMO / PROMO ──
   ["PROMO","PROMO","Bring your Own Tumbler",""],
+  ["PROMO","PROMO","MBxCB Discount Deals",""],
 
   // ── ICED / PROMO ──
   ["ICED","PROMO","GO Free Drink - Americano","Iced Regular (12oz)"],

@@ -87,6 +87,13 @@ describe("PROMO items stay PROMO", () => {
     expect(r.categoryConflict).toBeUndefined();
   });
 
+  it("PROMO + MBxCB Discount Deals → PROMO", () => {
+    const r = mapRow(row("PROMO", "MBxCB Discount Deals"), DEFAULT_MAPPING);
+    expect(r.status).toBe("MAPPED");
+    expect(r.mappedCat).toBe("PROMO");
+    expect(r.mappedItemName).toBe("MBxCB Discount Deals");
+  });
+
   it("PROMO + Gcash Food is dropped from the new validation table", () => {
     const r = mapRow(row("PROMO", "Gcash Food", "100 pesos off"), DEFAULT_MAPPING);
     expect(r.status).toBe("UNMAPPED");
