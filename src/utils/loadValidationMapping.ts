@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { DEFAULT_MAPPING } from "./defaultMapping";
 import { toMappingEntries, type ValidationRow } from "./validationMapping";
 import type { MappingEntry } from "./types";
 
@@ -47,6 +48,11 @@ function pickSheet(wb: XLSX.WorkBook): XLSX.WorkSheet {
   throw new Error("No usable rows found in validation mapping workbook.");
 }
 
+/** Live XLSX first (wins on conflicts), then bundled defaults fill gaps. */
+export function withDefaultMappingFallback(liveTable: MappingEntry[]): MappingEntry[] {
+  return [...liveTable, ...DEFAULT_MAPPING];
+}
+
 export function mappingEntriesFromWorkbook(buf: ArrayBuffer | Uint8Array): MappingEntry[] {
   const wb = XLSX.read(buf, { type: "array" });
   if (!wb.SheetNames.length) throw new Error("Validation mapping workbook is empty.");
@@ -60,5 +66,5 @@ export async function loadValidationMappingFromPublic(): Promise<MappingEntry[]>
   if (!res.ok) throw new Error("Failed to fetch validation mapping file.");
 
   const buf = await res.arrayBuffer();
-  return mappingEntriesFromWorkbook(buf);
+  return withDefaultMappingFallback(mappingEntriesFromWorkbook(buf));
 }
