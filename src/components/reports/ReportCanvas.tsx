@@ -12,6 +12,7 @@ import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChann
 import type { PourReportData } from "@/lib/reports/computePourItForward";
 import type { ComputedHQSyncPack } from "@/lib/reports/computeHQSyncPack";
 import type { ChannelSalesSummaryData } from "@/lib/reports/computeChannelSalesSummary";
+import type { SalesByProductGrossData } from "@/lib/reports/computeSalesByProductGross";
 
 import SalesMixOverviewReport from "./renderers/SalesMixOverviewReport";
 import ProductMixReport from "./renderers/ProductMixReport";
@@ -42,6 +43,8 @@ export interface ReportCanvasData {
   pourItForward?: PourReportData;
   hqSyncPack?: ComputedHQSyncPack;
   channelSalesSummary?: ChannelSalesSummaryData;
+  /** Excel-only: finance "Sales by Product GROSS" layout */
+  salesByProductGross?: SalesByProductGrossData;
 }
 
 interface Props {

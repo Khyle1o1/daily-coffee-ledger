@@ -69,6 +69,7 @@ import { computePourItForward } from "@/lib/reports/computePourItForward";
 import type { ItemizedChannelFilter } from "@/lib/reports/computePourItForward";
 import { computeHQSyncPack } from "@/lib/reports/computeHQSyncPack";
 import { computeChannelSalesSummary } from "@/lib/reports/computeChannelSalesSummary";
+import { computeSalesByProductGross } from "@/lib/reports/computeSalesByProductGross";
 
 // ============================================================================
 // Constants
@@ -466,6 +467,11 @@ export default function ReportsPage() {
         };
       } else if (reportType === "CHANNEL_SALES_SUMMARY") {
         const channelSalesSummary = computeChannelSalesSummary(dailyReports, filters);
+        const salesByProductGross = computeSalesByProductGross(
+          dailyReports,
+          filters,
+          branchOptions.map((b) => ({ slug: b.slug, code: b.code, label: b.label })),
+        );
         canvas = {
           reportType,
           branchLabel,
@@ -473,6 +479,7 @@ export default function ReportsPage() {
           compareLabel,
           selectedCategories,
           channelSalesSummary,
+          salesByProductGross,
         };
       }
 

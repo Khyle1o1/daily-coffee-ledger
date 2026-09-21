@@ -55,4 +55,25 @@ describe("buildDailyBreakdown / sliceDailyBreakdown", () => {
     expect(feb.totals.HOT).toBe(200);
     expect(feb.totals.SNACKS).toBe(25);
   });
+
+  it("uses UTC calendar day so PH local midnight matches HQ Sync rollup", () => {
+    // Aug 1 00:00 Asia/Manila → 2026-07-31T16:00:00.000Z
+    const phMidnight = new Date("2026-07-31T16:00:00.000Z");
+    const map = buildDailyBreakdown([
+      {
+        status: "MAPPED",
+        mappedCat: "ICED",
+        mappedItemName: "Latte",
+        rawCategory: "DOT SIGNATURES",
+        rawItemName: "Latte",
+        option: "",
+        quantity: 1,
+        unitPrice: 26121,
+        rowSales: 26121,
+        transactionDate: phMidnight,
+      },
+    ]);
+    expect(Object.keys(map)).toEqual(["2026-07-31"]);
+    expect(map["2026-07-31"].grandTotal).toBe(26121);
+  });
 });

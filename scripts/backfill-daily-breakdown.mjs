@@ -45,15 +45,20 @@ function loadEnv() {
   return env;
 }
 
-function toLocalYmd(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function localYmdFromUnknown(value) {
+function reportTxnUtcYmd(value) {
   if (value == null) return null;
+  if (typeof value === "string") {
+    const m = value.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  if (typeof value === "number") {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString().slice(0, 10);
+  }
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return null;
-  return toLocalYmd(d);
+  return d.toISOString().slice(0, 10);
 }
 
 function emptyCell() {
@@ -65,7 +70,7 @@ function emptyCell() {
 function buildDailyBreakdown(rows) {
   const byDay = new Map();
   for (const row of rows ?? []) {
-    const day = localYmdFromUnknown(row.transactionDate);
+    const day = reportTxnUtcYmd(row.transactionDate);
     if (!day) continue;
     if (row.status === "SKIPPED") continue;
     let cell = byDay.get(day);

@@ -1,17 +1,25 @@
 import { CATEGORIES, type Category, type DailyBreakdownMap, type DailyReport, type DayTotals, type ProcessedRow } from "@/utils/types";
 
-function toLocalYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function localYmdFromUnknown(value: unknown): string | null {
+/**
+ * HQ Sync calendar day for a transactionDate.
+ * Matches report_line_totals / left(ISO, 10): UTC date from the stored timestamp,
+ * not the browser's local calendar day. Local-midnight PH uploads serialize to the
+ * previous UTC day — Monthly Branch must use this same key so it matches HQ Sync.
+ */
+export function reportTxnUtcYmd(value: unknown): string | null {
   if (value == null) return null;
+  if (typeof value === "string") {
+    const m = value.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  if (typeof value === "number") {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString().slice(0, 10);
+  }
   const d = value instanceof Date ? value : new Date(value as string | number);
   if (Number.isNaN(d.getTime())) return null;
-  return toLocalYmd(d);
+  return d.toISOString().slice(0, 10);
 }
 
 export function emptyDayTotals(): DayTotals {
@@ -48,7 +56,7 @@ export function percentsFromTotals(
 export function buildDailyBreakdown(rows: ProcessedRow[] | null | undefined): DailyBreakdownMap {
   const byDay = new Map<string, DayTotals>();
   for (const row of rows ?? []) {
-    const day = localYmdFromUnknown(row.transactionDate);
+    const day = reportTxnUtcYmd(row.transactionDate);
     if (!day) continue;
     let cell = byDay.get(day);
     if (!cell) {

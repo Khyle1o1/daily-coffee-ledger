@@ -10,7 +10,7 @@ import type {
 } from "@/lib/reports/compute";
 import type { ProductMixChannelData } from "@/lib/reports/computeProductMixChannel";
 import type { PourReportData } from "@/lib/reports/computePourItForward";
-import type { ChannelSalesSummaryData } from "@/lib/reports/computeChannelSalesSummary";
+import type { SalesByProductGrossData } from "@/lib/reports/computeSalesByProductGross";
 import { getPercentChange } from "@/utils/percentChange";
 
 // ── Style constants ─────────────────────────────────────────────────────────
@@ -572,81 +572,38 @@ function buildPourItForwardSheets(
 
 // ── Channel Sales Summary sheet ─────────────────────────────────────────────
 
-function buildChannelSalesSummarySheet(
-  data: ChannelSalesSummaryData,
+function buildSalesByProductGrossSheet(
+  data: SalesByProductGrossData,
   branchLabel: string,
   dateRangeLabel: string,
 ): XLSX.WorkSheet {
-  const { branches, overall } = data;
+  const { columns, rows } = data;
 
   const sheetRows: XLSX.CellObject[][] = [
-    [c(`Channel Sales Summary — ${branchLabel}`, S_TITLE)],
+    [c(`Sales by Product GROSS — ${branchLabel}`, S_TITLE)],
     [c(dateRangeLabel, S_SECTION)],
     [blank()],
+    [
+      c("INPUT", S_HEADER_LEFT),
+      c("INPUT Branch", S_HEADER_LEFT),
+      ...columns.map((col) => c(col, S_HEADER)),
+      c("AUTO_DRAG TOTAL", S_HEADER),
+      c("SOURCE", S_HEADER_LEFT),
+    ],
   ];
 
-  branches.forEach((branch) => {
-    sheetRows.push([c(`BRANCH: ${branch.branchName}`, S_SECTION)]);
-    sheetRows.push([
-      c("Category", S_HEADER_LEFT),
-      c("FoodPanda", S_HEADER),
-      c("Grab", S_HEADER),
-      c("Walk-in", S_HEADER),
-      c("Total", S_HEADER),
-    ]);
-    branch.rows.forEach((row, idx) => {
-      const s = idx % 2 === 1 ? S_ALT : undefined;
-      sheetRows.push([
-        c(row.category, s),
-        c(row.foodpanda, { ...S_NUM, ...s }),
-        c(row.grab, { ...S_NUM, ...s }),
-        c(row.walkIn, { ...S_NUM, ...s }),
-        c(row.total, { ...S_NUM_BOLD, ...s }),
-      ]);
-    });
-    sheetRows.push([
-      c("TOTAL", S_FOOTER_LEFT),
-      c(branch.totals.foodpanda, S_FOOTER),
-      c(branch.totals.grab, S_FOOTER),
-      c(branch.totals.walkIn, S_FOOTER),
-      c(branch.totals.total, S_FOOTER),
-    ]);
-    sheetRows.push([
-      c(
-        `Branch Channel Mix: Walk-in ${branch.channelMixPct.walkIn.toFixed(1)}% | Grab ${branch.channelMixPct.grab.toFixed(1)}% | FoodPanda ${branch.channelMixPct.foodpanda.toFixed(1)}%`,
-        S_SECTION,
-      ),
-    ]);
-    sheetRows.push([blank()]);
-  });
-
-  sheetRows.push([c("OVERALL CATEGORY SALES BY CHANNEL", S_TITLE)]);
-  sheetRows.push([
-    c("Category", S_HEADER_LEFT),
-    c("FoodPanda", S_HEADER),
-    c("Grab", S_HEADER),
-    c("Walk-in", S_HEADER),
-    c("Total", S_HEADER),
-  ]);
-  overall.rows.forEach((row, idx) => {
+  rows.forEach((row, idx) => {
     const s = idx % 2 === 1 ? S_ALT : undefined;
     sheetRows.push([
-      c(row.category, s),
-      c(row.foodpanda, { ...S_NUM, ...s }),
-      c(row.grab, { ...S_NUM, ...s }),
-      c(row.walkIn, { ...S_NUM, ...s }),
+      c(row.monthLabel, s),
+      c(row.branchCode, s),
+      ...columns.map((col) => c(row.amounts[col], { ...S_NUM, ...s })),
       c(row.total, { ...S_NUM_BOLD, ...s }),
+      c(row.source, s),
     ]);
   });
-  sheetRows.push([
-    c("TOTAL", S_FOOTER_LEFT),
-    c(overall.totals.foodpanda, S_FOOTER),
-    c(overall.totals.grab, S_FOOTER),
-    c(overall.totals.walkIn, S_FOOTER),
-    c(overall.totals.total, S_FOOTER),
-  ]);
 
-  const widths = [26, 16, 16, 16, 16];
+  const widths = [16, 12, ...columns.map(() => 12), 14, 14];
   return buildSheet(sheetRows, widths);
 }
 
@@ -671,7 +628,7 @@ export function exportReportExcel(
     categoryPerformance,
     selectedCategories,
     pourItForward,
-    channelSalesSummary,
+    salesByProductGross,
   } = canvasData;
 
   const wb = XLSX.utils.book_new();
@@ -707,11 +664,11 @@ export function exportReportExcel(
     const sheets = buildPourItForwardSheets(pourItForward, branchLabel, dateRangeLabel);
     sheets.forEach(({ name, sheet }) => XLSX.utils.book_append_sheet(wb, sheet, name));
   }
-  else if (reportType === "CHANNEL_SALES_SUMMARY" && channelSalesSummary) {
+  else if (reportType === "CHANNEL_SALES_SUMMARY" && salesByProductGross) {
     XLSX.utils.book_append_sheet(
       wb,
-      buildChannelSalesSummarySheet(channelSalesSummary, branchLabel, dateRangeLabel),
-      "Channel Sales",
+      buildSalesByProductGrossSheet(salesByProductGross, branchLabel, dateRangeLabel),
+      "Sales by Product GROSS",
     );
   }
 
