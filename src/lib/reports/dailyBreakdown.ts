@@ -53,10 +53,29 @@ export function percentsFromTotals(
   return percents;
 }
 
+/**
+ * Calendar day shown on the upload preview and stored on dailyBreakdown.
+ * Date-only CSV values are local midnight. In Philippine time that instant is
+ * still the previous UTC day, so the UTC key would drop the last day of the
+ * file range (Sep 28 labeled Sep 27). Use the local calendar day instead.
+ */
+export function reportTxnLocalYmd(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return value.trim();
+  }
+  const d = value instanceof Date ? value : new Date(value as string | number);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function buildDailyBreakdown(rows: ProcessedRow[] | null | undefined): DailyBreakdownMap {
   const byDay = new Map<string, DayTotals>();
   for (const row of rows ?? []) {
-    const day = reportTxnUtcYmd(row.transactionDate);
+    const day = reportTxnLocalYmd(row.transactionDate);
     if (!day) continue;
     let cell = byDay.get(day);
     if (!cell) {

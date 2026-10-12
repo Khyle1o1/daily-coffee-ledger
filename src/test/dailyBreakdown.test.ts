@@ -56,9 +56,7 @@ describe("buildDailyBreakdown / sliceDailyBreakdown", () => {
     expect(feb.totals.SNACKS).toBe(25);
   });
 
-  it("uses UTC calendar day so PH local midnight matches HQ Sync rollup", () => {
-    // Aug 1 00:00 Asia/Manila → 2026-07-31T16:00:00.000Z
-    const phMidnight = new Date("2026-07-31T16:00:00.000Z");
+  it("keeps date-only local midnight on that calendar day, including the range end", () => {
     const map = buildDailyBreakdown([
       {
         status: "MAPPED",
@@ -68,12 +66,24 @@ describe("buildDailyBreakdown / sliceDailyBreakdown", () => {
         rawItemName: "Latte",
         option: "",
         quantity: 1,
-        unitPrice: 26121,
-        rowSales: 26121,
-        transactionDate: phMidnight,
+        unitPrice: 100,
+        rowSales: 100,
+        transactionDate: new Date(2026, 8, 18, 0, 0, 0, 0),
+      },
+      {
+        status: "MAPPED",
+        mappedCat: "HOT",
+        mappedItemName: "Latte",
+        rawCategory: "DOT SIGNATURES",
+        rawItemName: "Latte",
+        option: "",
+        quantity: 1,
+        unitPrice: 50,
+        rowSales: 50,
+        transactionDate: new Date(2026, 8, 28, 0, 0, 0, 0),
       },
     ]);
-    expect(Object.keys(map)).toEqual(["2026-07-31"]);
-    expect(map["2026-07-31"].grandTotal).toBe(26121);
+    expect(Object.keys(map)).toEqual(["2026-09-18", "2026-09-28"]);
+    expect(map["2026-09-28"].grandTotal).toBe(50);
   });
 });
