@@ -1,4 +1,19 @@
-export function parseTransactionDate(raw: any): Date | null {
+const MONTH_NAMES: Record<string, number> = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11,
+};
+
+export function parseTransactionDate(raw: unknown): Date | null {
   if (raw == null) return null;
   const s = String(raw).trim();
   if (!s) return null;
@@ -36,7 +51,20 @@ export function parseTransactionDate(raw: any): Date | null {
     if (!Number.isNaN(d.getTime())) return d;
   }
 
-  // 4) Fallback: Date.parse
+  // 4) "DD Mon YYYY" or "D Mon YYYY" format (UTAK POS exports: "19 Oct 2026")
+  const dmy = s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (dmy) {
+    const dd = Number(dmy[1]);
+    const monthName = dmy[2].toLowerCase();
+    const yyyy = Number(dmy[3]);
+    const mm = MONTH_NAMES[monthName];
+    if (mm !== undefined && dd >= 1 && dd <= 31 && yyyy >= 1900) {
+      const d = new Date(yyyy, mm, dd, 0, 0, 0, 0);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+  }
+
+  // 5) Fallback: Date.parse
   const d = new Date(s);
   if (!Number.isNaN(d.getTime())) return d;
 

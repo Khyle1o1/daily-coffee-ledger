@@ -1,0 +1,114 @@
+name: UTAK POS Daily Sync
+
+on:
+  schedule:
+    # Run at 00:30 Asia/Manila (16:30 UTC the previous day)
+    - cron: "30 16 * * *"
+
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Sync specific date (YYYY-MM-DD). Leave empty for yesterday."
+        required: false
+        type: string
+      from_date:
+        description: "Start of date range (YYYY-MM-DD). Use with to_date for backfill."
+        required: false
+        type: string
+      to_date:
+        description: "End of date range (YYYY-MM-DD). Requires from_date."
+        required: false
+        type: string
+      dry_run:
+        description: "Dry run (preview only, no database writes)"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run UTAK sync
+        env:
+          UTAK_EMAIL: ${{ secrets.UTAK_EMAIL }}
+          UTAK_PASSWORD: ${{ secrets.UTAK_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          UTAK_SYNC_USER_ID: ${{ secrets.UTAK_SYNC_USER_ID }}
+        run: |
+          ARGS=""
+
+          # Handle date inputs
+          if [ -n "${{ inputs.date }}" ]; then
+            ARGS="$ARGS --date ${{ inputs.date }}"
+          elif [ -n "${{ inputs.from_date }}" ]; then
+            ARGS="$ARGS --from ${{ inputs.from_date }}"
+            if [ -n "${{ inputs.to_date }}" ]; then
+              ARGS="$ARGS --to ${{ inputs.to_date }}"
+            fi
+          fi
+
+          # Handle dry run
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+
+          # Use tsx to run the TypeScript sync script with shared modules
+          echo "Running: npx tsx scripts/utak-sync.ts $ARGS"
+          npx tsx scripts/utak-sync.ts $ARGS
+
+      - name: Upload debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: utak-sync-debug
+          path: |
+            .utak-downloads/
+            playwright-report/
+          retention-days: 7
+
+  notify-failure:
+    needs: sync
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create failure summary
+        run: |
+          echo "## ❌ UTAK Sync Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The daily UTAK POS transaction sync has failed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Possible causes:" >> $GITHUB_STEP_SUMMARY
+          echo "- UTAK website UI changes (check selectors)" >> $GITHUB_STEP_SUMMARY
+          echo "- UTAK login credentials invalid" >> $GITHUB_STEP_SUMMARY
+          echo "- Network/timeout issues" >> $GITHUB_STEP_SUMMARY
+          echo "- Supabase connection issues" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Manual recovery:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# Re-run with specific date" >> $GITHUB_STEP_SUMMARY
+          echo 'gh workflow run utak-sync.yml -f date=YYYY-MM-DD' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
