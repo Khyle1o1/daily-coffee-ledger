@@ -44,6 +44,12 @@ import {
   loadManualMappingsFromDb,
   getDefaultMappingTable,
 } from '../src/lib/reports/loadMappingTable';
+import {
+  UTAK_BRANCH_MAPPINGS,
+  getEnabledBranches,
+  getDisabledBranches,
+  type UtakBranchMapping,
+} from '../src/config/utakBranchMapping';
 import type { MappingEntry } from '../src/utils/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,50 +70,6 @@ const PAGE_LOAD_TIMEOUT = 60000;
 const BRANCH_CARD_TIMEOUT = 45000;
 const DOWNLOAD_TIMEOUT = 60000;
 const NAV_TIMEOUT = 30000;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// UTAK Branch Mapping
-//
-// Maps UTAK account identifiers to ledger branch slugs.
-// Verified slugs from migrations: greenbelt, greenhills, podium, mind_museum,
-// trinoma, uptown, wgc, wcc, events
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface BranchMapping {
-  utakEmail: string;
-  utakCardName: string;
-  ledgerSlug: string;
-  needsVerification?: boolean;
-}
-
-const UTAK_BRANCH_MAPPINGS: BranchMapping[] = [
-  // Verified branches (confirmed in migrations/seed)
-  { utakEmail: 'dotcoffee_greenbelt@utak.io', utakCardName: 'DOT COFFEE - GREENBELT 3', ledgerSlug: 'greenbelt' },
-  { utakEmail: 'dotcoffee_podium@utak.io', utakCardName: 'DOT COFFEE - THE PODIUM MALL', ledgerSlug: 'podium' },
-  { utakEmail: 'dotcoffee_themindmuseum@utak.io', utakCardName: 'DOT COFFEE - THE MIND MUSEUM', ledgerSlug: 'mind_museum' },
-  { utakEmail: 'dotcoffee_landmarktrinoma@utak.io', utakCardName: 'DOT COFFEE - LANDMARK TRINOMA', ledgerSlug: 'trinoma' },
-  { utakEmail: 'dotcoffee_uptownbgc@utak.io', utakCardName: 'DOT COFFEE - UPTOWN MALL', ledgerSlug: 'uptown' },
-  { utakEmail: 'dotcoffee_wgc@utak.io', utakCardName: 'DOT COFFEE - WGC', ledgerSlug: 'wgc' },
-  { utakEmail: 'wcc@utak.io', utakCardName: 'DOT COFFEE - W CITY CENTER', ledgerSlug: 'wcc' },
-  { utakEmail: 'dotcoffee_events@utaklite.io', utakCardName: 'Dot HQ Events', ledgerSlug: 'events' },
-
-  // Branches needing verification (slug may need to be added to branches table)
-  { utakEmail: 'dotcoffee_greenhills@utak.io', utakCardName: 'DOT COFFEE - GREENHILLS', ledgerSlug: 'greenhills' },
-  { utakEmail: 'dotcoffee_ayalapavillionlaguna@utak.io', utakCardName: 'DOT AYALA PAVILION', ledgerSlug: 'ayala_pavilion', needsVerification: true },
-  { utakEmail: 'dotcoffee_arcasouth@utak.io', utakCardName: 'DOT COFFEE - ARCA SOUTH', ledgerSlug: 'arca_south', needsVerification: true },
-  { utakEmail: 'dotcoffee_falconqc@utak.io', utakCardName: 'DOT COFFEE - FALCON HUB', ledgerSlug: 'falcon_hub', needsVerification: true },
-  { utakEmail: 'dotcoffee_ayalamrt@utak.io', utakCardName: 'DOT COFFEE - ONE AYALA MRT', ledgerSlug: 'one_ayala_mrt', needsVerification: true },
-  { utakEmail: 'dotcoffee_smnorthedsa@utak.io', utakCardName: 'DOT COFFEE - SM NORTH EDSA', ledgerSlug: 'sm_north_edsa', needsVerification: true },
-  { utakEmail: 'dotcoffee_smstarosa@utak.io', utakCardName: 'DOT COFFEE - SM STA ROSA', ledgerSlug: 'sm_sta_rosa', needsVerification: true },
-  { utakEmail: 'dotcoffee_southwoods@utak.io', utakCardName: 'DOT COFFEE - SOUTHWOODS MALL', ledgerSlug: 'southwoods', needsVerification: true },
-  { utakEmail: 'dotcoffee_threecentral@utak.io', utakCardName: 'DOT COFFEE - THREE CENTRAL', ledgerSlug: 'three_central', needsVerification: true },
-  { utakEmail: 'dotcoffee_eastwood@utak.io', utakCardName: 'DOT EASTWOOD 1800', ledgerSlug: 'eastwood', needsVerification: true },
-  { utakEmail: 'dotcoffee_luckychinatownmall@utak.io', utakCardName: 'DOT LUCKY CHINATOWN', ledgerSlug: 'lucky_chinatown', needsVerification: true },
-  { utakEmail: 'dotcoffee_smbacoor@utak.io', utakCardName: 'DOT SM BACOOR', ledgerSlug: 'sm_bacoor', needsVerification: true },
-  { utakEmail: 'dotcoffee_nationaluniversitymoa@utak.io', utakCardName: 'Dot NU MOA', ledgerSlug: 'nu_moa', needsVerification: true },
-  { utakEmail: 'dot_beatiraga@utak.io', utakCardName: 'ROB GALLERIA', ledgerSlug: 'robinsons_galleria', needsVerification: true },
-  { utakEmail: 'dotcoffee_smmoa@utak.io', utakCardName: 'SM MALL OF ASIA (MOA)', ledgerSlug: 'sm_moa', needsVerification: true },
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -216,14 +178,24 @@ function printBranchMapping(
     console.log(`  • ${branch.name} (${branch.label})`);
   }
 
-  console.log('\nUTAK branch mappings:');
-  for (const mapping of UTAK_BRANCH_MAPPINGS) {
+  const enabledBranches = getEnabledBranches();
+  const disabledBranches = getDisabledBranches();
+
+  console.log(`\nENABLED branches (${enabledBranches.length} for auto-sync):`);
+  for (const mapping of enabledBranches) {
     const status = slugToUuid.has(mapping.ledgerSlug)
       ? '✓'
       : '✗ NOT IN DB';
     const verify = mapping.needsVerification ? ' [needs verification]' : '';
-    console.log(`  ${status} ${mapping.utakCardName}`);
-    console.log(`      → ${mapping.ledgerSlug}${verify}`);
+    const utakSource = mapping.utakCardName ?? '(no UTAK source)';
+    console.log(`  ${status} ${mapping.ledgerLabel}`);
+    console.log(`      UTAK: ${utakSource}`);
+    console.log(`      Slug: ${mapping.ledgerSlug}${verify}`);
+  }
+
+  console.log(`\nDISABLED branches (${disabledBranches.length} - not synced):`);
+  for (const mapping of disabledBranches) {
+    console.log(`  • ${mapping.ledgerLabel} (${mapping.utakCardName})`);
   }
 
   const unmappedDb = dbBranches.filter(
@@ -465,20 +437,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Validate branch mappings against database
+  // Validate enabled branch mappings against database
   let slugToUuid = new Map<string, string>();
   if (supabase) {
     console.log('\nValidating branch mappings...');
     slugToUuid = await validateBranchMappings(supabase);
-    const invalidMappings = UTAK_BRANCH_MAPPINGS.filter(
+    const enabledMappings = getEnabledBranches();
+    const invalidMappings = enabledMappings.filter(
       (m) => !slugToUuid.has(m.ledgerSlug)
     );
     if (invalidMappings.length > 0) {
-      console.log(`  ⚠️ ${invalidMappings.length} branches not found in database (will be skipped):`);
+      console.log(`  ⚠️ ${invalidMappings.length} enabled branches not found in database (will be skipped):`);
       for (const m of invalidMappings) {
         console.log(`    - ${m.ledgerSlug} (${m.utakCardName})`);
       }
     }
+    console.log(`  ✓ ${enabledMappings.length - invalidMappings.length}/${enabledMappings.length} enabled branches validated`);
   }
 
   // Load mapping table
@@ -516,12 +490,13 @@ async function main(): Promise<void> {
     console.log('\n📱 Logging into UTAK...');
     await loginToUtak(page, utakEmail, utakPassword);
 
-    // Determine which branches to process
+    // Determine which branches to process (only enabled branches unless --branch overrides)
+    const enabledBranches = getEnabledBranches();
     const branchesToSync = options.branches
-      ? UTAK_BRANCH_MAPPINGS.filter(
-          (m) => options.branches!.includes(m.ledgerSlug) || options.branches!.includes(m.utakCardName)
+      ? enabledBranches.filter(
+          (m) => options.branches!.includes(m.ledgerSlug) || options.branches!.includes(m.utakCardName!)
         )
-      : UTAK_BRANCH_MAPPINGS;
+      : enabledBranches;
 
     console.log(`\n📦 Processing ${branchesToSync.length} branches...\n`);
 
