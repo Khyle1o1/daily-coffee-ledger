@@ -74,8 +74,9 @@ jobs:
             ARGS="$ARGS --dry-run"
           fi
 
-          echo "Running: node scripts/utak-sync.mjs $ARGS"
-          node scripts/utak-sync.mjs $ARGS
+          # Use tsx to run the TypeScript sync script with shared modules
+          echo "Running: npx tsx scripts/utak-sync.ts $ARGS"
+          npx tsx scripts/utak-sync.ts $ARGS
 
       - name: Upload debug artifacts on failure
         if: failure()

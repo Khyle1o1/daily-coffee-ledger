@@ -77,6 +77,11 @@ export const UTAK_BRANCH_MAPPINGS: UtakBranchMapping[] = [
     ledgerSlug: "events",
   },
   {
+    utakEmail: "dotcoffee_greenhills@utak.io",
+    utakCardName: "DOT COFFEE - GREENHILLS",
+    ledgerSlug: "greenhills",
+  },
+  {
     utakEmail: "dotcoffee_ayalapavillionlaguna@utak.io",
     utakCardName: "DOT AYALA PAVILION",
     ledgerSlug: "ayala_pavilion",
